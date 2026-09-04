@@ -198,6 +198,6 @@ loaded once at startup:
 ---
 
 ## Open items still needing a team decision
-- Exact map layout (shelf positions) — Member 1 + Member 5 to finalize before Day 1 ends
+- Exact map layout (shelf positions) — Member 1 + Member 5 to finalize before Day 1 ends (IMPORTANT)
 - Number of robots to simulate for the demo (suggest starting with 5, stress-test with 15+)
 - Battery drain rate per tick (needed for CHARGING state to ever trigger)
