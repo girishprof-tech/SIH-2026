@@ -32025,14 +32025,14 @@
     {
       "tick": 22,
       "type": "NEGOTIATION",
-      "robot": "AMR-17",
-      "text": "AMR-17: target (7, 11) contested locally; yielding and evaluating next safe move."
+      "robot": "AMR-16",
+      "text": "AMR-16: target (16, 12) contested locally; yielding and evaluating next safe move."
     },
     {
       "tick": 22,
       "type": "NEGOTIATION",
-      "robot": "AMR-16",
-      "text": "AMR-16: target (16, 12) contested locally; yielding and evaluating next safe move."
+      "robot": "AMR-17",
+      "text": "AMR-17: target (7, 11) contested locally; yielding and evaluating next safe move."
     },
     {
       "tick": 22,
