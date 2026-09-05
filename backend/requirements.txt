@@ -1,0 +1,26 @@
+# SIH2026 Backend — Python dependencies
+# Python 3.11+ required
+
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+websockets==13.1
+python-multipart==0.0.12
+
+# ── Configuration ──────────────────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# ── Optional: external planner HTTP client ────────────────────────────────────
+httpx==0.28.1
+
+# ── Testing ────────────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx  # also used for TestClient in FastAPI tests
+
+# ── Dev tools ─────────────────────────────────────────────────────────────────
+black==24.10.0
+ruff==0.8.3

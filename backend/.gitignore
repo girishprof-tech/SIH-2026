@@ -1,0 +1,11 @@
+python311/
+MinGit/
+.env
+benchmark_results.json
+**/__pycache__/
+*.pyc
+backend/app/Git-Installer.exe
+backend/app/mingit.zip
+backend/app/mingit/
+__pycache__/
+backend/benchmark_results.json
