@@ -218,11 +218,24 @@ class FleetState:
 
     def conflicts_as_dicts(self) -> List[dict]:
         """Serialize active conflicts for WebSocket."""
-        return [
-            {
-                "robot_ids": c.robot_ids,
-                "cell": {"x": c.cell[0], "y": c.cell[1]},
-                "resolved_by": c.resolved_by,
-            }
-            for c in self.active_conflicts
-        ]
+        results = []
+        for c in self.active_conflicts:
+            if isinstance(c, dict):
+                cell_val = c.get("cell", {"x": 0, "y": 0})
+                if isinstance(cell_val, (tuple, list)):
+                    cell_dict = {"x": cell_val[0], "y": cell_val[1]}
+                else:
+                    cell_dict = cell_val
+                results.append({
+                    "robot_ids": c.get("robot_ids", []),
+                    "cell": cell_dict,
+                    "resolved_by": c.get("resolved_by", f"{c.get('loser_id', 'unknown')}_yield" if "loser_id" in c else None),
+                })
+            else:
+                cell_dict = {"x": c.cell[0], "y": c.cell[1]} if isinstance(c.cell, (tuple, list)) else c.cell
+                results.append({
+                    "robot_ids": c.robot_ids,
+                    "cell": cell_dict,
+                    "resolved_by": c.resolved_by,
+                })
+        return results

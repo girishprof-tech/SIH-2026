@@ -53,6 +53,15 @@ class PathNode:
     y: int
     t: int
 
+    def __getitem__(self, item: str):
+        if item == "x":
+            return self.x
+        elif item == "y":
+            return self.y
+        elif item == "t":
+            return self.t
+        raise KeyError(item)
+
 
 @dataclass
 class Robot:
@@ -107,6 +116,18 @@ class Robot:
     @property
     def position(self) -> Tuple[int, int]:
         return (self.x, self.y)
+
+    @position.setter
+    def position(self, pos: Tuple[int, int]) -> None:
+        self.x, self.y = int(pos[0]), int(pos[1])
+
+    @property
+    def wait_ticks_so_far(self) -> int:
+        return self._wait_ticks
+
+    @wait_ticks_so_far.setter
+    def wait_ticks_so_far(self, val: int) -> None:
+        self._wait_ticks = int(val)
 
     @property
     def is_idle(self) -> bool:

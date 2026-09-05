@@ -64,6 +64,19 @@ from app.services.task_manager import TaskManager
 from app.services.telemetry import Telemetry
 from app.websocket.connection_manager import ConnectionManager
 
+import sys
+from pathlib import Path
+
+# Add conflict-engine directory to sys.path for Member 3 engine integration
+_conflict_engine_dir = str(Path(__file__).resolve().parents[4] / "conflict-engine")
+if _conflict_engine_dir not in sys.path:
+    sys.path.insert(0, _conflict_engine_dir)
+
+try:
+    from conflict_engine import run_conflict_engine_tick
+except ImportError:
+    run_conflict_engine_tick = None
+
 log = logging.getLogger(__name__)
 cfg = get_settings()
 
@@ -193,9 +206,38 @@ class SimulationEngine:
 
         # ── Step 5: Conflict detection & resolution ───────────────────────────
         t_conflict = time.monotonic()
-        self._state.active_conflicts = self._conflicts.detect_and_resolve(
-            self._state.robots, self._tasks.all_tasks(), tick
-        )
+
+        # =========================================================================
+        # MEMBER 3 INTEGRATION: Call run_conflict_engine_tick() from conflict-engine
+        # =========================================================================
+        if run_conflict_engine_tick is not None:
+            def _pathfinder_callback(start, goal, cur_tick, res_table, robot_id=None, **kwargs):
+                return self._planner.find_path(
+                    start=start,
+                    goal=goal,
+                    current_tick=cur_tick,
+                    reservation_table=res_table,
+                    world=self._state.world,
+                    temp_blocked=temp_blocked,
+                )
+
+            conflict_summary = run_conflict_engine_tick(
+                robots=self._state.robots,
+                tasks=self._tasks.all_tasks(),
+                reservation_table=self._reservations.table,
+                current_tick=tick,
+                find_path_fn=_pathfinder_callback,
+            )
+            self._state.active_conflicts = conflict_summary.get("resolutions", [])
+        else:
+            # Fallback to local conflict manager if conflict-engine is not found
+            self._state.active_conflicts = self._conflicts.detect_and_resolve(
+                self._state.robots, self._tasks.all_tasks(), tick
+            )
+        # =========================================================================
+        # END MEMBER 3 INTEGRATION
+        # =========================================================================
+
         conflict_ms = (time.monotonic() - t_conflict) * 1000
         self._tel.record_conflict_resolution(conflict_ms)
 
