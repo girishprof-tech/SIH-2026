@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SIM_TICK_MS=500
+      - FLEET_SIZE=10
+      - LOG_LEVEL=INFO
+      - PLANNER_BACKEND=mock
+    volumes:
+      - ./backend:/app/backend
+    restart: unless-stopped
