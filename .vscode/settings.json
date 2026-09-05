@@ -1,0 +1,12 @@
+{
+  "python.analysis.extraPaths": [
+    "./pathfinding",
+    "./conflict-engine",
+    "./backend/backend"
+  ],
+  "python.autoComplete.extraPaths": [
+    "./pathfinding",
+    "./conflict-engine",
+    "./backend/backend"
+  ]
+}
