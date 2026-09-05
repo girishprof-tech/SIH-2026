@@ -149,7 +149,13 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
                 grid=grid,
             )
 
-        # 2. Retry route planning for any EN_ROUTE robot that was waiting due to a temporary block
+        # 2. Maintain continuous reservation for idle/parked robots so moving robots cannot plan into or pass over them
+        for robot in robots.values():
+            if robot.state == RobotState.IDLE or not robot.path or len(robot.path) <= 1:
+                for dt in range(HOLD):
+                    reservation_table[(robot.position[0], robot.position[1], tick + dt)] = robot.robot_id
+
+        # 3. Retry route planning for any EN_ROUTE robot that was waiting due to a temporary block
         for robot in robots.values():
             if robot.state == RobotState.EN_ROUTE and (not robot.path or len(robot.path) <= 1 or robot.wait_ticks_so_far > 0):
                 task = tasks[robot.current_task_id]
@@ -163,7 +169,7 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
                     robot.path = [{"x": robot.position[0], "y": robot.position[1], "t": tick}]
                     reserve_path(robot.path, robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
 
-        # 3. Run Conflict Engine (Member 3)
+        # 4. Run Conflict Engine (Member 3)
         conflict_res = run_conflict_engine_tick(
             robots=robots,
             tasks=tasks,
@@ -185,7 +191,7 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
             if loser_robot.path:
                 reserve_path(loser_robot.path, loser_robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
 
-        # 3. Advance Robots along their assigned paths
+        # 5. Advance Robots along their assigned paths
         for robot in robots.values():
             if robot.state == RobotState.IDLE or not robot.path:
                 continue
@@ -234,12 +240,9 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
                 task.status = "COMPLETED"
                 robot.state = RobotState.IDLE
                 release_reservations(robot.robot_id, reservation_table)
-                # Keep parked position reserved for current & next tick so other robots don't collide with parked robot
-                robot.path = [
-                    {"x": robot.position[0], "y": robot.position[1], "t": tick + 1},
-                    {"x": robot.position[0], "y": robot.position[1], "t": tick + 2},
-                ]
-                reserve_path(robot.path, robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
+                robot.path = []
+                for dt in range(HOLD):
+                    reservation_table[(robot.position[0], robot.position[1], tick + dt)] = robot.robot_id
 
         # Prune old reservations
         prune_past(reservation_table, tick)
@@ -247,19 +250,17 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
         # =========================================================================
         # STEP 3: STRICT INVARIANT ASSERTIONS (Run every single tick)
         # =========================================================================
-        active_robots = [r for r in robots.values() if r.state != RobotState.IDLE]
-        active_positions = [r.position for r in active_robots]
-
-        # Invariant 1: No two robots ever occupy the same cell at the same tick
-        assert len(active_positions) == len(set(active_positions)), (
+        # Invariant 1: No two robots ever occupy the same cell at the same tick (including IDLE robots)
+        all_positions = [r.position for r in robots.values()]
+        assert len(all_positions) == len(set(all_positions)), (
             f"[FAIL: Seed {seed} Tick {tick}] Collision! Multiple robots share a cell: "
-            f"{[pos for pos in active_positions if active_positions.count(pos) > 1]}"
+            f"{[pos for pos in all_positions if all_positions.count(pos) > 1]}"
         )
 
         # Invariant 2: No head-on swap conflict occurred between any pair of robots
-        active_ids = [r.robot_id for r in active_robots]
-        for i, id_a in enumerate(active_ids):
-            for id_b in active_ids[i + 1:]:
+        all_ids = list(robots.keys())
+        for i, id_a in enumerate(all_ids):
+            for id_b in all_ids[i + 1:]:
                 p_a_prev, p_a_now = prev_positions[id_a], robots[id_a].position
                 p_b_prev, p_b_now = prev_positions[id_b], robots[id_b].position
                 is_swap = (p_a_prev == p_b_now and p_b_prev == p_a_now and p_a_prev != p_b_prev)
@@ -268,7 +269,8 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
                     f"{id_a}: {p_a_prev}->{p_a_now}, {id_b}: {p_b_prev}->{p_b_now}"
                 )
 
-        # Invariant 3: Position matches current path
+        # Invariant 3: Position matches current path for active robots
+        active_robots = [r for r in robots.values() if r.state != RobotState.IDLE]
         for robot in active_robots:
             if robot.path:
                 first_node = robot.path[0]

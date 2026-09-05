@@ -109,6 +109,17 @@ class SpaceTimeAStarPlanner:
         max_t = current_tick + h0 + self.horizon_padding
         start_state: State = (start[0], start[1], start_heading, current_tick)
 
+        # Precompute resting locations for all other robots in reservation_table:
+        # An agent that reaches its final reservation (x, y) at max_t remains stationary there for all t >= max_t
+        resting_cells: Dict[Tuple[int, int], Tuple[str, int]] = {}
+        robot_max_tick: Dict[str, Tuple[int, int, int]] = {}
+        for (rx, ry, rt), rid in reservation_table.items():
+            if rid not in robot_max_tick or rt > robot_max_tick[rid][2]:
+                robot_max_tick[rid] = (rx, ry, rt)
+        for rid, (rx, ry, max_t_val) in robot_max_tick.items():
+            if rid != robot_id:
+                resting_cells[(rx, ry)] = (rid, max_t_val)
+
         g_score: Dict[State, int] = {start_state: 0}
         came_from: Dict[State, State] = {}
         tie = count()
@@ -132,7 +143,7 @@ class SpaceTimeAStarPlanner:
             if t >= max_t:
                 continue
 
-            for nstate, cost in self._successors(state, reservation_table, robot_id):
+            for nstate, cost in self._successors(state, reservation_table, robot_id, resting_cells):
                 if nstate in closed:
                     continue
                 tentative_g = g_score[state] + cost
@@ -154,6 +165,7 @@ class SpaceTimeAStarPlanner:
         state: State,
         reservation_table: ReservationTable,
         robot_id: Optional[str],
+        resting_cells: Optional[Dict[Tuple[int, int], Tuple[str, int]]] = None,
     ) -> List[Tuple[State, int]]:
         x, y, heading, t = state
         nt = t + 1
@@ -163,14 +175,14 @@ class SpaceTimeAStarPlanner:
         dx, dy = DELTA[heading]
         target = (x + dx, y + dy)
         if self.grid.is_free(target) and not self._vertex_blocked(
-            target, nt, reservation_table, robot_id
+            target, nt, reservation_table, robot_id, resting_cells
         ):
             if not self._causes_swap((x, y), target, t, reservation_table, robot_id):
                 out.append(((target[0], target[1], heading, nt), MOVE_COST_TICKS))
 
         # 2 & 3. Stay on the same cell for this tick, either turning to a new
         # heading or waiting (yielding). Both still occupy/reserve (x, y).
-        if not self._vertex_blocked((x, y), nt, reservation_table, robot_id):
+        if not self._vertex_blocked((x, y), nt, reservation_table, robot_id, resting_cells):
             for h2 in HEADINGS:
                 cost = WAIT_COST_TICKS if h2 == heading else TURN_COST_TICKS
                 out.append(((x, y, h2, nt), cost))
@@ -185,9 +197,18 @@ class SpaceTimeAStarPlanner:
         t: int,
         reservation_table: ReservationTable,
         robot_id: Optional[str],
+        resting_cells: Optional[Dict[Tuple[int, int], Tuple[str, int]]] = None,
     ) -> bool:
         occupant = reservation_table.get((pos[0], pos[1], t))
-        return occupant is not None and occupant != robot_id
+        if occupant is not None:
+            return occupant != robot_id
+        if resting_cells is not None:
+            resting = resting_cells.get((pos[0], pos[1]))
+            if resting is not None:
+                other_id, rest_t = resting
+                if other_id != robot_id and t >= rest_t:
+                    return True
+        return False
 
     @staticmethod
     def _causes_swap(

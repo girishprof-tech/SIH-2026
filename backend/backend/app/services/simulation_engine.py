@@ -410,9 +410,11 @@ class SimulationEngine:
             return
 
         if robot.state == RobotState.IDLE:
-            # Idle robots drain a tiny bit
+            # Idle robots drain a tiny bit and maintain their cell reservation
             robot.battery_pct -= cfg.BATTERY_WAIT_COST
             robot.clamp_battery()
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick)
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick + 1)
             return
 
         # EN_ROUTE: process next path step
@@ -420,6 +422,8 @@ class SimulationEngine:
             # Reached destination or no path
             robot.state = RobotState.IDLE
             self._reservations.release(robot.robot_id)
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick)
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick + 1)
             return
 
         next_node = robot.path[robot._path_idx]
