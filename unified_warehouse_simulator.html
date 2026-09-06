@@ -1129,48 +1129,263 @@ backendBadge.addEventListener('click', () => {
 
 connectWebSocket();
 
-// ── Dynamic Fuzz Scenario Generation (Backend or Client Generator) ───────────
+// ── Client-Side High-Conflict Dynamic Fuzz Generator ────────────────────────
+function generateClientFuzzScenario(numRobots = 20, maxTicks = 40) {
+  const seed = Math.floor(Math.random() * 90000) + 10000;
+  const obsSet = new Set(DATA.obstacles.map(o => `${o[0]},${o[1]}`));
+  const freeCells = [];
+  for (let x = 0; x < 30; x++) {
+    for (let y = 0; y < 30; y++) {
+      if (!obsSet.has(`${x},${y}`)) freeCells.push([x, y]);
+    }
+  }
+
+  // Shuffle free cells
+  for (let i = freeCells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]];
+  }
+
+  const leftCells = freeCells.filter(c => c[0] < 9);
+  const rightCells = freeCells.filter(c => c[0] > 20);
+  const topCells = freeCells.filter(c => c[1] < 9);
+  const bottomCells = freeCells.filter(c => c[1] > 20);
+
+  // Grid BFS shortest pathfinder
+  function bfsPath(start, goal) {
+    const queue = [[start[0], start[1], [[start[0], start[1]]]]];
+    const visited = new Set([`${start[0]},${start[1]}`]);
+    const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+    while (queue.length > 0) {
+      const [cx, cy, path] = queue.shift();
+      if (cx === goal[0] && cy === goal[1]) {
+        return path.map((pt, t) => ({ x: pt[0], y: pt[1], t }));
+      }
+      if (path.length > 55) continue;
+
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx;
+        const ny = cy + dy;
+        const key = `${nx},${ny}`;
+        if (nx >= 0 && nx < 30 && ny >= 0 && ny < 30 && !obsSet.has(key) && !visited.has(key)) {
+          visited.add(key);
+          queue.push([nx, ny, [...path, [nx, ny]]]);
+        }
+      }
+    }
+    return [{ x: start[0], y: start[1], t: 0 }];
+  }
+
+  // Create robots with crossing paths
+  const robots = [];
+  for (let i = 0; i < numRobots; i++) {
+    const rid = `AMR-${String(i + 1).padStart(2, '0')}`;
+    const mode = i % 4;
+    let start, goal;
+    if (mode === 0) {
+      start = leftCells[i % leftCells.length];
+      goal = rightCells[(i * 3) % rightCells.length];
+    } else if (mode === 1) {
+      start = rightCells[i % rightCells.length];
+      goal = leftCells[(i * 3) % leftCells.length];
+    } else if (mode === 2) {
+      start = topCells[i % topCells.length];
+      goal = bottomCells[(i * 3) % bottomCells.length];
+    } else {
+      start = bottomCells[i % bottomCells.length];
+      goal = topCells[(i * 3) % topCells.length];
+    }
+
+    const urgency = Math.floor(Math.random() * 5) + 1;
+    const battery = Math.round((Math.random() * 70 + 25) * 10) / 10;
+    const initialPath = bfsPath(start, goal);
+
+    robots.push({
+      id: rid,
+      x: start[0],
+      y: start[1],
+      heading: 'NORTH',
+      state: 'EN_ROUTE',
+      battery: battery,
+      urgency: urgency,
+      priority: 0.0,
+      task_id: `TASK-${String(i + 1).padStart(2, '0')}`,
+      goal: [goal[0], goal[1]],
+      path: initialPath,
+      wait_ticks: 0
+    });
+  }
+
+  const frames = [];
+  let totalConflicts = 0;
+
+  for (let t = 0; t < maxTicks; t++) {
+    robots.forEach(r => {
+      const dist = Math.abs(r.goal[0] - r.x) + Math.abs(r.goal[1] - r.y);
+      r.priority = Math.round(((100 - r.battery) * 0.3 + r.urgency * 20 + r.wait_ticks * 5 + (100 / (dist + 1))) * 10) / 10;
+    });
+
+    const tickConflicts = [];
+    for (let i = 0; i < robots.length; i++) {
+      for (let j = i + 1; j < robots.length; j++) {
+        const r1 = robots[i];
+        const r2 = robots[j];
+        const dist = Math.abs(r1.x - r2.x) + Math.abs(r1.y - r2.y);
+        if (dist > 2) continue;
+
+        const next1 = r1.path.length > 1 ? r1.path[1] : { x: r1.x, y: r1.y };
+        const next2 = r2.path.length > 1 ? r2.path[1] : { x: r2.x, y: r2.y };
+
+        const isVertex = next1.x === next2.x && next1.y === next2.y;
+        const isSwap = next1.x === r2.x && next1.y === r2.y && next2.x === r1.x && next2.y === r1.y;
+
+        if (isVertex || isSwap) {
+          let winner = r1, loser = r2;
+          if (r2.priority > r1.priority || (r2.priority === r1.priority && r2.id < r1.id)) {
+            winner = r2;
+            loser = r1;
+          }
+
+          loser.state = 'CONFLICT_NEGOTIATING';
+          loser.wait_ticks++;
+          const curX = loser.x, curY = loser.y;
+          const remPath = loser.path.slice(1).map(p => ({ x: p.x, y: p.y, t: p.t + 1 }));
+          loser.path = [{ x: curX, y: curY, t }, { x: curX, y: curY, t: t + 1 }, ...remPath];
+
+          totalConflicts++;
+          tickConflicts.push({
+            cell: [isVertex ? next1.x : winner.x, isVertex ? next1.y : winner.y],
+            tick: t,
+            winner_id: winner.id,
+            loser_id: loser.id,
+            winner_priority: winner.priority,
+            loser_priority: loser.priority,
+            action: isSwap ? 'HEAD_ON_YIELD' : 'VERTEX_YIELD',
+            reason: `Urgency (${winner.urgency} vs ${loser.urgency}) • Battery (${winner.battery}% vs ${loser.battery}%)`
+          });
+        }
+      }
+    }
+
+    robots.forEach(r => {
+      if (r.path.length > 1 && r.path[1].t === t + 1) {
+        const nextStep = r.path[1];
+        const dx = nextStep.x - r.x;
+        const dy = nextStep.y - r.y;
+        if (dx > 0) r.heading = 'EAST';
+        else if (dx < 0) r.heading = 'WEST';
+        else if (dy > 0) r.heading = 'SOUTH';
+        else if (dy < 0) r.heading = 'NORTH';
+
+        r.x = nextStep.x;
+        r.y = nextStep.y;
+        r.path = r.path.slice(1);
+        r.battery = Math.max(5.0, Math.round((r.battery - 0.2) * 10) / 10);
+        r.state = 'EN_ROUTE';
+      } else {
+        r.wait_ticks++;
+      }
+
+      if (r.x === r.goal[0] && r.y === r.goal[1]) {
+        const newGoal = freeCells[Math.floor(Math.random() * freeCells.length)];
+        r.goal = [newGoal[0], newGoal[1]];
+        const newPath = bfsPath([r.x, r.y], newGoal);
+        r.path = newPath.map(p => ({ x: p.x, y: p.y, t: t + 1 + p.t }));
+      }
+    });
+
+    frames.push({
+      tick: t,
+      robots: robots.map(r => ({
+        id: r.id,
+        x: r.x,
+        y: r.y,
+        heading: r.heading,
+        state: r.state,
+        battery: r.battery,
+        priority: r.priority,
+        task_id: r.task_id,
+        goal: [...r.goal],
+        path: r.path.slice(0, 12).map(p => ({ x: p.x, y: p.y, t: p.t })),
+        wait_ticks: r.wait_ticks
+      })),
+      conflicts: tickConflicts
+    });
+  }
+
+  return {
+    name: `🎲 Fresh Fuzz #${seed} (${numRobots} AMRs • ${totalConflicts} Conflicts)`,
+    seed: seed,
+    num_robots: numRobots,
+    conflicts_resolved: totalConflicts,
+    total_frames: frames.length,
+    description: `Brand-new dynamically synthesized random scenario with ${numRobots} AMRs and ${totalConflicts} conflict arbitrations!`,
+    frames: frames
+  };
+}
+
+// ── Toast Notification ──────────────────────────────────────────────────────
+function showToast(msg) {
+  let toast = document.getElementById('simulatorToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'simulatorToast';
+    toast.style.cssText = 'position:fixed; bottom:20px; right:20px; background:linear-gradient(135deg, #1e293b, #0f172a); border:1px solid #06b6d4; color:#f8fafc; padding:10px 16px; border-radius:8px; font-size:12px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,0.6); z-index:9999; transition:all 0.3s ease; display:flex; align-items:center; gap:8px;';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = msg;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+  }, 4000);
+}
+
+// ── Dynamic Fuzz Scenario Generation Trigger ────────────────────────────────
 generateFuzzBtn.addEventListener('click', async () => {
   const numRobots = parseInt(fuzzDensitySelect.value, 10) || 20;
-  generateFuzzBtn.innerText = '⏳ Generating...';
+  generateFuzzBtn.innerText = '⏳ Synthesizing...';
   generateFuzzBtn.disabled = true;
 
+  let newScenario = null;
+
+  // Try real FastAPI backend first
   try {
-    // Try calling real FastAPI backend generator endpoint first
-    const resp = await fetch('http://localhost:8000/api/simulation/generate_fuzz', {
+    const resp = await fetch('/api/simulation/generate_fuzz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ num_robots: numRobots, max_ticks: 40 })
     });
-
     if (resp.ok) {
-      const newScenario = await resp.json();
-      DATA.scenarios.unshift(newScenario);
-      populateScenarioDropdown();
-      switchScenario(0);
-      setPlay(true);
-      generateFuzzBtn.innerText = '🎲 New Random Fuzz';
-      generateFuzzBtn.disabled = false;
-      return;
+      newScenario = await resp.json();
     }
   } catch (err) {
-    // Backend offline fallback: pick a high-density scenario at random from pool or create variation
+    try {
+      const resp2 = await fetch('http://localhost:8000/api/simulation/generate_fuzz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num_robots: numRobots, max_ticks: 40 })
+      });
+      if (resp2.ok) {
+        newScenario = await resp2.json();
+      }
+    } catch (e) {}
   }
 
-  // Fallback: Pick a random dense scenario from the 50 scenarios
-  const matchingIndices = DATA.scenarios
-    .map((s, idx) => ({ s, idx }))
-    .filter(item => item.s.num_robots === numRobots);
-
-  if (matchingIndices.length > 0) {
-    const picked = matchingIndices[Math.floor(Math.random() * matchingIndices.length)].idx;
-    switchScenario(picked);
-    setPlay(true);
-  } else {
-    const randIdx = Math.floor(Math.random() * DATA.scenarios.length);
-    switchScenario(randIdx);
-    setPlay(true);
+  // Fallback to in-browser generative engine
+  if (!newScenario) {
+    newScenario = generateClientFuzzScenario(numRobots, 40);
   }
+
+  // Prepend new scenario to dataset so it appears at top of dropdown
+  DATA.scenarios.unshift(newScenario);
+  populateScenarioDropdown();
+  switchScenario(0);
+  setPlay(true);
+
+  showToast(`⚡ <b>Generated Fresh Fuzz Run!</b> ${newScenario.num_robots} AMRs • ${newScenario.conflicts_resolved} Conflicts`);
 
   generateFuzzBtn.innerText = '🎲 New Random Fuzz';
   generateFuzzBtn.disabled = false;
@@ -1179,7 +1394,6 @@ generateFuzzBtn.addEventListener('click', async () => {
 // ── Initialize Setup ─────────────────────────────────────────────────────────
 populateScenarioDropdown();
 
-// Check if user requested random on reload
 const shouldRandomize = localStorage.getItem('sih_randomize_on_load') === 'true';
 randomizeOnRefreshCheck.checked = shouldRandomize;
 
@@ -1187,13 +1401,18 @@ randomizeOnRefreshCheck.addEventListener('change', (e) => {
   localStorage.setItem('sih_randomize_on_load', e.target.checked);
 });
 
-if (shouldRandomize && DATA.scenarios.length > 0) {
-  const randomStartIdx = Math.floor(Math.random() * DATA.scenarios.length);
-  switchScenario(randomStartIdx);
+if (shouldRandomize) {
+  // Synthesize a fresh random scenario immediately on page load!
+  const randomDensity = [10, 15, 20, 25, 30][Math.floor(Math.random() * 5)];
+  fuzzDensitySelect.value = randomDensity;
+  const initialFuzz = generateClientFuzzScenario(randomDensity, 40);
+  DATA.scenarios.unshift(initialFuzz);
+  populateScenarioDropdown();
+  switchScenario(0);
+  showToast(`🎲 <b>Randomize on reload:</b> Generated new scenario with ${initialFuzz.num_robots} AMRs & ${initialFuzz.conflicts_resolved} conflicts!`);
 } else {
-  // Start with a high density 20 AMR scenario with conflicts
-  const defaultIdx = DATA.scenarios.findIndex(s => s.num_robots === 20 && s.conflicts_resolved > 0);
-  switchScenario(defaultIdx !== -1 ? defaultIdx : 0);
+  // Start with Scenario 01 (which now has high conflict count)
+  switchScenario(0);
 }
 </script>
 </body>

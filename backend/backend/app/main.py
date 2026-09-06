@@ -202,3 +202,37 @@ async def health() -> dict:
         "running": fleet.is_running,
         "robots": len(fleet.robots),
     }
+
+
+# ── Frontend Visualizer & Asset Integration ───────────────────────────────────
+from fastapi.responses import FileResponse
+from pathlib import Path
+
+_ROOT_DIR = Path(__file__).resolve().parents[3]
+_HTML_FILE = _ROOT_DIR / "unified_warehouse_simulator.html"
+_JS_DATA_FILE = _ROOT_DIR / "scenarios_data.js"
+_JSON_DATA_FILE = _ROOT_DIR / "scenarios_data.json"
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/simulator", include_in_schema=False)
+async def serve_simulator() -> FileResponse:
+    """Serve the primary fleet visualizer frontend directly from backend."""
+    if _HTML_FILE.is_file():
+        return FileResponse(_HTML_FILE, media_type="text/html")
+    return FileResponse(Path(__file__).resolve().parent / "index.html", media_type="text/html")
+
+
+@app.get("/scenarios_data.js", include_in_schema=False)
+async def serve_scenarios_js() -> FileResponse:
+    """Serve the pre-computed scenario definitions."""
+    if _JS_DATA_FILE.is_file():
+        return FileResponse(_JS_DATA_FILE, media_type="application/javascript")
+    return FileResponse(_ROOT_DIR / "scenarios_data.js", media_type="application/javascript")
+
+
+@app.get("/scenarios_data.json", include_in_schema=False)
+async def serve_scenarios_json() -> FileResponse:
+    """Serve the scenario JSON export."""
+    return FileResponse(_JSON_DATA_FILE, media_type="application/json")
+
