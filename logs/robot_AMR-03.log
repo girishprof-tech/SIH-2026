@@ -1,8 +1,73 @@
-[19:18:25] Autonomous Robot Node initialized. PID=29644, Start=(7, 1), Goal=(7, 20)
-[19:18:25] Initial path planned (20 steps) to (7, 20).
-[19:18:25] [Tick 0] Pos=(7, 2), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=381.0, Battery=84.0%, Waits=0
-[19:18:25] [Tick 1] Pos=(7, 3), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=382.0, Battery=83.0%, Waits=0
-[19:18:26] [Tick 2] Pos=(7, 4), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=383.0, Battery=82.0%, Waits=0
-[19:18:26] [Tick 3] Pos=(7, 5), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=384.0, Battery=81.0%, Waits=0
-[19:18:27] [Tick 4] Pos=(7, 6), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=385.0, Battery=80.0%, Waits=0
-[19:18:27] [Tick 5] Pos=(7, 7), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=386.0, Battery=79.0%, Waits=0
+[19:20:56] Autonomous Robot Node initialized. PID=2360, Start=(7, 1), Goal=(7, 20)
+[19:20:56] Initial path planned (20 steps) to (7, 20).
+[19:20:56] [Tick 0] Pos=(7, 2), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=381.0, Battery=84.0%, Waits=0
+[19:20:56] [Tick 1] Pos=(7, 3), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=382.0, Battery=83.0%, Waits=0
+[19:20:56] [Tick 2] Pos=(7, 4), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=383.0, Battery=82.0%, Waits=0
+[19:20:56] [Tick 3] Pos=(7, 5), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=384.0, Battery=81.0%, Waits=0
+[19:20:56] [Tick 4] Pos=(7, 6), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=385.0, Battery=80.0%, Waits=0
+[19:20:56] [Tick 5] Pos=(7, 7), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=386.0, Battery=79.0%, Waits=0
+[19:20:56] [Tick 6] Pos=(7, 8), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=387.0, Battery=78.0%, Waits=0
+[19:20:56] [Tick 7] Pos=(7, 9), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=388.0, Battery=77.0%, Waits=0
+[19:20:57] [Tick 8] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=389.0, Battery=76.0%, Waits=0
+[19:20:57] [Tick 9] CONFLICT DETECTED with AMR-04 (SWAP_CONFLICT) at cell (7, 11)! My Priority=390.0, Peer Priority=190.0
+[19:20:57] [Tick 9] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED.
+[19:20:57] [Tick 9] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[19:20:57] [Tick 9] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=390.0, Battery=75.9%, Waits=1
+[19:20:57] [Tick 10] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=400.0, Peer Priority=200.0
+[19:20:57] [Tick 10] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED.
+[19:20:57] [Tick 10] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[19:20:57] [Tick 10] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=400.0, Battery=75.8%, Waits=2
+[19:20:57] [Tick 11] Pos=(7, 11), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=410.0, Battery=74.8%, Waits=0
+[19:20:57] [Tick 12] Pos=(7, 12), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=391.0, Battery=73.8%, Waits=0
+[19:20:57] [Tick 13] Pos=(7, 13), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=392.0, Battery=72.8%, Waits=0
+[19:20:57] [Tick 14] Pos=(7, 14), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=393.0, Battery=71.8%, Waits=0
+[19:20:57] [Tick 15] Pos=(7, 15), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=394.0, Battery=70.8%, Waits=0
+[19:20:57] [Tick 16] Pos=(7, 16), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=395.0, Battery=69.8%, Waits=0
+[19:20:57] [Tick 17] Pos=(7, 17), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=396.0, Battery=68.8%, Waits=0
+[19:20:58] [Tick 18] Pos=(7, 18), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=397.0, Battery=67.8%, Waits=0
+[19:20:58] [Tick 19] Pos=(7, 19), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=398.0, Battery=66.8%, Waits=0
+[19:20:58] [Tick 20] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=399.0, Battery=65.8%, Waits=0
+[19:20:58] [Tick 21] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=400.0, Battery=65.7%, Waits=1
+[19:20:58] [Tick 22] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=410.0, Battery=65.6%, Waits=2
+[19:20:58] [Tick 23] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=420.0, Battery=65.5%, Waits=3
+[19:20:58] [Tick 24] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=430.0, Battery=65.4%, Waits=4
+[19:20:58] [Tick 25] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=440.0, Battery=65.3%, Waits=5
+[19:20:58] [Tick 26] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=450.0, Battery=65.2%, Waits=6
+[19:20:58] [Tick 27] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=460.0, Battery=65.1%, Waits=7
+[19:20:59] [Tick 28] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=470.0, Battery=65.0%, Waits=8
+[19:20:59] [Tick 29] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=480.0, Battery=64.9%, Waits=9
+[19:20:59] [Tick 30] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=490.0, Battery=64.8%, Waits=10
+[19:20:59] [Tick 31] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=500.0, Battery=64.7%, Waits=11
+[19:20:59] [Tick 32] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=510.0, Battery=64.6%, Waits=12
+[19:20:59] [Tick 33] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=520.0, Battery=64.5%, Waits=13
+[19:20:59] [Tick 34] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=530.0, Battery=64.4%, Waits=14
+[19:20:59] [Tick 35] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=540.0, Battery=64.3%, Waits=15
+[19:20:59] [Tick 36] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=550.0, Battery=64.2%, Waits=16
+[19:20:59] [Tick 37] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=560.0, Battery=64.1%, Waits=17
+[19:21:00] [Tick 38] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=570.0, Battery=64.0%, Waits=18
+[19:21:00] [Tick 39] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=580.0, Battery=63.9%, Waits=19
+[19:21:00] [Tick 40] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=590.0, Battery=63.8%, Waits=20
+[19:21:00] [Tick 41] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=600.0, Battery=63.7%, Waits=21
+[19:21:00] [Tick 42] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=610.0, Battery=63.6%, Waits=22
+[19:21:00] [Tick 43] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=620.0, Battery=63.5%, Waits=23
+[19:21:00] [Tick 44] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=630.0, Battery=63.4%, Waits=24
+[19:21:00] [Tick 45] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=640.0, Battery=63.3%, Waits=25
+[19:21:00] [Tick 46] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=650.0, Battery=63.2%, Waits=26
+[19:21:00] [Tick 47] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=660.0, Battery=63.1%, Waits=27
+[19:21:01] [Tick 48] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=670.0, Battery=63.0%, Waits=28
+[19:21:01] [Tick 49] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=680.0, Battery=62.9%, Waits=29
+[19:21:01] [Tick 50] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=690.0, Battery=62.8%, Waits=30
+[19:21:01] [Tick 51] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=700.0, Battery=62.7%, Waits=31
+[19:21:01] [Tick 52] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=710.0, Battery=62.6%, Waits=32
+[19:21:01] [Tick 53] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=720.0, Battery=62.5%, Waits=33
+[19:21:01] [Tick 54] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=730.0, Battery=62.4%, Waits=34
+[19:21:01] [Tick 55] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=740.0, Battery=62.3%, Waits=35
+[19:21:01] [Tick 56] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=750.0, Battery=62.2%, Waits=36
+[19:21:01] [Tick 57] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=760.0, Battery=62.1%, Waits=37
+[19:21:02] [Tick 58] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=770.0, Battery=62.0%, Waits=38
+[19:21:02] [Tick 59] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=780.0, Battery=61.9%, Waits=39
+[19:21:02] [Tick 60] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=790.0, Battery=61.8%, Waits=40
+[19:21:02] [Tick 61] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=800.0, Battery=61.7%, Waits=41
+[19:21:02] [Tick 62] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=810.0, Battery=61.6%, Waits=42
+[19:21:02] [Tick 63] Pos=(7, 20), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=WAITING, Priority=820.0, Battery=61.5%, Waits=43
+[19:21:02] Robot Process terminated after 64 ticks. Exiting.
