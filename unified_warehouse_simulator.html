@@ -455,6 +455,10 @@
       <input type="checkbox" id="randomizeOnRefreshCheck">
       Randomize on reload
     </label>
+    <label style="font-size: 10.5px; color: var(--accent-cyan); display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;" title="Visualizes direct peer-to-peer wireless communication links between AMRs within the 2-cell interaction radius">
+      <input type="checkbox" id="p2pMeshToggle" checked>
+      P2P Mesh Links
+    </label>
   </div>
 </div>
 
@@ -839,6 +843,55 @@ function renderFrame(idx) {
     });
   }
 
+  // Draw Direct P2P Wireless Mesh Communication Links (when within 2-cell interaction radius)
+  const p2pToggle = document.getElementById('p2pMeshToggle');
+  if (!p2pToggle || p2pToggle.checked) {
+    for (let i = 0; i < frame.robots.length; i++) {
+      for (let j = i + 1; j < frame.robots.length; j++) {
+        const r1 = frame.robots[i];
+        const r2 = frame.robots[j];
+        const mDist = Math.abs(r1.x - r2.x) + Math.abs(r1.y - r2.y);
+        if (mDist <= 2 && !r1.completed && !r2.completed) {
+          const cx1 = r1.x * CELL_SIZE + CELL_SIZE / 2;
+          const cy1 = r1.y * CELL_SIZE + CELL_SIZE / 2;
+          const cx2 = r2.x * CELL_SIZE + CELL_SIZE / 2;
+          const cy2 = r2.y * CELL_SIZE + CELL_SIZE / 2;
+
+          const isConflict = frame.conflicts && frame.conflicts.some(
+            c => (c.winner_id === r1.id && c.loser_id === r2.id) || (c.winner_id === r2.id && c.loser_id === r1.id)
+          );
+
+          ctx.save();
+          if (isConflict) {
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 2]);
+            ctx.beginPath();
+            ctx.moveTo(cx1, cy1);
+            ctx.lineTo(cx2, cy2);
+            ctx.stroke();
+
+            const midX = (cx1 + cx2) / 2;
+            const midY = (cy1 + cy2) / 2;
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '700 7px JetBrains Mono';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚡ P2P IPC', midX, midY - 3);
+          } else {
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(cx1, cy1);
+            ctx.lineTo(cx2, cy2);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+    }
+  }
+
   // Draw Robots
   frame.robots.forEach((r, i) => {
     const color = ROBOT_COLORS[i % ROBOT_COLORS.length];
@@ -1082,8 +1135,10 @@ slider.addEventListener('input', (e) => {
 });
 
 // ── Live Backend WebSocket Connection ────────────────────────────────────────
+let liveStreamScenario = null;
+
 function connectWebSocket() {
-  const wsUrl = 'ws://localhost:8000/ws/fleet';
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + (location.host || 'localhost:8000') + '/ws/fleet';
   try {
     ws = new WebSocket(wsUrl);
   } catch (err) {
@@ -1400,6 +1455,13 @@ randomizeOnRefreshCheck.checked = shouldRandomize;
 randomizeOnRefreshCheck.addEventListener('change', (e) => {
   localStorage.setItem('sih_randomize_on_load', e.target.checked);
 });
+
+const p2pMeshToggle = document.getElementById('p2pMeshToggle');
+if (p2pMeshToggle) {
+  p2pMeshToggle.addEventListener('change', () => {
+    renderFrame(currentFrameIdx);
+  });
+}
 
 if (shouldRandomize) {
   // Synthesize a fresh random scenario immediately on page load!
