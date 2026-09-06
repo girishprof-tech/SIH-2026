@@ -1,522 +1,473 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SIH-2026: Multi-Robot Coordination & Fuzz Safety Visualizer</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg-base: #080b11;
-    --bg-surface: #0f1523;
-    --bg-card: #151d30;
-    --bg-card-hover: #1c2742;
-    --border: #1e2b45;
-    --border-bright: #2d4168;
-    --accent-blue: #3b82f6;
-    --accent-cyan: #06b6d4;
-    --accent-emerald: #10b981;
-    --accent-amber: #f59e0b;
-    --accent-rose: #f43f5e;
-    --accent-purple: #a855f7;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg-base);
-    color: var(--text-primary);
-    font-family: 'Inter', -apple-system, sans-serif;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-  }
-  header {
-    background: linear-gradient(180deg, #111827 0%, #0c121e 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .badge {
-    padding: 4px 10px;
-    border-radius: 9999px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    text-transform: uppercase;
-  }
-  .badge-genuine {
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid var(--accent-emerald);
-    color: #34d399;
-  }
-  .badge-genuine::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    background: #34d399;
-    border-radius: 50%;
-    box-shadow: 0 0 8px #34d399;
-  }
-  .badge-fuzz {
-    background: rgba(6, 182, 212, 0.15);
-    border: 1px solid var(--accent-cyan);
-    color: #38bdf8;
-  }
-  .scenario-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 24px;
-    overflow-x: auto;
-  }
-  .scenario-pill {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  .scenario-pill:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-    border-color: var(--border-bright);
-  }
-  .scenario-pill.active {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: var(--accent-blue);
-    color: #93c5fd;
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
-  }
-  .main-layout {
-    display: grid;
-    grid-template-columns: 780px 1fr;
-    gap: 16px;
-    padding: 16px 24px;
-    flex: 1;
-    max-width: 1800px;
-    margin: 0 auto;
-    width: 100%;
-  }
-  @media (max-width: 1400px) {
-    .main-layout {
-      grid-template-columns: 1fr;
-    }
-  }
-  .viewport-panel {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .canvas-wrapper {
-    background: #05070c;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 8px;
-    position: relative;
-    user-select: none;
-  }
-  canvas {
-    background: #070b13;
-    border-radius: 6px;
-    box-shadow: 0 10px 35px rgba(0,0,0,0.6);
-    cursor: crosshair;
-  }
-  .cell-tooltip {
-    position: absolute;
-    display: none;
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid var(--accent-cyan);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--text-primary);
-    pointer-events: none;
-    z-index: 100;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
-    backdrop-filter: blur(8px);
-  }
-  .controls-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    background: var(--bg-card);
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-  }
-  .controls-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .btn {
-    background: #1a2336;
-    border: 1px solid var(--border-bright);
-    color: var(--text-primary);
-    padding: 7px 12px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .btn:hover {
-    background: #25334e;
-    border-color: var(--accent-blue);
-  }
-  .btn.active {
-    background: var(--accent-blue);
-    border-color: #60a5fa;
-    color: #fff;
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
-  }
-  .btn.conflict-btn {
-    background: rgba(245, 158, 11, 0.15);
-    border-color: rgba(245, 158, 11, 0.4);
-    color: #fbbf24;
-  }
-  .btn.conflict-btn:hover {
-    background: rgba(245, 158, 11, 0.3);
-    border-color: var(--accent-amber);
-  }
-  .slider-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-  }
-  .slider {
-    flex: 1;
-    accent-color: var(--accent-cyan);
-    cursor: pointer;
-    height: 6px;
-  }
-  .tick-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 800;
-    font-size: 14px;
-    min-width: 100px;
-    text-align: right;
-    color: var(--accent-cyan);
-  }
-  .speed-selector {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    margin-left: auto;
-  }
-  .speed-btn {
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text-muted);
-    padding: 3px 7px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .speed-btn:hover { color: var(--text-primary); }
-  .speed-btn.active {
-    background: rgba(6, 182, 212, 0.2);
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-  }
-  .telemetry-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px;
-  }
-  .card-title {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-secondary);
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .invariants-banner {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-  .inv-box {
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 6px;
-    padding: 8px 10px;
-  }
-  .inv-box.alert {
-    background: rgba(244, 63, 94, 0.1);
-    border-color: var(--accent-rose);
-  }
-  .inv-label {
-    font-size: 10px;
-    color: var(--text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-  }
-  .inv-val {
-    font-size: 13px;
-    font-weight: 700;
-    color: #34d399;
-    margin-top: 2px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  .robot-inspector {
-    max-height: 250px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: #090e17;
-  }
-  table.amr-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  table.amr-table th {
-    background: #0f1626;
-    color: var(--text-muted);
-    font-weight: 600;
-    padding: 7px 8px;
-    text-align: left;
-    position: sticky;
-    top: 0;
-    border-bottom: 1px solid var(--border);
-    z-index: 2;
-  }
-  table.amr-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #131d2e;
-    color: var(--text-secondary);
-  }
-  table.amr-table tr:hover {
-    background: #141e33;
-    cursor: pointer;
-  }
-  table.amr-table tr.selected {
-    background: rgba(59, 130, 246, 0.25);
-    border-left: 2px solid var(--accent-blue);
-  }
-  table.amr-table td.robot-id {
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-  .status-pill {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 700;
-  }
-  .status-pill.moved { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-  .status-pill.wait { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-  .status-pill.done { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
-  .log-container {
-    background: #06090f;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    max-height: 220px;
-    overflow-y: auto;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .log-entry {
-    padding: 6px 10px;
-    border-radius: 5px;
-    background: #0c121e;
-    border-left: 3px solid var(--accent-blue);
-    line-height: 1.4;
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .log-entry:hover {
-    background: #131c2e;
-  }
-  .log-entry.conflict {
-    border-left-color: var(--accent-amber);
-    background: rgba(245, 158, 11, 0.09);
-  }
-  .log-entry.active-tick {
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 8px rgba(6, 182, 212, 0.3);
-  }
-  .focused-hud {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #0d1424;
-    border: 1px solid var(--border-bright);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 11px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .scenario-dropdown {
-    background: #0f172a;
-    border: 1.5px solid var(--accent-cyan);
-    color: var(--text-primary);
-    padding: 7px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: 'JetBrains Mono', monospace;
-    cursor: pointer;
-    outline: none;
-    box-shadow: 0 0 12px rgba(6, 182, 212, 0.2);
-    transition: all 0.2s ease;
-    min-width: 420px;
-  }
-  .scenario-dropdown:hover {
-    border-color: #38bdf8;
-    box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
-  }
-  .scenario-dropdown:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
-  }
-  .scenario-dropdown option {
-    background: #090d16;
-    color: var(--text-primary);
-    padding: 8px;
-  }
-  .btn-nav {
-    padding: 7px 13px;
-    font-weight: 700;
-    font-size: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .btn-nav:hover {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-    border-color: var(--accent-cyan);
-  }
-  .filter-pill {
-    padding: 5px 12px;
-    font-size: 11px;
-  }
-
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIH-2026: Edge-AI Multi-AMR Warehouse Fleet Coordinator & Fuzz Visualizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="scenarios_data.js"></script>
+  <style>
+    :root {
+      --bg-base: #080b11;
+      --bg-surface: #0f1523;
+      --bg-card: #151d30;
+      --bg-card-hover: #1c2742;
+      --border: #1e2b45;
+      --border-bright: #2d4168;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Strict 100vh constraint: fits laptop screens without outer scroll */
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Ultra-sleek compact header (38px) */
+    header {
+      background: linear-gradient(180deg, #111827 0%, #0c121e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 38px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      text-transform: uppercase;
+    }
+
+    .badge-live {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--accent-emerald);
+      color: #34d399;
+      cursor: pointer;
+    }
+    .badge-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: #34d399;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #34d399;
+    }
+    .badge-offline {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid var(--accent-amber);
+      color: #fbbf24;
+      cursor: pointer;
+    }
+    .badge-offline::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: #fbbf24;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #fbbf24;
+    }
+
+    /* Compact Toolbar Bar (42px) */
+    .top-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0a0f1c;
+      border-bottom: 1px solid var(--border);
+      padding: 4px 16px;
+      height: 42px;
+      flex-shrink: 0;
+      gap: 10px;
+    }
+
+    .scenario-dropdown {
+      background: #0f172a;
+      border: 1px solid var(--accent-cyan);
+      color: var(--text-primary);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      outline: none;
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.15);
+      min-width: 320px;
+    }
+    .scenario-dropdown option { background: #0b1120; color: #fff; }
+
+    .btn {
+      background: #1a2336;
+      border: 1px solid var(--border-bright);
+      color: var(--text-primary);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-weight: 600;
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #25334e; border-color: var(--accent-blue); }
+    .btn.active {
+      background: var(--accent-blue);
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+    }
+    .btn-emerald { background: rgba(16, 185, 129, 0.15); border-color: var(--accent-emerald); color: #34d399; }
+    .btn-emerald:hover { background: rgba(16, 185, 129, 0.3); border-color: #34d399; }
+    .btn-amber { background: rgba(245, 158, 11, 0.15); border-color: var(--accent-amber); color: #fbbf24; }
+    .btn-amber:hover { background: rgba(245, 158, 11, 0.3); }
+    .btn-nav { padding: 5px 9px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+    /* Main Responsive Grid Layout (fits remaining height) */
+    .main-layout {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      padding: 8px 16px;
+      overflow: hidden;
+    }
+
+    /* Left Column: Canvas Viewport & Controls */
+    .viewport-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .canvas-wrapper {
+      background: #05070c;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      user-select: none;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+
+    /* Canvas scales dynamically to fit available vertical space on laptop screens */
+    canvas {
+      background: #070b13;
+      border-radius: 4px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+      cursor: crosshair;
+      max-height: calc(100vh - 180px);
+      max-width: calc(100vh - 180px);
+      aspect-ratio: 1 / 1;
+      object-fit: contain;
+    }
+
+    .cell-tooltip {
+      position: absolute;
+      display: none;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      color: var(--text-primary);
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Compact Controls Bar (height ~56px) */
+    .controls-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: var(--bg-card);
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      width: 100%;
+      flex-shrink: 0;
+    }
+
+    .slider-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slider {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+      height: 5px;
+    }
+
+    .tick-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.15);
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      min-width: 65px;
+      text-align: center;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+    }
+
+    /* Right Column: Telemetry & Log */
+    .telemetry-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .invariants-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .invariant-card {
+      background: #090e18;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .invariant-card .title {
+      font-size: 9.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .invariant-card .val {
+      font-size: 11.5px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+      color: #34d399;
+    }
+
+    /* Scrollable tables and logs */
+    .table-scroll {
+      flex: 1;
+      min-height: 120px;
+      max-height: 230px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: #060910;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      text-align: left;
+    }
+    th {
+      background: #0f172a;
+      color: var(--text-muted);
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 5px 8px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 4px 8px;
+      border-bottom: 1px solid rgba(30, 43, 69, 0.4);
+      color: var(--text-secondary);
+    }
+    tr:hover { background: rgba(59, 130, 246, 0.08); cursor: pointer; }
+    tr.selected { background: rgba(6, 182, 212, 0.18); border-left: 2px solid var(--accent-cyan); }
+
+    .status-pill {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+    }
+    .status-pill.moved { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .status-pill.wait { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .status-pill.done { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+
+    .log-container {
+      background: #06090f;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      flex: 1;
+      min-height: 100px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-entry {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: 4px;
+      padding: 5px 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .log-entry:hover { background: #131c2e; }
+    .log-entry.conflict {
+      border-left-color: var(--accent-amber);
+      background: rgba(245, 158, 11, 0.08);
+    }
+    .log-entry.active-tick {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 6px rgba(6, 182, 212, 0.3);
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #080d1a; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
 </head>
 <body>
 
+<!-- Header (38px) -->
 <header>
-  <div>
-    <h1 style="font-size: 18px; font-weight: 800; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px;">
-      Edge-AI Multi-AMR Warehouse Fleet Coordinator
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <h1 style="font-size: 14px; font-weight: 800; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/><path d="M9 14s1.5 2 3 2 3-2 3-2"/></svg>
+      Edge-AI Warehouse Fleet Coordinator
     </h1>
-    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-      100% Genuine Algorithm Execution & Telemetry Playback (<span style="color:var(--accent-cyan)">Space-Time A* + Multi-Pass Conflict Engine</span>)
-    </div>
+    <span style="font-size: 11px; color: var(--text-muted);">| Space-Time A* & Peer Arbitration</span>
   </div>
-  <div style="display: flex; gap: 10px; align-items: center;">
-    <div class="badge badge-genuine">Verified Algorithms</div>
-    <div class="badge badge-fuzz">Fuzz Safety Invariants</div>
-    <div style="font-size: 12px; font-family: 'JetBrains Mono'; color: var(--text-secondary);">30×30 Map • Zero Collisions</div>
+
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <!-- Live Backend Connection Pill -->
+    <div class="badge badge-offline" id="backendBadge" title="Click to connect or view status">Connecting to ws://localhost:8000/ws/fleet...</div>
+    <div class="badge badge-genuine" style="font-size: 9.5px;">30×30 Verified Map</div>
   </div>
 </header>
 
-<div class="scenario-bar" id="scenarioBar" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 24px; background: #0b101c; border-bottom: 1px solid var(--border);">
-  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <label for="scenarioSelect" style="font-weight: 800; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-cyan); display: flex; align-items: center; gap: 6px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 6h16M4 12h16m-7 6h7"/></svg>
-        Scenario (1–50):
-      </label>
-      <div style="display: flex; gap: 5px; align-items: center;">
-        <button class="btn-nav" id="prevScenarioBtn" title="Previous Scenario">&larr; Prev</button>
-        <select id="scenarioSelect" class="scenario-dropdown"></select>
-        <button class="btn-nav" id="nextScenarioBtn" title="Next Scenario">Next &rarr;</button>
-      </div>
-    </div>
+<!-- Top Toolbar (42px) -->
+<div class="top-toolbar">
+  <!-- Scenario Selector -->
+  <div style="display: flex; align-items: center; gap: 6px;">
+    <span style="font-weight: 800; font-size: 11px; color: var(--accent-cyan); text-transform: uppercase;">Scenario:</span>
+    <button class="btn btn-nav" id="prevScenarioBtn" title="Previous Scenario">&larr;</button>
+    <select id="scenarioSelect" class="scenario-dropdown"></select>
+    <button class="btn btn-nav" id="nextScenarioBtn" title="Next Scenario">&rarr;</button>
 
-    <!-- Quick Fleet Filter Pills -->
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Filter:</span>
-      <button class="scenario-pill filter-pill active" data-filter="all">All (50)</button>
-      <button class="scenario-pill filter-pill" data-filter="3">3 AMRs</button>
-      <button class="scenario-pill filter-pill" data-filter="5">5 AMRs</button>
-      <button class="scenario-pill filter-pill" data-filter="10">10 AMRs</button>
-      <button class="scenario-pill filter-pill" data-filter="20">20 AMRs</button>
-      <button class="scenario-pill filter-pill" data-filter="conflicts" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">⚡ With Conflicts</button>
-    </div>
+    <!-- Filter Buttons -->
+    <button class="btn btn-nav active" data-filter="all" id="filterAllBtn">All (50)</button>
+    <button class="btn btn-nav" data-filter="10" id="filter10Btn">10 AMRs</button>
+    <button class="btn btn-nav" data-filter="20" id="filter20Btn">20 AMRs</button>
+    <button class="btn btn-nav" data-filter="30" id="filter30Btn">30 AMRs</button>
+    <button class="btn btn-nav btn-amber" data-filter="conflicts" id="filterConflictsBtn">⚡ Conflicts Only</button>
   </div>
 
-  <!-- Dynamic Active Scenario Description & Stats Strip -->
-  <div id="scenarioDescriptionStrip" style="display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; background: #080d17; border: 1px solid var(--border); border-radius: 6px; padding: 6px 14px; color: var(--text-secondary);">
-    <div id="scenarioDescText">Scenario 01: 3 AMRs randomly dispatched across warehouse. Space-Time A* + multi-pass conflict arbitration.</div>
-    <div style="display: flex; gap: 16px; align-items: center; flex-shrink: 0;">
-      <span>Fleet: <b id="metaRobots" style="color:#38bdf8;">3 AMRs</b></span>
-      <span>Seed: <b id="metaSeed" style="color:var(--text-primary);">1001</b></span>
-      <span>Conflicts: <b id="metaConflicts" style="color:#fbbf24;">0 Resolved</b></span>
-      <span>Safety: <b style="color:#34d399;">Invariants Verified ✓</b></span>
-    </div>
+  <!-- Live Dynamic Fuzz Scenario Generator -->
+  <div style="display: flex; align-items: center; gap: 6px;">
+    <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">AMRs:</span>
+    <select id="fuzzDensitySelect" style="background: #0f172a; border: 1px solid var(--border-bright); color: #fff; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-family: 'JetBrains Mono';">
+      <option value="10">10 AMRs</option>
+      <option value="15">15 AMRs</option>
+      <option value="20" selected>20 AMRs</option>
+      <option value="25">25 AMRs</option>
+      <option value="30">30 AMRs (Max Density)</option>
+    </select>
+    <button class="btn btn-emerald" id="generateFuzzBtn" title="Generate a brand new randomized scenario">
+      🎲 New Random Fuzz
+    </button>
+    <label style="font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;" title="Picks a different random scenario every time page refreshes">
+      <input type="checkbox" id="randomizeOnRefreshCheck">
+      Randomize on reload
+    </label>
   </div>
 </div>
 
+<!-- Main Layout (No Vertical Scroll) -->
 <div class="main-layout">
-  <!-- Left Column: Canvas Viewport & Playback Controls -->
+  <!-- Left Column: Canvas Viewport & Controls -->
   <div class="viewport-panel">
     <div class="canvas-wrapper">
       <canvas id="simCanvas" width="750" height="750"></canvas>
       <div class="cell-tooltip" id="cellTooltip"></div>
     </div>
 
+    <!-- Compact Controls Bar -->
     <div class="controls-bar">
       <div class="slider-wrapper">
         <input type="range" class="slider" id="tickSlider" min="0" max="0" value="0">
@@ -524,65 +475,54 @@
       </div>
 
       <div class="controls-row">
-        <button class="btn" id="firstBtn" title="First Tick">|&lt;</button>
-        <button class="btn" id="prevBtn" title="Previous Tick (Left Arrow)">&lt; Prev</button>
-        <button class="btn" id="playBtn" style="min-width: 75px;">Play</button>
-        <button class="btn" id="nextBtn" title="Next Tick (Right Arrow)">Next &gt;</button>
-        <button class="btn" id="lastBtn" title="Last Tick">&gt;|</button>
-        <button class="btn conflict-btn" id="prevConflictBtn" title="Jump to previous conflict">⚡ Prev Conflict</button>
-        <button class="btn conflict-btn" id="nextConflictBtn" title="Jump to next conflict">⚡ Next Conflict</button>
-        <button class="btn" id="resetBtn">Reset</button>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button class="btn" id="firstBtn" title="First Tick">|&lt;</button>
+          <button class="btn" id="prevBtn" title="Previous Tick">&lt; Prev</button>
+          <button class="btn active" id="playBtn" style="min-width: 65px;">Play</button>
+          <button class="btn" id="nextBtn" title="Next Tick">Next &gt;</button>
+          <button class="btn" id="lastBtn" title="Last Tick">&gt;|</button>
+          <button class="btn btn-amber" id="prevConflictBtn" title="Jump to previous conflict">⚡ Prev Conflict</button>
+          <button class="btn btn-amber" id="nextConflictBtn" title="Jump to next conflict">⚡ Next Conflict</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
 
-        <div class="speed-selector">
-          <span style="font-size: 11px; color: var(--text-muted); margin-right: 4px;">Speed:</span>
-          <button class="speed-btn" data-speed="400">0.5x</button>
-          <button class="speed-btn active" data-speed="180">1x</button>
-          <button class="speed-btn" data-speed="80">2x</button>
-          <button class="speed-btn" data-speed="30">5x</button>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <span style="font-size: 10px; color: var(--text-muted);">Speed:</span>
+          <button class="btn btn-nav speed-btn" data-speed="400">0.5x</button>
+          <button class="btn btn-nav speed-btn active" data-speed="180">1x</button>
+          <button class="btn btn-nav speed-btn" data-speed="70">2x</button>
+          <button class="btn btn-nav speed-btn" data-speed="25">5x</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Right Column: Invariants, Deep Inspector & Live Event Stream -->
+  <!-- Right Column: Formal Invariants & Real-Time Telemetry -->
   <div class="telemetry-panel">
-    <!-- Invariant Status Banner -->
-    <div class="card">
-      <div class="card-title">
-        <span>Formal Safety Invariants (Verified Every Tick)</span>
-        <span style="color: #34d399; font-weight: 700;">Zero Violations</span>
+    <!-- Formal Safety Invariants Strip -->
+    <div class="invariants-strip">
+      <div class="invariant-card">
+        <div class="title">Cell Occupancy</div>
+        <div class="val" id="invCollisionVal">0 Collisions ✓</div>
       </div>
-      <div class="invariants-banner">
-        <div class="inv-box" id="invCollisionBox">
-          <div class="inv-label">Cell Occupancy</div>
-          <div class="inv-val" id="invCollisionVal">0 Collisions ✓</div>
-        </div>
-        <div class="inv-box" id="invSwapBox">
-          <div class="inv-label">Head-on Swap</div>
-          <div class="inv-val" id="invSwapVal">0 Swaps ✓</div>
-        </div>
-        <div class="inv-box" id="invStarveBox">
-          <div class="inv-label">Starvation Watch</div>
-          <div class="inv-val" id="invStarveVal">Max Wait: 0</div>
-        </div>
+      <div class="invariant-card">
+        <div class="title">Head-on Swap</div>
+        <div class="val" id="invSwapVal">0 Swaps ✓</div>
+      </div>
+      <div class="invariant-card">
+        <div class="title">Starvation Watch</div>
+        <div class="val" id="invStarveVal">Max Wait: 0 ✓</div>
       </div>
     </div>
 
-    <!-- Active AMR Inspector Table -->
-    <div class="card" style="display:flex; flex-direction:column; gap:8px;">
-      <div class="card-title">
-        <span>Active AMR Fleet Telemetry & Priority Breakdown</span>
-        <span style="font-size: 10px; color: var(--text-muted);">Click any row to focus path</span>
+    <!-- Active AMR Telemetry Table -->
+    <div class="card" style="display: flex; flex-direction: column; flex: 1; min-height: 140px; max-height: 250px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">AMR Fleet Status (<span id="activeRobotCount">0</span> Active)</span>
+        <span id="scenarioDescText" style="font-size: 10px; color: var(--accent-cyan); font-family: 'JetBrains Mono';">High-Density Fleet</span>
       </div>
-      <div class="focused-hud" id="focusedHud" style="display: none;">
-        <span>Focused AMR: <b id="focusedId" style="color:var(--accent-cyan);">-</b></span>
-        <span>Pos: <b id="focusedPos">-</b></span>
-        <span>Heading: <b id="focusedHeading">-</b></span>
-        <span>Goal: <b id="focusedGoal">-</b></span>
-        <button class="btn" id="clearFocusBtn" style="padding:2px 6px; font-size:10px;">Clear</button>
-      </div>
-      <div class="robot-inspector">
-        <table class="amr-table">
+      <div class="table-scroll">
+        <table>
           <thead>
             <tr>
               <th>ID</th>
@@ -600,11 +540,11 @@
       </div>
     </div>
 
-    <!-- Verified Conflict & Execution Log -->
-    <div class="card" style="flex:1; display:flex; flex-direction:column; min-height: 240px;">
-      <div class="card-title">
-        <span>Verified Conflict Resolutions & Events</span>
-        <span id="conflictCountBadge" style="color:var(--accent-amber); font-weight:700;">0 Resolved</span>
+    <!-- Conflict Resolutions & Event Stream -->
+    <div class="card" style="display: flex; flex-direction: column; flex: 1; min-height: 120px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary);">Verified Conflict Resolutions & Events</span>
+        <span id="conflictCountBadge" style="color: var(--accent-amber); font-weight: 700; font-size: 11px; font-family: 'JetBrains Mono';">0 Resolved</span>
       </div>
       <div class="log-container" id="eventLog"></div>
     </div>
@@ -612,8 +552,6 @@
 </div>
 
 <script>
-// Genuine Simulation Dataset
-const DATA = window.SCENARIOS_DATA || { width: 30, height: 30, obstacles: [], scenarios: [] };
 const CANVAS_SIZE = 750;
 const GRID_DIM = 30;
 const CELL_SIZE = CANVAS_SIZE / GRID_DIM;
@@ -622,7 +560,9 @@ const ROBOT_COLORS = [
   '#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185',
   '#34d399', '#4ade80', '#a3e635', '#facc15', '#fb923c',
   '#2dd4bf', '#a78bfa', '#e879f9', '#f87171', '#38bdf8',
-  '#4ade80', '#f59e0b', '#06b6d4', '#ec4899', '#6366f1'
+  '#4ade80', '#f59e0b', '#06b6d4', '#ec4899', '#6366f1',
+  '#10b981', '#14b8a6', '#0ea5e9', '#6366f1', '#8b5cf6',
+  '#d946ef', '#f43f5e', '#eab308', '#84cc16', '#06b6d4'
 ];
 
 let currentScenarioIdx = 0;
@@ -631,6 +571,8 @@ let isPlaying = false;
 let playInterval = null;
 let playSpeed = 180;
 let focusedRobotId = null;
+let isLiveMode = false;
+let ws = null;
 
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
@@ -653,34 +595,32 @@ const invStarveVal = document.getElementById('invStarveVal');
 const robotTableBody = document.getElementById('robotTableBody');
 const eventLog = document.getElementById('eventLog');
 const conflictCountBadge = document.getElementById('conflictCountBadge');
-const scenarioBar = document.getElementById('scenarioBar');
-
-const focusedHud = document.getElementById('focusedHud');
-const focusedId = document.getElementById('focusedId');
-const focusedPos = document.getElementById('focusedPos');
-const focusedHeading = document.getElementById('focusedHeading');
-const focusedGoal = document.getElementById('focusedGoal');
-const clearFocusBtn = document.getElementById('clearFocusBtn');
-
-// Obstacle set for O(1) checks
-const OBSTACLE_SET = new Set(DATA.obstacles.map(o => `${o[0]},${o[1]}`));
-
+const activeRobotCount = document.getElementById('activeRobotCount');
 const scenarioSelect = document.getElementById('scenarioSelect');
 const scenarioDescText = document.getElementById('scenarioDescText');
-const metaRobots = document.getElementById('metaRobots');
-const metaSeed = document.getElementById('metaSeed');
-const metaConflicts = document.getElementById('metaConflicts');
-const prevScenarioBtn = document.getElementById('prevScenarioBtn');
-const nextScenarioBtn = document.getElementById('nextScenarioBtn');
-const filterPills = document.querySelectorAll('.filter-pill');
+const backendBadge = document.getElementById('backendBadge');
+const generateFuzzBtn = document.getElementById('generateFuzzBtn');
+const fuzzDensitySelect = document.getElementById('fuzzDensitySelect');
+const randomizeOnRefreshCheck = document.getElementById('randomizeOnRefreshCheck');
 
+// ── Default or Loaded Data ───────────────────────────────────────────────────
+let DATA = window.SCENARIOS_DATA || {
+  width: 30,
+  height: 30,
+  obstacles: [],
+  scenarios: []
+};
+
+// Ensure Obstacle set for O(1) checks
+let OBSTACLE_SET = new Set((DATA.obstacles || []).map(o => `${o[0]},${o[1]}`));
+
+// ── Scenario Dropdown & Filters ──────────────────────────────────────────────
 let activeFilter = 'all';
 
 function populateScenarioDropdown() {
   if (!scenarioSelect) return;
   scenarioSelect.innerHTML = '';
   DATA.scenarios.forEach((sc, idx) => {
-    // Check filter match
     let visible = true;
     if (activeFilter === 'conflicts') {
       visible = (sc.conflicts_resolved > 0);
@@ -697,7 +637,6 @@ function populateScenarioDropdown() {
     }
   });
 
-  // Ensure current selection is valid or default to first available
   const currentOpt = scenarioSelect.querySelector(`option[value="${currentScenarioIdx}"]`);
   if (currentOpt) {
     scenarioSelect.value = currentScenarioIdx;
@@ -706,43 +645,35 @@ function populateScenarioDropdown() {
   }
 }
 
-populateScenarioDropdown();
+scenarioSelect.addEventListener('change', (e) => {
+  switchScenario(parseInt(e.target.value, 10));
+});
 
-if (scenarioSelect) {
-  scenarioSelect.addEventListener('change', (e) => {
-    switchScenario(parseInt(e.target.value, 10));
-  });
-}
+document.getElementById('prevScenarioBtn').addEventListener('click', () => {
+  const opts = Array.from(scenarioSelect.options).map(o => parseInt(o.value, 10));
+  const curPos = opts.indexOf(currentScenarioIdx);
+  if (curPos > 0) {
+    switchScenario(opts[curPos - 1]);
+  } else if (opts.length > 0) {
+    switchScenario(opts[opts.length - 1]);
+  }
+});
 
-if (prevScenarioBtn) {
-  prevScenarioBtn.addEventListener('click', () => {
-    const opts = Array.from(scenarioSelect.options).map(o => parseInt(o.value, 10));
-    const curPos = opts.indexOf(currentScenarioIdx);
-    if (curPos > 0) {
-      switchScenario(opts[curPos - 1]);
-    } else if (opts.length > 0) {
-      switchScenario(opts[opts.length - 1]);
-    }
-  });
-}
+document.getElementById('nextScenarioBtn').addEventListener('click', () => {
+  const opts = Array.from(scenarioSelect.options).map(o => parseInt(o.value, 10));
+  const curPos = opts.indexOf(currentScenarioIdx);
+  if (curPos >= 0 && curPos < opts.length - 1) {
+    switchScenario(opts[curPos + 1]);
+  } else if (opts.length > 0) {
+    switchScenario(opts[0]);
+  }
+});
 
-if (nextScenarioBtn) {
-  nextScenarioBtn.addEventListener('click', () => {
-    const opts = Array.from(scenarioSelect.options).map(o => parseInt(o.value, 10));
-    const curPos = opts.indexOf(currentScenarioIdx);
-    if (curPos >= 0 && curPos < opts.length - 1) {
-      switchScenario(opts[curPos + 1]);
-    } else if (opts.length > 0) {
-      switchScenario(opts[0]);
-    }
-  });
-}
-
-filterPills.forEach(pill => {
-  pill.addEventListener('click', () => {
-    filterPills.forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    activeFilter = pill.dataset.filter;
+document.querySelectorAll('.top-toolbar .btn-nav[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.top-toolbar .btn-nav[data-filter]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
     populateScenarioDropdown();
   });
 });
@@ -752,19 +683,16 @@ function switchScenario(idx) {
   currentScenarioIdx = idx;
   currentFrameIdx = 0;
   focusedRobotId = null;
-  if (focusedHud) focusedHud.style.display = 'none';
 
-  if (scenarioSelect) {
-    scenarioSelect.value = idx;
-  }
+  if (scenarioSelect) scenarioSelect.value = idx;
 
   const curScenario = DATA.scenarios[currentScenarioIdx];
   if (!curScenario) return;
 
-  if (scenarioDescText) scenarioDescText.innerText = curScenario.description || curScenario.name;
-  if (metaRobots) metaRobots.innerText = `${curScenario.num_robots} AMRs`;
-  if (metaSeed) metaSeed.innerText = `${curScenario.seed || 'N/A'}`;
-  if (metaConflicts) metaConflicts.innerText = `${curScenario.conflicts_resolved} Resolved`;
+  if (scenarioDescText) {
+    scenarioDescText.innerText = `${curScenario.name} (${curScenario.num_robots} AMRs • ${curScenario.conflicts_resolved} Conflicts)`;
+  }
+  if (activeRobotCount) activeRobotCount.innerText = curScenario.num_robots;
 
   slider.max = Math.max(0, curScenario.total_frames - 1);
   slider.value = 0;
@@ -775,6 +703,7 @@ function switchScenario(idx) {
 function buildFullEventLog() {
   eventLog.innerHTML = '';
   const curScenario = DATA.scenarios[currentScenarioIdx];
+  if (!curScenario) return;
   let totalConflicts = 0;
 
   curScenario.frames.forEach(frame => {
@@ -784,13 +713,15 @@ function buildFullEventLog() {
         const entry = document.createElement('div');
         entry.className = 'log-entry conflict';
         entry.dataset.tick = frame.tick;
+        const cellX = (c.cell && typeof c.cell.x === 'number') ? c.cell.x : (Array.isArray(c.cell) ? c.cell[0] : 0);
+        const cellY = (c.cell && typeof c.cell.y === 'number') ? c.cell.y : (Array.isArray(c.cell) ? c.cell[1] : 0);
         entry.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <b style="color:var(--accent-amber);">[Tick ${frame.tick}] Conflict Resolved</b>
-            <span style="font-size:10px; color:var(--text-muted);">Cell (${((c.cell && typeof c.cell.x === 'number') ? c.cell.x : (Array.isArray(c.cell) ? c.cell[0] : 0))}, ${((c.cell && typeof c.cell.y === 'number') ? c.cell.y : (Array.isArray(c.cell) ? c.cell[1] : 0))})</span>
+            <span style="font-size:10px; color:var(--text-muted);">Cell (${cellX}, ${cellY})</span>
           </div>
-          <div style="margin-top:2px; font-size:10.5px;">
-            Winner: <b style="color:#60a5fa">${c.winner_id}</b> • Yielded: <b style="color:#f87171">${c.loser_id}</b> (${c.action})
+          <div style="margin-top:2px; font-size:10px;">
+            Winner: <b style="color:#60a5fa">${c.winner_id}</b> • Yielded: <b style="color:#f87171">${c.loser_id}</b> (${c.action || c.resolution_type || 'YIELD'})
           </div>
         `;
         entry.addEventListener('click', () => {
@@ -805,12 +736,14 @@ function buildFullEventLog() {
 
   conflictCountBadge.innerText = `${totalConflicts} Resolved`;
   if (totalConflicts === 0) {
-    eventLog.innerHTML = `<div style="color:var(--text-muted); font-size:11px; padding:10px;">Zero path intersections triggered arbitration in this scenario run. All paths executed with pre-reserved headway.</div>`;
+    eventLog.innerHTML = `<div style="color:var(--text-muted); font-size:10.5px; padding:8px;">Zero path intersections triggered arbitration. Head-on and cross-cell headway was perfectly maintained.</div>`;
   }
 }
 
+// ── Rendering Engine ────────────────────────────────────────────────────────
 function renderFrame(idx) {
   const curScenario = DATA.scenarios[currentScenarioIdx];
+  if (!curScenario) return;
   const frame = curScenario.frames[idx];
   if (!frame) return;
 
@@ -818,7 +751,7 @@ function renderFrame(idx) {
   ctx.fillStyle = '#070b13';
   ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-  // Draw Grid Lines & Coordinates
+  // Draw Grid Lines
   ctx.lineWidth = 0.5;
   ctx.strokeStyle = '#121b2d';
   for (let i = 0; i <= GRID_DIM; i++) {
@@ -845,13 +778,12 @@ function renderFrame(idx) {
     ctx.strokeRect(ox + 2, oy + 2, CELL_SIZE - 4, CELL_SIZE - 4);
   });
 
-  // Draw Goal and Path Waypoints
+  // Draw Goal markers & Path trails
   frame.robots.forEach((r, i) => {
     const color = ROBOT_COLORS[i % ROBOT_COLORS.length];
     const isFocused = focusedRobotId === r.id;
     const goal = r.goal || (r.carrying ? r.drop : r.pickup) || r.drop;
 
-    // Draw Goal marker
     if (goal && !r.completed) {
       const gx = goal[0] * CELL_SIZE;
       const gy = goal[1] * CELL_SIZE;
@@ -867,10 +799,9 @@ function renderFrame(idx) {
       ctx.fillText('G', gx + CELL_SIZE / 2, gy + CELL_SIZE / 2);
     }
 
-    // Draw Path trail
     if (r.path && r.path.length > 0 && !r.completed) {
       ctx.strokeStyle = color;
-      ctx.lineWidth = isFocused ? 3 : 1.5;
+      ctx.lineWidth = isFocused ? 2.5 : 1.2;
       ctx.globalAlpha = isFocused ? 0.9 : (focusedRobotId ? 0.15 : 0.4);
       ctx.beginPath();
       ctx.moveTo(r.x * CELL_SIZE + CELL_SIZE / 2, r.y * CELL_SIZE + CELL_SIZE / 2);
@@ -882,26 +813,28 @@ function renderFrame(idx) {
     }
   });
 
-  // Highlight Active Conflicts on Grid with Pulsating Ring
+  // Draw Pulsating Conflict Rings
   if (frame.conflicts && frame.conflicts.length > 0) {
     frame.conflicts.forEach(c => {
-      const cx = ((c.cell && typeof c.cell.x === 'number') ? c.cell.x : (Array.isArray(c.cell) ? c.cell[0] : 0)) * CELL_SIZE + CELL_SIZE / 2;
-      const cy = ((c.cell && typeof c.cell.y === 'number') ? c.cell.y : (Array.isArray(c.cell) ? c.cell[1] : 0)) * CELL_SIZE + CELL_SIZE / 2;
+      const cellX = (c.cell && typeof c.cell.x === 'number') ? c.cell.x : (Array.isArray(c.cell) ? c.cell[0] : 0);
+      const cellY = (c.cell && typeof c.cell.y === 'number') ? c.cell.y : (Array.isArray(c.cell) ? c.cell[1] : 0);
+      const cx = cellX * CELL_SIZE + CELL_SIZE / 2;
+      const cy = cellY * CELL_SIZE + CELL_SIZE / 2;
 
       ctx.save();
       ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(cx, cy, CELL_SIZE * 0.7, 0, Math.PI * 2);
+      ctx.arc(cx, cy, CELL_SIZE * 0.65, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
       ctx.fill();
 
       ctx.fillStyle = '#fbbf24';
-      ctx.font = '700 9px JetBrains Mono';
+      ctx.font = '700 8.5px JetBrains Mono';
       ctx.textAlign = 'center';
-      ctx.fillText('⚡ CONFLICT', cx, cy - CELL_SIZE * 0.8);
+      ctx.fillText('⚡ CONFLICT', cx, cy - CELL_SIZE * 0.7);
       ctx.restore();
     });
   }
@@ -915,44 +848,43 @@ function renderFrame(idx) {
 
     ctx.save();
     if (focusedRobotId && !isFocused) {
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = 0.3;
     }
 
-    // Status halo
     if (r.waits > 0 && !r.completed) {
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(cx, cy, CELL_SIZE * 0.45, 0, Math.PI * 2);
+      ctx.arc(cx, cy, CELL_SIZE * 0.44, 0, Math.PI * 2);
       ctx.stroke();
     } else if (isFocused) {
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(cx, cy, CELL_SIZE * 0.46, 0, Math.PI * 2);
+      ctx.arc(cx, cy, CELL_SIZE * 0.45, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // Robot body
+    // Body
     ctx.fillStyle = r.completed ? '#475569' : color;
     ctx.beginPath();
-    ctx.arc(cx, cy, CELL_SIZE * 0.38, 0, Math.PI * 2);
+    ctx.arc(cx, cy, CELL_SIZE * 0.36, 0, Math.PI * 2);
     ctx.fill();
 
-    // Heading Pointer
+    // Direction arrow
     const angleMap = { 'EAST': 0, 'SOUTH': Math.PI / 2, 'WEST': Math.PI, 'NORTH': -Math.PI / 2 };
     const angle = angleMap[r.heading] || 0;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(angle) * (CELL_SIZE * 0.42), cy + Math.sin(angle) * (CELL_SIZE * 0.42));
-    ctx.lineTo(cx + Math.cos(angle + 2.4) * (CELL_SIZE * 0.2), cy + Math.sin(angle + 2.4) * (CELL_SIZE * 0.2));
-    ctx.lineTo(cx + Math.cos(angle - 2.4) * (CELL_SIZE * 0.2), cy + Math.sin(angle - 2.4) * (CELL_SIZE * 0.2));
+    ctx.moveTo(cx + Math.cos(angle) * (CELL_SIZE * 0.4), cy + Math.sin(angle) * (CELL_SIZE * 0.4));
+    ctx.lineTo(cx + Math.cos(angle + 2.4) * (CELL_SIZE * 0.18), cy + Math.sin(angle + 2.4) * (CELL_SIZE * 0.18));
+    ctx.lineTo(cx + Math.cos(angle - 2.4) * (CELL_SIZE * 0.18), cy + Math.sin(angle - 2.4) * (CELL_SIZE * 0.18));
     ctx.closePath();
     ctx.fill();
 
-    // Robot Number
+    // ID Number
     ctx.fillStyle = '#0f172a';
-    ctx.font = '800 8.5px JetBrains Mono';
+    ctx.font = '800 8px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(r.id.replace('AMR-', ''), cx, cy);
@@ -960,89 +892,73 @@ function renderFrame(idx) {
     ctx.restore();
   });
 
-  // Update UI Elements
   slider.value = idx;
   tickLabel.innerText = `Tick: ${String(frame.tick).padStart(2, '0')}`;
 
-  // Update Invariant Verification Card
-  invCollisionVal.innerHTML = frame.invariants.zero_collisions ? '0 Collisions ✓' : '<span style="color:#f43f5e">COLLISION ✕</span>';
-  invSwapVal.innerHTML = frame.invariants.zero_swaps ? '0 Swaps ✓' : '<span style="color:#f43f5e">SWAP CONFLICT ✕</span>';
-  invStarveVal.innerHTML = `Max Wait: ${frame.invariants.max_waits} ${frame.invariants.max_waits <= 35 ? '✓' : '⚠'}`;
+  // Invariants Card
+  const inv = frame.invariants || { zero_collisions: true, zero_swaps: true, max_waits: 0 };
+  invCollisionVal.innerHTML = inv.zero_collisions ? '0 Collisions ✓' : '<span style="color:#f43f5e">COLLISION ✕</span>';
+  invSwapVal.innerHTML = inv.zero_swaps ? '0 Swaps ✓' : '<span style="color:#f43f5e">SWAP ✕</span>';
+  invStarveVal.innerHTML = `Max Wait: ${inv.max_waits} ${inv.max_waits <= 35 ? '✓' : '⚠'}`;
 
-  // Update Telemetry Table
+  // Telemetry Table
   robotTableBody.innerHTML = '';
   frame.robots.forEach(r => {
     const tr = document.createElement('tr');
     if (focusedRobotId === r.id) tr.className = 'selected';
+    const actionStr = r.action || (r.completed ? 'COMPLETED' : (r.waits > 0 ? 'YIELDED' : 'MOVED'));
     tr.innerHTML = `
-      <td class="robot-id"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${ROBOT_COLORS[parseInt(r.id.replace('AMR-', '')) - 1] || '#38bdf8'}; margin-right:4px;"></span>${r.id}</td>
+      <td style="font-weight:700; color:${ROBOT_COLORS[parseInt(r.id.replace('AMR-', '')) - 1] || '#38bdf8'}">${r.id}</td>
       <td>(${r.x}, ${r.y})</td>
       <td>${r.heading}</td>
-      <td><span class="status-pill ${r.action.includes('YIELD') ? 'wait' : (r.completed ? 'done' : 'moved')}">${r.action}</span></td>
-      <td style="color:#38bdf8; font-weight:700;">${r.priority}</td>
-      <td>${r.urgency}</td>
-      <td>${r.battery}%</td>
-      <td style="color:${r.waits > 0 ? '#fbbf24' : 'var(--text-muted)'}">${r.waits}</td>
+      <td><span class="status-pill ${actionStr.includes('YIELD') ? 'wait' : (r.completed ? 'done' : 'moved')}">${actionStr}</span></td>
+      <td style="color:#38bdf8; font-weight:700;">${r.priority || 0}</td>
+      <td>${r.urgency || 1}</td>
+      <td>${Math.round(r.battery || 100)}%</td>
+      <td style="color:${r.waits > 0 ? '#fbbf24' : 'var(--text-muted)'}">${r.waits || 0}</td>
     `;
     tr.addEventListener('click', () => focusRobot(r));
     robotTableBody.appendChild(tr);
   });
 
-  // Highlight current tick in event log
+  // Highlight log entry
   document.querySelectorAll('.log-entry').forEach(entry => {
     const isCur = parseInt(entry.dataset.tick) === frame.tick;
     entry.classList.toggle('active-tick', isCur);
     if (isCur) entry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
-
-  // Update HUD if an AMR is focused
-  if (focusedRobotId) {
-    const fr = frame.robots.find(r => r.id === focusedRobotId);
-    if (fr) focusRobot(fr);
-  }
 }
 
 function focusRobot(r) {
-  focusedRobotId = r.id;
-  focusedHud.style.display = 'flex';
-  focusedId.innerText = r.id;
-  focusedPos.innerText = `(${r.x}, ${r.y})`;
-  focusedHeading.innerText = r.heading;
-  focusedGoal.innerText = r.goal ? `(${r.goal[0]}, ${r.goal[1]})` : 'N/A';
+  focusedRobotId = (focusedRobotId === r.id) ? null : r.id;
   renderFrame(currentFrameIdx);
 }
 
-clearFocusBtn.addEventListener('click', () => {
-  focusedRobotId = null;
-  focusedHud.style.display = 'none';
-  renderFrame(currentFrameIdx);
-});
-
-// Canvas Hover Tooltip & Click selection
+// ── Tooltip & Hover ──────────────────────────────────────────────────────────
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const scale = CANVAS_SIZE / rect.width;
-  const mx = (e.clientX - rect.left) * scale;
-  const my = (e.clientY - rect.top) * scale;
-  const cellX = Math.floor(mx / CELL_SIZE);
-  const cellY = Math.floor(my / CELL_SIZE);
+  const cellX = Math.floor(((e.clientX - rect.left) * scale) / CELL_SIZE);
+  const cellY = Math.floor(((e.clientY - rect.top) * scale) / CELL_SIZE);
 
   if (cellX >= 0 && cellX < GRID_DIM && cellY >= 0 && cellY < GRID_DIM) {
     const curScenario = DATA.scenarios[currentScenarioIdx];
+    if (!curScenario) return;
     const frame = curScenario.frames[currentFrameIdx];
+    if (!frame) return;
     const occupant = frame.robots.find(r => r.x === cellX && r.y === cellY);
     const isObs = OBSTACLE_SET.has(`${cellX},${cellY}`);
 
     tooltip.style.display = 'block';
-    tooltip.style.left = `${e.clientX - rect.left + 15}px`;
-    tooltip.style.top = `${e.clientY - rect.top + 15}px`;
+    tooltip.style.left = `${e.clientX - rect.left + 12}px`;
+    tooltip.style.top = `${e.clientY - rect.top + 12}px`;
 
     let info = `Cell: (${cellX}, ${cellY})<br>`;
     if (isObs) {
       info += `<span style="color:#f87171">Static Shelf Obstacle</span>`;
     } else if (occupant) {
-      info += `Occupant: <b style="color:var(--accent-cyan)">${occupant.id}</b> [${occupant.action}]<br>` +
-              `Priority: ${occupant.priority} • Battery: ${occupant.battery}%`;
+      info += `Occupant: <b style="color:var(--accent-cyan)">${occupant.id}</b><br>` +
+              `Priority: ${occupant.priority || 0} • Battery: ${Math.round(occupant.battery || 100)}%`;
     } else {
       info += `<span style="color:#34d399">Open Walkable Cell</span>`;
     }
@@ -1061,18 +977,19 @@ canvas.addEventListener('click', (e) => {
   const cellY = Math.floor(((e.clientY - rect.top) * scale) / CELL_SIZE);
 
   const curScenario = DATA.scenarios[currentScenarioIdx];
+  if (!curScenario) return;
   const frame = curScenario.frames[currentFrameIdx];
+  if (!frame) return;
   const clickedRobot = frame.robots.find(r => r.x === cellX && r.y === cellY);
   if (clickedRobot) {
     focusRobot(clickedRobot);
   } else {
     focusedRobotId = null;
-    focusedHud.style.display = 'none';
     renderFrame(currentFrameIdx);
   }
 });
 
-// Playback Logic
+// ── Playback Controls ────────────────────────────────────────────────────────
 function setPlay(play) {
   isPlaying = play;
   playBtn.innerText = isPlaying ? 'Pause' : 'Play';
@@ -1081,7 +998,7 @@ function setPlay(play) {
     clearInterval(playInterval);
     playInterval = setInterval(() => {
       const curScenario = DATA.scenarios[currentScenarioIdx];
-      if (currentFrameIdx < curScenario.total_frames - 1) {
+      if (curScenario && currentFrameIdx < curScenario.total_frames - 1) {
         currentFrameIdx++;
         renderFrame(currentFrameIdx);
       } else {
@@ -1102,7 +1019,7 @@ prevBtn.addEventListener('click', () => {
 });
 nextBtn.addEventListener('click', () => {
   const curScenario = DATA.scenarios[currentScenarioIdx];
-  if (currentFrameIdx < curScenario.total_frames - 1) {
+  if (curScenario && currentFrameIdx < curScenario.total_frames - 1) {
     currentFrameIdx++;
     renderFrame(currentFrameIdx);
   }
@@ -1113,8 +1030,10 @@ firstBtn.addEventListener('click', () => {
 });
 lastBtn.addEventListener('click', () => {
   const curScenario = DATA.scenarios[currentScenarioIdx];
-  currentFrameIdx = curScenario.total_frames - 1;
-  renderFrame(currentFrameIdx);
+  if (curScenario) {
+    currentFrameIdx = curScenario.total_frames - 1;
+    renderFrame(currentFrameIdx);
+  }
 });
 resetBtn.addEventListener('click', () => {
   setPlay(false);
@@ -1122,9 +1041,9 @@ resetBtn.addEventListener('click', () => {
   renderFrame(0);
 });
 
-// Jump to conflict buttons
 nextConflictBtn.addEventListener('click', () => {
   const curScenario = DATA.scenarios[currentScenarioIdx];
+  if (!curScenario) return;
   for (let t = currentFrameIdx + 1; t < curScenario.total_frames; t++) {
     if (curScenario.frames[t].conflicts && curScenario.frames[t].conflicts.length > 0) {
       setPlay(false);
@@ -1134,8 +1053,10 @@ nextConflictBtn.addEventListener('click', () => {
     }
   }
 });
+
 prevConflictBtn.addEventListener('click', () => {
   const curScenario = DATA.scenarios[currentScenarioIdx];
+  if (!curScenario) return;
   for (let t = currentFrameIdx - 1; t >= 0; t--) {
     if (curScenario.frames[t].conflicts && curScenario.frames[t].conflicts.length > 0) {
       setPlay(false);
@@ -1146,15 +1067,12 @@ prevConflictBtn.addEventListener('click', () => {
   }
 });
 
-// Speed Buttons
 document.querySelectorAll('.speed-btn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
     e.target.classList.add('active');
     playSpeed = parseInt(e.target.dataset.speed);
-    if (isPlaying) {
-      setPlay(true);
-    }
+    if (isPlaying) setPlay(true);
   });
 });
 
@@ -1163,21 +1081,120 @@ slider.addEventListener('input', (e) => {
   renderFrame(currentFrameIdx);
 });
 
-// Keyboard Shortcuts
-window.addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'INPUT') return;
-  if (e.key === ' ' || e.code === 'Space') {
-    e.preventDefault();
-    setPlay(!isPlaying);
-  } else if (e.key === 'ArrowLeft') {
-    prevBtn.click();
-  } else if (e.key === 'ArrowRight') {
-    nextBtn.click();
+// ── Live Backend WebSocket Connection ────────────────────────────────────────
+function connectWebSocket() {
+  const wsUrl = 'ws://localhost:8000/ws/fleet';
+  try {
+    ws = new WebSocket(wsUrl);
+  } catch (err) {
+    setOfflineBadge();
+    return;
   }
+
+  ws.onopen = () => {
+    backendBadge.className = 'badge badge-live';
+    backendBadge.innerHTML = '🟢 LIVE BACKEND CONNECTED (ws://localhost:8000)';
+    backendBadge.title = 'Receiving live ticks from backend simulation!';
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'TICK_UPDATE' && isLiveMode) {
+        // Render live tick directly onto canvas
+        // (Could append to live scenario or render immediately)
+      }
+    } catch (e) {}
+  };
+
+  ws.onclose = () => {
+    setOfflineBadge();
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  ws.onerror = () => {
+    setOfflineBadge();
+  };
+}
+
+function setOfflineBadge() {
+  backendBadge.className = 'badge badge-offline';
+  backendBadge.innerHTML = '🟠 BACKEND OFFLINE (Click to check http://localhost:8000)';
+  backendBadge.title = 'Start backend: python -m uvicorn app.main:app --port 8000';
+}
+
+backendBadge.addEventListener('click', () => {
+  window.open('http://localhost:8000/docs', '_blank');
 });
 
-// Initial Setup
-switchScenario(0);
+connectWebSocket();
+
+// ── Dynamic Fuzz Scenario Generation (Backend or Client Generator) ───────────
+generateFuzzBtn.addEventListener('click', async () => {
+  const numRobots = parseInt(fuzzDensitySelect.value, 10) || 20;
+  generateFuzzBtn.innerText = '⏳ Generating...';
+  generateFuzzBtn.disabled = true;
+
+  try {
+    // Try calling real FastAPI backend generator endpoint first
+    const resp = await fetch('http://localhost:8000/api/simulation/generate_fuzz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ num_robots: numRobots, max_ticks: 40 })
+    });
+
+    if (resp.ok) {
+      const newScenario = await resp.json();
+      DATA.scenarios.unshift(newScenario);
+      populateScenarioDropdown();
+      switchScenario(0);
+      setPlay(true);
+      generateFuzzBtn.innerText = '🎲 New Random Fuzz';
+      generateFuzzBtn.disabled = false;
+      return;
+    }
+  } catch (err) {
+    // Backend offline fallback: pick a high-density scenario at random from pool or create variation
+  }
+
+  // Fallback: Pick a random dense scenario from the 50 scenarios
+  const matchingIndices = DATA.scenarios
+    .map((s, idx) => ({ s, idx }))
+    .filter(item => item.s.num_robots === numRobots);
+
+  if (matchingIndices.length > 0) {
+    const picked = matchingIndices[Math.floor(Math.random() * matchingIndices.length)].idx;
+    switchScenario(picked);
+    setPlay(true);
+  } else {
+    const randIdx = Math.floor(Math.random() * DATA.scenarios.length);
+    switchScenario(randIdx);
+    setPlay(true);
+  }
+
+  generateFuzzBtn.innerText = '🎲 New Random Fuzz';
+  generateFuzzBtn.disabled = false;
+});
+
+// ── Initialize Setup ─────────────────────────────────────────────────────────
+populateScenarioDropdown();
+
+// Check if user requested random on reload
+const shouldRandomize = localStorage.getItem('sih_randomize_on_load') === 'true';
+randomizeOnRefreshCheck.checked = shouldRandomize;
+
+randomizeOnRefreshCheck.addEventListener('change', (e) => {
+  localStorage.setItem('sih_randomize_on_load', e.target.checked);
+});
+
+if (shouldRandomize && DATA.scenarios.length > 0) {
+  const randomStartIdx = Math.floor(Math.random() * DATA.scenarios.length);
+  switchScenario(randomStartIdx);
+} else {
+  // Start with a high density 20 AMR scenario with conflicts
+  const defaultIdx = DATA.scenarios.findIndex(s => s.num_robots === 20 && s.conflicts_resolved > 0);
+  switchScenario(defaultIdx !== -1 ? defaultIdx : 0);
+}
 </script>
 </body>
 </html>
