@@ -26,31 +26,34 @@ class SimStatusOut(BaseModel):
     tick_ms: int
 
 
-@router.post("/start", summary="Start simulation")
+@router.post("/start", summary="Start simulation telemetry streaming")
 async def start_simulation(request: Request) -> dict:
-    engine = request.app.state.engine
     fleet = request.app.state.fleet_state
-    if fleet.is_running:
-        raise HTTPException(409, "Simulation already running")
-    await engine.start()
-    return {"status": "started", "tick": fleet.tick}
+    request.app.state.telemetry_streaming_paused = False
+    fleet.is_running = True
+    log.info(
+        "SIMULATION_START: Decentralized fleet telemetry streaming active. "
+        "Authoritative SimulationEngine tick loop remains disabled."
+    )
+    return {"status": "started", "tick": fleet.tick, "mode": "decentralized_telemetry"}
 
 
-@router.post("/pause", summary="Pause simulation")
+@router.post("/pause", summary="Pause simulation telemetry streaming")
 async def pause_simulation(request: Request) -> dict:
-    engine = request.app.state.engine
     fleet = request.app.state.fleet_state
-    if not fleet.is_running:
-        raise HTTPException(409, "Simulation is not running")
-    await engine.pause()
-    return {"status": "paused", "tick": fleet.tick}
+    request.app.state.telemetry_streaming_paused = True
+    fleet.is_running = False
+    log.info("SIMULATION_PAUSED: Telemetry streaming to dashboard paused.")
+    return {"status": "paused", "tick": fleet.tick, "mode": "decentralized_telemetry"}
 
 
-@router.post("/reset", summary="Reset simulation to initial state")
+@router.post("/reset", summary="Reset simulation state")
 async def reset_simulation(request: Request) -> dict:
-    engine = request.app.state.engine
-    await engine.reset()
-    return {"status": "reset", "tick": 0}
+    fleet = request.app.state.fleet_state
+    fleet.reset()
+    request.app.state.telemetry_streaming_paused = False
+    log.info("SIMULATION_RESET: Telemetry viewer state reset.")
+    return {"status": "reset", "tick": 0, "mode": "decentralized_telemetry"}
 
 
 @router.get("/status", summary="Get simulation status", response_model=SimStatusOut)

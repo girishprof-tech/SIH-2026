@@ -62,6 +62,9 @@ from app.security.replay_guard import ReplayGuard
 from app.services.degraded_mode import DegradedModeDetector
 from app.services.audit_mission import AuditMission
 from app.ml.priority_gnn import compute_priority
+from app.core.config import get_settings
+
+cfg = get_settings()
 
 
 @dataclass
@@ -167,6 +170,8 @@ class RobotNode:
 
         # 8. Deadlock / Livelock Breaker State
         self.consecutive_wait_ticks = 0
+        self.last_planner_ms: float = 0.0
+        self.idle_ticks: int = 0
 
         # 9. Degraded Network Detector
         self.degraded_detector = DegradedModeDetector(threshold_missing_ticks=3)
@@ -180,6 +185,12 @@ class RobotNode:
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
         if self.goal_pos is not None and self.goal_pos != self.start_pos:
             self._assign_initial_task(self.goal_pos, self.urgency)
+
+    def _timed_find_path(self, *args, **kwargs) -> List[Dict[str, Any]]:
+        t0 = time.perf_counter()
+        p = find_path(*args, **kwargs)
+        self.last_planner_ms = (time.perf_counter() - t0) * 1000.0
+        return p
 
     def _setup_logger(self) -> None:
         self.logger = logging.getLogger(f"RobotNode.{self.robot_id}")
@@ -201,12 +212,20 @@ class RobotNode:
         except Exception:
             pass
 
-    def _assign_initial_task(self, goal_pos: Tuple[int, int], urgency: int, payload_weight_kg: float = 0.0) -> None:
+    def _assign_initial_task(
+        self,
+        goal_pos: Tuple[int, int],
+        urgency: int,
+        payload_weight_kg: float = 0.0,
+        task_id: Optional[str] = None,
+        pickup_pos: Optional[Tuple[int, int]] = None,
+    ) -> None:
         """Assigns an initial mission and plans the initial route."""
-        tid = f"TASK-{self.robot_id}"
+        tid = task_id or f"TASK-{self.robot_id}"
+        p_pos = pickup_pos if pickup_pos is not None else self.start_pos
         self.task = Task(
             task_id=tid,
-            pickup=self.start_pos,
+            pickup=p_pos,
             dropoff=goal_pos,
             urgency=urgency,
             created_tick=0,
@@ -220,7 +239,7 @@ class RobotNode:
 
         # Plan initial route to pickup (or dropoff if starting at pickup)
         target = self.task.dropoff if self.robot.position == self.task.pickup else self.task.pickup
-        path = find_path(
+        path = self._timed_find_path(
             start=self.robot.position,
             goal=target,
             current_tick=0,
@@ -240,8 +259,8 @@ class RobotNode:
 
         self.robot.state = self.fsm.state
 
-    def reset_failsafe(self) -> None:
-        """Manual operator override command to recover from FAILSAFE_HOLD or EMERGENCY_STOP to IDLE."""
+    def _recover_from_failsafe(self, tick: int = 0) -> None:
+        """Shared recovery logic for automatic watchdog and manual operator reset."""
         self.pre_conflict_activity = None
         self.failsafe_hold_ticks = 0
         if self.fsm.state == RobotState.EMERGENCY_STOP:
@@ -249,7 +268,20 @@ class RobotNode:
         elif self.fsm.state == RobotState.FAILSAFE_HOLD:
             self.fsm.transition(RobotEvent.FAILSAFE_RESET)
         self.robot.state = self.fsm.state
-        self.log(f"Operator reset executed: robot returned to {self.fsm.state.value}")
+        self.log(f"[Tick {tick}] Recovered from failsafe/emergency stop -> IDLE.")
+        if self.task and self.task.dropoff:
+            orig_task_id = self.task.task_id
+            self._assign_initial_task(
+                goal_pos=self.task.dropoff,
+                urgency=self.task.urgency,
+                payload_weight_kg=getattr(self.task, "payload_weight_kg", 0.0),
+                task_id=orig_task_id,
+                pickup_pos=self.task.pickup,
+            )
+
+    def reset_failsafe(self) -> None:
+        """Manual operator override command to recover from FAILSAFE_HOLD or EMERGENCY_STOP to IDLE."""
+        self._recover_from_failsafe(tick=0)
 
     def step(self, tick: int) -> Dict[str, Any]:
         """
@@ -264,20 +296,54 @@ class RobotNode:
         if self.fsm.state == RobotState.FAILSAFE_HOLD:
             self.failsafe_hold_ticks += 1
             if self.failsafe_hold_ticks >= 5:
-                # State hygiene: purge pre_conflict_activity
-                self.pre_conflict_activity = None
-                self.fsm.transition(RobotEvent.FAILSAFE_RESET)
-                self.robot.state = self.fsm.state
-                self.failsafe_hold_ticks = 0
-                self.log(f"[Tick {tick}] Supervisory watchdog: recovered from FAILSAFE_HOLD -> IDLE.")
-                if self.task and self.task.dropoff:
-                    self._assign_initial_task(self.task.dropoff, self.task.urgency, getattr(self.task, "payload_weight_kg", 0.0))
+                self._recover_from_failsafe(tick=tick)
             else:
                 self.log(f"[Tick {tick}] In FAILSAFE_HOLD ({self.failsafe_hold_ticks}/5 ticks). Holding position.")
                 return self._build_telemetry_frame(tick, "HOLDING", None)
 
         # 2. Drain incoming transport messages
         self._drain_inbox(tick)
+
+        # Check battery threshold & charging
+        if self.fsm.state == RobotState.CHARGING:
+            self.robot.battery_pct = min(100.0, self.robot.battery_pct + 5.0)
+            if self.robot.battery_pct >= 95.0:
+                self.fsm.transition(RobotEvent.CHARGE_COMPLETE)
+                self.robot.state = self.fsm.state
+                self.log(f"[Tick {tick}] Charging complete ({self.robot.battery_pct:.1f}%). Returning to IDLE.")
+            return self._build_telemetry_frame(tick, "CHARGING", None)
+
+        if self.robot.battery_pct <= cfg.BATTERY_LOW_THRESHOLD and self.fsm.state != RobotState.CHARGING:
+            self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}% <= {cfg.BATTERY_LOW_THRESHOLD}%). Entering CHARGING.")
+            self.fsm.transition(RobotEvent.BATTERY_LOW)
+            self.robot.state = self.fsm.state
+            return self._build_telemetry_frame(tick, "CHARGING", None)
+
+        # Check idle background audit patrol trigger
+        if self.fsm.state == RobotState.IDLE and not self.task:
+            self.idle_ticks += 1
+            if self.idle_ticks >= 10:
+                self.idle_ticks = 0
+                from app.services.audit_mission import DEFAULT_CHECKPOINTS, AuditMission
+                checkpoints = [c for c in DEFAULT_CHECKPOINTS if c != self.robot.position] or DEFAULT_CHECKPOINTS
+                best_cp = min(checkpoints, key=lambda cp: abs(cp[0] - self.robot.position[0]) + abs(cp[1] - self.robot.position[1]))
+                self.active_audit_mission = AuditMission(best_cp)
+                self.goal_pos = best_cp
+                self.fsm.transition(RobotEvent.START_AUDIT)
+                self.robot.state = self.fsm.state
+                audit_path = self._timed_find_path(
+                    start=self.robot.position,
+                    goal=best_cp,
+                    current_tick=tick,
+                    reservation_table=self.local_reservations,
+                    grid=self.grid,
+                )
+                if audit_path and len(audit_path) > 1:
+                    self.robot.path = audit_path
+                    reserve_path(audit_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                self.log(f"[Tick {tick}] Triggered background audit mission to {best_cp}.")
+        else:
+            self.idle_ticks = 0
 
         # 3. Handle Atomic PICKING / DROPPING ticks
         if self.fsm.state == RobotState.PICKING:
@@ -286,7 +352,7 @@ class RobotNode:
             if self.task:
                 self.task.status = "IN_PROGRESS"
                 # Plan route to dropoff
-                p_drop = find_path(
+                p_drop = self._timed_find_path(
                     start=self.robot.position,
                     goal=self.task.dropoff,
                     current_tick=tick,
@@ -302,27 +368,24 @@ class RobotNode:
         if self.fsm.state == RobotState.DROPPING:
             self.log(f"[Tick {tick}] Executing atomic dropoff at {self.robot.position}...")
             if self.task:
-                self.task.status = "COMPLETED"
                 self.completed_task_ids.add(self.task.task_id)
+                self.task.status = "COMPLETED"
                 self.task = None
+            self.goal_pos = None
+            self.robot.path = []
+            self.load_move_steps = 0
             self.fsm.transition(RobotEvent.MISSION_COMPLETE)
             self.robot.state = self.fsm.state
             self.pre_conflict_activity = None
-            self.robot.path = []
             return self._build_telemetry_frame(tick, "MISSION_COMPLETED", None)
 
-        # 4. Update Priority Score
-        target_dest = self.goal_pos or self.robot.position
-        dist = abs(target_dest[0] - self.robot.position[0]) + abs(target_dest[1] - self.robot.position[1])
-        self.robot.priority_score = compute_priority(self.robot, self.task, dist)
-
-        # 5. Determine candidate intended next position
+        # 4. Propose Next Position along Path
         intended_pos = self.robot.position
-        if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.AUDITING):
+        if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.AUDITING, RobotState.CONFLICT_NEGOTIATING):
             if not self.robot.path or len(self.robot.path) <= 1:
                 # Path exhausted: replan if goal exists
                 if self.goal_pos and self.robot.position != self.goal_pos:
-                    re_p = find_path(
+                    re_p = self._timed_find_path(
                         start=self.robot.position,
                         goal=self.goal_pos,
                         current_tick=tick,
@@ -342,7 +405,7 @@ class RobotNode:
             self.consecutive_wait_ticks >= 3
             and self.goal_pos
             and self.robot.position != self.goal_pos
-            and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.CONFLICT_NEGOTIATING)
+            and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.CONFLICT_NEGOTIATING, RobotState.AUDITING)
         ):
             self.log(f"[Tick {tick}] Deadlock/livelock detected ({self.consecutive_wait_ticks} wait ticks). Seeking alternate route/nook...")
             for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
@@ -354,7 +417,7 @@ class RobotNode:
                     self.local_reservations[(p.position[0], p.position[1], tick + dt)] = p.robot_id
                     self.local_reservations[(p.intended_pos[0], p.intended_pos[1], tick + dt)] = p.robot_id
 
-            alt_path = find_path(
+            alt_path = self._timed_find_path(
                 start=self.robot.position,
                 goal=self.goal_pos,
                 current_tick=tick,
@@ -377,7 +440,7 @@ class RobotNode:
                 for cand in candidate_nooks:
                     if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
                         if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents:
-                            n_path = find_path(
+                            n_path = self._timed_find_path(
                                 start=self.robot.position,
                                 goal=cand,
                                 current_tick=tick,
@@ -498,7 +561,7 @@ class RobotNode:
                         for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
                             del self.local_reservations[k]
 
-                        re_path = find_path(
+                        re_path = self._timed_find_path(
                             start=self.robot.position,
                             goal=self.goal_pos or self.robot.position,
                             current_tick=tick,
@@ -594,7 +657,7 @@ class RobotNode:
                 elif self.pre_conflict_activity == RobotState.AUDITING:
                     self.fsm.transition(RobotEvent.RESUME_AUDIT)
                 else:
-                    self.fsm.transition(RobotEvent.RESUME_PICKUP)
+                    self.fsm.state = RobotState.FAILSAFE_HOLD
                 self.pre_conflict_activity = None
                 self.robot.state = self.fsm.state
                 self.log(f"[Tick {tick}] Conflict cleared: resumed state {self.fsm.state.value}.")
@@ -611,6 +674,23 @@ class RobotNode:
                 self.fsm.transition(RobotEvent.DROPOFF_REACHED)
                 self.robot.state = self.fsm.state
                 self.log(f"[Tick {tick}] Arrived at dropoff cell {self.task.dropoff}! Entering DROPPING state.")
+            elif self.fsm.state == RobotState.EN_ROUTE_PICKUP and self.robot.position == self.task.dropoff:
+                # Direct route to dropoff or reached destination without distinct pickup
+                self.fsm.transition(RobotEvent.PICKUP_REACHED)
+                self.fsm.transition(RobotEvent.PICKUP_COMPLETE)
+                self.fsm.transition(RobotEvent.DROPOFF_REACHED)
+                self.robot.state = self.fsm.state
+                self.log(f"[Tick {tick}] Reached mission destination {self.task.dropoff}! Entering DROPPING state.")
+        elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
+            if self.robot.position == self.active_audit_mission.checkpoint:
+                scan_msg = self.active_audit_mission.record_scan(self.robot.position)
+                self.fsm.transition(RobotEvent.AUDIT_CHECKPOINT_LOGGED)
+                self.robot.state = self.fsm.state
+                self.active_audit_mission = None
+                self.goal_pos = None
+                self.robot.path = []
+                action_taken = "COMPLETED"
+                self.log(f"[Tick {tick}] {scan_msg}")
         elif self.goal_pos and self.robot.position == self.goal_pos:
             self.fsm.transition(RobotEvent.MISSION_COMPLETE)
             self.robot.state = self.fsm.state
@@ -642,6 +722,8 @@ class RobotNode:
             "wait_ticks": self.robot.wait_ticks_so_far,
             "action": action,
             "completed": (self.fsm.state == RobotState.IDLE and not self.task),
+            "current_task_id": self.task.task_id if self.task else None,
+            "planner_latency_ms": round(self.last_planner_ms, 3),
             "path": [{"x": p["x"], "y": p["y"]} for p in self.robot.path[:8]],
             "goal": list(self.goal_pos) if self.goal_pos else list(self.robot.position),
             "conflict": conflict,
@@ -664,7 +746,7 @@ class RobotNode:
                     self.log(f"Security envelope verification failed: {err}")
                     continue
                 body = msg.get("body", {})
-                sender = payload.get("robot_id", "unknown")
+                sender = payload.get("sender_id") or payload.get("robot_id", "unknown")
                 seq = body.get("seq")
                 ts = body.get("timestamp", time.time())
                 r_valid, r_err = self.replay_guard.validate(sender, seq, ts)
@@ -718,12 +800,26 @@ class RobotNode:
                 t_dict = actual_msg.get("task", {})
                 tid = t_dict.get("task_id")
                 if tid and tid not in self.completed_task_ids and self.fsm.state == RobotState.IDLE:
+                    pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
+                    dropoff_pos = tuple(t_dict["dropoff"])
                     self._assign_initial_task(
-                        goal_pos=tuple(t_dict["dropoff"]),
-                        urgency=t_dict.get("urgency", 3),
+                        goal_pos=dropoff_pos,
+                        urgency=int(t_dict.get("urgency", 3)),
                         payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
+                        task_id=tid,
+                        pickup_pos=pickup_pos,
                     )
-                    self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid}.")
+                    self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid} to pickup {pickup_pos} -> dropoff {dropoff_pos}.")
+
+            elif m_type == "EMERGENCY_STOP":
+                self.log(f"[Tick {current_tick}] Control command received: EMERGENCY_STOP.")
+                self.fsm.transition(RobotEvent.E_STOP)
+                self.robot.state = self.fsm.state
+                self.pre_conflict_activity = None
+
+            elif m_type in ("RESET", "RESET_FAILSAFE"):
+                self.log(f"[Tick {current_tick}] Control command received: {m_type}.")
+                self.reset_failsafe()
 
 
 def run_robot_process(
@@ -761,7 +857,7 @@ def run_robot_process(
 
     tick = 0
     try:
-        while not stop_event.is_set() and tick < max_ticks:
+        while not stop_event.is_set() and (max_ticks <= 0 or tick < max_ticks):
             t0 = time.time()
             node.step(tick)
             tick += 1

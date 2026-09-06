@@ -1,0 +1,43 @@
+import type { RobotState } from './types'
+
+export const STATE_COLORS: Record<RobotState, string> = {
+  IDLE: '#68e0a0',
+  ASSIGNED: '#7eb6ff',
+  EN_ROUTE_PICKUP: '#57a9ff',
+  PICKING: '#38d9a9',
+  EN_ROUTE_DROPOFF: '#4dabf7',
+  DROPPING: '#fcc419',
+  CONFLICT_NEGOTIATING: '#ffc857',
+  AUDITING: '#b197fc',
+  CHARGING: '#4de1e8',
+  FAILSAFE_HOLD: '#ff922b',
+  EMERGENCY_STOP: '#ff5d68',
+}
+
+export const STATE_LABELS: Record<RobotState, string> = {
+  IDLE: 'IDLE',
+  ASSIGNED: 'ASSIGNED',
+  EN_ROUTE_PICKUP: 'EN ROUTE',
+  PICKING: 'PICKING',
+  EN_ROUTE_DROPOFF: 'DROPOFF ROUTE',
+  DROPPING: 'DROPPING',
+  CONFLICT_NEGOTIATING: 'CONFLICT',
+  AUDITING: 'AUDIT',
+  CHARGING: 'CHARGING',
+  FAILSAFE_HOLD: 'FAILSAFE',
+  EMERGENCY_STOP: 'E-STOP',
+}
+
+export const ALL_STATES: RobotState[] = [
+  'IDLE',
+  'ASSIGNED',
+  'EN_ROUTE_PICKUP',
+  'PICKING',
+  'EN_ROUTE_DROPOFF',
+  'DROPPING',
+  'CONFLICT_NEGOTIATING',
+  'AUDITING',
+  'CHARGING',
+  'FAILSAFE_HOLD',
+  'EMERGENCY_STOP',
+]

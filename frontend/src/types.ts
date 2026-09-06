@@ -1,5 +1,5 @@
 export type Point = { x: number; y: number }
-export type RobotState = 'IDLE' | 'EN_ROUTE' | 'CONFLICT_NEGOTIATING' | 'CHARGING' | 'EMERGENCY_STOP'
+export type RobotState = 'IDLE' | 'ASSIGNED' | 'EN_ROUTE_PICKUP' | 'PICKING' | 'EN_ROUTE_DROPOFF' | 'DROPPING' | 'CONFLICT_NEGOTIATING' | 'AUDITING' | 'CHARGING' | 'FAILSAFE_HOLD' | 'EMERGENCY_STOP'
 export type Heading = 'NORTH' | 'SOUTH' | 'EAST' | 'WEST'
 export type Robot = { robot_id: string; position: Point; heading: Heading; state: RobotState; battery_pct: number; current_task_id: string | null; priority_score: number; last_updated_tick: number; path: Array<Point & { t: number }> }
 export type Conflict = { robot_ids?: string[]; cell: Point; resolved_by?: string; winner_id?: string; loser_id?: string; action?: string }

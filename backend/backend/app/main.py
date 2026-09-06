@@ -47,6 +47,81 @@ setup_logging(cfg.LOG_LEVEL)
 log = logging.getLogger(__name__)
 
 
+def process_telemetry_frame(
+    data: Dict[str, Any],
+    fleet_state: FleetState,
+    telemetry: Telemetry,
+    loop_duration_ms: float = 0.0,
+) -> None:
+    """Processes incoming TICK_UPDATE, updating fleet_state and real telemetry metrics."""
+    if not data or data.get("type") != "TICK_UPDATE":
+        return
+
+    tick = data.get("tick", fleet_state.tick)
+    fleet_state.tick = tick
+    fleet_state.is_running = True
+
+    # 1. Loop processing latency
+    if loop_duration_ms > 0:
+        telemetry.record_tick(loop_duration_ms)
+    elif "last_tick_processing_ms" in data:
+        telemetry.record_tick(data["last_tick_processing_ms"])
+
+    # 2. Active conflicts
+    conflicts = data.get("active_conflicts", [])
+    telemetry.active_conflicts = len(conflicts)
+
+    # 3. Robots, replans & planner latency
+    robots_data = data.get("robots", [])
+    telemetry.active_robots = len(robots_data)
+
+    planner_latencies = []
+    for r_dict in robots_data:
+        rid = r_dict.get("id") or r_dict.get("robot_id")
+        if not rid:
+            continue
+
+        # Increment replans whenever a robot's conflict is non-null or action indicates yield/detour
+        if r_dict.get("conflict"):
+            telemetry.record_replan()
+
+        p_lat = r_dict.get("planner_latency_ms")
+        if p_lat is not None and p_lat > 0:
+            planner_latencies.append(p_lat)
+
+        pos_raw = r_dict.get("position")
+        if isinstance(pos_raw, dict):
+            pos = (int(pos_raw.get("x", 0)), int(pos_raw.get("y", 0)))
+        elif isinstance(pos_raw, (list, tuple)):
+            pos = (int(pos_raw[0]), int(pos_raw[1]))
+        else:
+            pos = (int(r_dict.get("x", 0)), int(r_dict.get("y", 0)))
+        h_str = r_dict.get("heading", "NORTH")
+        try:
+            h_enum = Heading(h_str)
+        except Exception:
+            h_enum = Heading.NORTH
+
+        if rid not in fleet_state.robots:
+            fleet_state.robots[rid] = Robot(
+                robot_id=rid,
+                position=pos,
+                heading=h_enum,
+                battery_pct=r_dict.get("battery", 100.0),
+            )
+        else:
+            rob = fleet_state.robots[rid]
+            rob.position = pos
+            rob.heading = h_enum
+            rob.battery_pct = r_dict.get("battery", rob.battery_pct)
+            rob.priority_score = r_dict.get("priority_score", rob.priority_score)
+            rob.wait_ticks_so_far = r_dict.get("wait_ticks_so_far", rob.wait_ticks_so_far)
+
+    if planner_latencies:
+        avg_planner = sum(planner_latencies) / len(planner_latencies)
+        telemetry.record_planner(avg_planner)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Application Lifespan
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +142,11 @@ async def lifespan(app: FastAPI):
     telemetry.tick_ms_configured = cfg.SIM_TICK_MS
     connection_manager = ConnectionManager(max_queue=cfg.WS_MAX_QUEUE)
     planner = get_planner_adapter()
+
+    from app.services.telemetry_bus import read_latest_telemetry
+    init_data = read_latest_telemetry()
+    if init_data:
+        process_telemetry_frame(init_data, fleet_state, telemetry)
 
     conflict_manager = ConflictManager(
         reservation_manager=reservation_manager,
@@ -105,7 +185,7 @@ async def lifespan(app: FastAPI):
         log.info("Autonomous AMR Fleet detected on UDP port 9001. Acting as pure Telemetry Viewer.")
     elif spawn_enabled:
         log.info("Spawning autonomous decentralized robot processes for AMR fleet...")
-        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0)
+        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0, max_ticks=0)
         orchestrator.start()
     else:
         log.info("SPAWN_FLEET_ORCHESTRATOR=0: Operating as pure Telemetry Viewer.")
@@ -119,6 +199,7 @@ async def lifespan(app: FastAPI):
     app.state.telemetry = telemetry
     app.state.engine = engine
     app.state.orchestrator = orchestrator
+    app.state.telemetry_streaming_paused = False
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
@@ -129,51 +210,41 @@ async def lifespan(app: FastAPI):
         last_tick = -1
         while True:
             try:
-                data = read_latest_telemetry()
-                if data and data.get("tick", -1) != last_tick:
-                    last_tick = data["tick"]
-                    fleet_state.tick = last_tick
-                    fleet_state.is_running = True
-                    # Update robot states for REST endpoints
-                    for r_dict in data.get("robots", []):
-                        rid = r_dict.get("id") or r_dict.get("robot_id")
-                        if not rid:
-                            continue
-                        pos_raw = r_dict.get("position")
-                        if isinstance(pos_raw, dict):
-                            pos = (int(pos_raw.get("x", 0)), int(pos_raw.get("y", 0)))
-                        elif isinstance(pos_raw, (list, tuple)):
-                            pos = (int(pos_raw[0]), int(pos_raw[1]))
-                        else:
-                            pos = (int(r_dict.get("x", 0)), int(r_dict.get("y", 0)))
-                        h_str = r_dict.get("heading", "NORTH")
-                        try:
-                            h_enum = Heading(h_str)
-                        except Exception:
-                            h_enum = Heading.NORTH
+                if not getattr(app.state, "telemetry_streaming_paused", False):
+                    t_start = time.perf_counter()
+                    data = read_latest_telemetry()
+                    if data and data.get("tick", -1) != last_tick:
+                        last_tick = data["tick"]
+                        proc_ms = (time.perf_counter() - t_start) * 1000.0
+                        process_telemetry_frame(data, fleet_state, telemetry, loop_duration_ms=proc_ms)
+                        telemetry.connected_clients = len(connection_manager._connections)
 
-                        if rid not in fleet_state.robots:
-                            fleet_state.robots[rid] = Robot(
-                                robot_id=rid,
-                                position=pos,
-                                heading=h_enum,
-                                battery_pct=r_dict.get("battery", 100.0),
-                            )
-                        else:
-                            rob = fleet_state.robots[rid]
-                            rob.position = pos
-                            rob.heading = h_enum
-                            rob.battery_pct = r_dict.get("battery", rob.battery_pct)
-                            rob.priority_score = r_dict.get("priority_score", rob.priority_score)
-                            rob.wait_ticks_so_far = r_dict.get("wait_ticks_so_far", rob.wait_ticks_so_far)
-
-                    # Forward TICK_UPDATE payload to WebSocket clients
-                    await connection_manager.broadcast_json(data)
+                        # Forward TICK_UPDATE payload to WebSocket clients
+                        await connection_manager.broadcast_json(data)
             except Exception as e:
                 log.debug("Telemetry forwarder error: %s", e)
             await asyncio.sleep(0.04)
 
     forwarder_task = asyncio.create_task(_telemetry_forwarder(), name="telemetry_forwarder")
+
+    from app.services.task_manager import get_fleet_peer_ports
+
+    async def _pending_task_dispatcher():
+        """Periodically scans pending tasks and dispatches to available idle robots."""
+        while True:
+            try:
+                pending = task_manager.pending_tasks()
+                if pending:
+                    p_ports = get_fleet_peer_ports(getattr(app.state, "orchestrator", None))
+                    for t in pending:
+                        assigned = task_manager.dispatch_to_fleet(t, peer_ports=p_ports)
+                        if assigned:
+                            log.info("DISPATCH_RETRY: Pending task %s dispatched to %s", t.task_id, assigned)
+            except Exception as e:
+                log.debug("Pending task dispatcher error: %s", e)
+            await asyncio.sleep(1.0)
+
+    dispatcher_task = asyncio.create_task(_pending_task_dispatcher(), name="pending_task_dispatcher")
 
     log.info(
         "Backend ready as Pure Telemetry Viewer. Grid=%dx%d Fleet=%d Tick=%dms",
@@ -185,8 +256,13 @@ async def lifespan(app: FastAPI):
     # ── Shutdown ──────────────────────────────────────────────────────────────
     log.info("Shutting down telemetry viewer...")
     forwarder_task.cancel()
+    dispatcher_task.cancel()
     try:
         await forwarder_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await dispatcher_task
     except asyncio.CancelledError:
         pass
 

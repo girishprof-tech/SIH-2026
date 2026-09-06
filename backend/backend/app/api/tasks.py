@@ -82,13 +82,18 @@ async def inject_task(
     )
     fleet.queue_task(task)
 
+    # Attempt immediate dispatch to available robot via UDP
+    from app.services.task_manager import get_fleet_peer_ports
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    peer_ports = get_fleet_peer_ports(orchestrator)
+    task_manager.dispatch_to_fleet(task, peer_ports=peer_ports)
+
     injection_ms = (time.monotonic() - t0) * 1000
     tel.record_task_injection(injection_ms)
 
     log.info(
-        "TASK_CREATED task_id=%s urgency=%d pickup=(%d,%d) dropoff=(%d,%d) latency_ms=%.2f",
-        task.task_id, task.urgency, task.pickup_x, task.pickup_y,
-        task.dropoff_x, task.dropoff_y, injection_ms,
+        "TASK_INJECTED task_id=%s status=%s assigned_to=%s latency_ms=%.2f",
+        task.task_id, task.status.value, task.assigned_robot_id, injection_ms,
     )
 
     return TaskOut(

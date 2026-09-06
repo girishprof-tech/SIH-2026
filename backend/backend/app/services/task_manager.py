@@ -14,13 +14,46 @@ the default NearestIdleAssignment with a more sophisticated algorithm.
 from __future__ import annotations
 
 import abc
+import json
 import logging
-from typing import Dict, List, Optional
+import socket
+from typing import Any, Callable, Dict, List, Optional
 
 from app.models.robot import Robot, RobotState
 from app.models.task import Task, TaskStatus
+from app.security.hmac_envelope import DEFAULT_SECRET_KEY, sign_payload
+from app.services.telemetry_bus import read_latest_telemetry
 
 log = logging.getLogger(__name__)
+
+
+def get_fleet_peer_ports(orchestrator: Optional[Any] = None) -> Dict[str, int]:
+    """Resolves UDP ports for fleet AMRs."""
+    if orchestrator and hasattr(orchestrator, "peer_ports") and orchestrator.peer_ports:
+        return dict(orchestrator.peer_ports)
+    return {f"AMR-{i:02d}": 9000 + i for i in range(1, 11)}
+
+
+def build_task_assignment_envelope(
+    task: Task,
+    target_robot_id: str,
+    secret_key: str = DEFAULT_SECRET_KEY,
+    seq: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Constructs a signed cryptographic HMAC envelope for TASK_ASSIGNMENT."""
+    payload = {
+        "type": "TASK_ASSIGNMENT",
+        "sender_id": "DISPATCHER",
+        "robot_id": target_robot_id,
+        "task": {
+            "task_id": task.task_id,
+            "pickup": [task.pickup_x, task.pickup_y],
+            "dropoff": [task.dropoff_x, task.dropoff_y],
+            "urgency": task.urgency,
+            "payload_weight_kg": getattr(task, "payload_weight_kg", 0.0),
+        },
+    }
+    return sign_payload(payload, secret_key=secret_key, seq=seq)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -193,3 +226,82 @@ class TaskManager:
         """Hot-swap the assignment algorithm without restarting the server."""
         self._assigner = assigner
         log.info("TaskManager: assigner replaced with %s", type(assigner).__name__)
+
+    def dispatch_to_fleet(
+        self,
+        task: Task,
+        transport_sender: Optional[Any] = None,
+        peer_ports: Optional[Dict[str, int]] = None,
+        target_robot_id: Optional[str] = None,
+        host: str = "127.0.0.1",
+        secret_key: str = DEFAULT_SECRET_KEY,
+    ) -> Optional[str]:
+        """
+        Assigns and dispatches a pending task to an available idle robot process via UDP.
+        Sources real robot status from read_latest_telemetry().
+        """
+        best_robot_id: Optional[str] = target_robot_id
+
+        if not best_robot_id:
+            telemetry_data = read_latest_telemetry()
+            if not telemetry_data or not telemetry_data.get("robots"):
+                log.info("DISPATCH_WAIT: No telemetry data available to select idle robot for task %s", task.task_id)
+                return None
+
+            # Filter truly IDLE robots
+            idle_robots = [
+                r for r in telemetry_data["robots"]
+                if str(r.get("state", "")).upper() in ("IDLE", "ROBOTSTATE.IDLE")
+            ]
+            if not idle_robots:
+                log.info("DISPATCH_WAIT: No idle robots available for task %s", task.task_id)
+                return None
+
+            # Nearest idle assignment
+            best_dist = float("inf")
+            for r in idle_robots:
+                pos = r.get("position")
+                if isinstance(pos, dict):
+                    rx, ry = int(pos.get("x", 0)), int(pos.get("y", 0))
+                elif isinstance(pos, (list, tuple)):
+                    rx, ry = int(pos[0]), int(pos[1])
+                else:
+                    rx, ry = int(r.get("x", 0)), int(r.get("y", 0))
+                dist = abs(rx - task.pickup_x) + abs(ry - task.pickup_y)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_robot_id = r.get("id") or r.get("robot_id")
+
+        if not best_robot_id:
+            return None
+
+        envelope = build_task_assignment_envelope(task, best_robot_id, secret_key=secret_key)
+
+        try:
+            if callable(transport_sender):
+                transport_sender(best_robot_id, envelope)
+            elif transport_sender is not None and hasattr(transport_sender, "send"):
+                transport_sender.send(best_robot_id, envelope)
+            else:
+                ports = peer_ports or {}
+                target_port = ports.get(best_robot_id)
+                if not target_port:
+                    if "AMR-" in best_robot_id:
+                        target_port = 9000 + int(best_robot_id.replace("AMR-", ""))
+                    else:
+                        target_port = 9001
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    raw = json.dumps(envelope).encode("utf-8")
+                    sock.sendto(raw, (host, target_port))
+        except Exception as e:
+            log.error("DISPATCH_ERROR sending task %s to %s: %s", task.task_id, best_robot_id, e)
+            return None
+
+        task.status = TaskStatus.ASSIGNED
+        task.assigned_robot_id = best_robot_id
+        log.info(
+            "TASK_DISPATCHED task_id=%s robot=%s pickup=(%d,%d) dropoff=(%d,%d)",
+            task.task_id, best_robot_id, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
+        )
+        return best_robot_id
+

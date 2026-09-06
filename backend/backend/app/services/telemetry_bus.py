@@ -80,12 +80,15 @@ class TelemetryBus:
                 "state": s["state"],
                 "battery": s["battery_pct"],
                 "battery_pct": s["battery_pct"],
+                "current_task_id": s.get("current_task_id"),
                 "priority_score": s["priority_score"],
                 "wait_ticks_so_far": s["wait_ticks"],
                 "action": s["action"],
                 "completed": s["completed"],
                 "path": s["path"],
                 "goal": s["goal"],
+                "conflict": s.get("conflict"),
+                "planner_latency_ms": s.get("planner_latency_ms", 0.0),
             })
 
         return {

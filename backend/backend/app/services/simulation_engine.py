@@ -114,6 +114,7 @@ class SimulationEngine:
         self._loop_task: Optional[asyncio.Task] = None
         self._chaos_enabled: bool = False
         self._chaos_packet_loss: int = 0
+        self.ticks_executed: int = 0
 
         # Update telemetry config
         self._tel.tick_ms_configured = cfg.SIM_TICK_MS
@@ -121,13 +122,17 @@ class SimulationEngine:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        if self._running:
-            log.warning("SimulationEngine already running")
-            return
-        self._running = True
+        """
+        Authoritative tick loop disabled: in the decentralized Edge-AI architecture,
+        autonomous robot nodes execute their own ticks independently.
+        """
+        self._running = False
         self._state.is_running = True
-        self._loop_task = asyncio.create_task(self._run_loop(), name="sim_loop")
-        log.info("SIMULATION_STARTED tick_ms=%d", cfg.SIM_TICK_MS)
+        log.warning(
+            "SimulationEngine authoritative tick loop is DISABLED in decentralized architecture. "
+            "Autonomous AMR processes coordinate peer-to-peer."
+        )
+        return
 
     async def pause(self) -> None:
         self._running = False
@@ -160,28 +165,15 @@ class SimulationEngine:
     # ── Main loop ─────────────────────────────────────────────────────────────
 
     async def _run_loop(self) -> None:
-        """
-        Simulation loop — SCHEMA.md §6: tick every SIM_TICK_MS milliseconds.
-
-        Uses monotonic clock. Never calls time.sleep().
-        """
-        tick_duration = cfg.SIM_TICK_MS / 1000.0
-
-        while self._running:
-            t_start = time.monotonic()
-
-            try:
-                await self._tick()
-            except Exception as exc:
-                log.exception("TICK_ERROR tick=%d: %s", self._state.tick, exc)
-
-            elapsed = time.monotonic() - t_start
-            sleep_s = max(0.0, tick_duration - elapsed)
-            await asyncio.sleep(sleep_s)
+        """Disabled in decentralized mode."""
+        log.warning("SimulationEngine._run_loop() called but authoritative tick loop is disabled.")
+        self._running = False
+        return
 
     # ── Tick Pipeline ─────────────────────────────────────────────────────────
 
     async def _tick(self) -> None:
+        self.ticks_executed += 1
         t0 = time.monotonic()
 
         # ── Step 1: Advance tick ──────────────────────────────────────────────
