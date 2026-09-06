@@ -1,0 +1,11 @@
+export type Point = { x: number; y: number }
+export type RobotState = 'IDLE' | 'EN_ROUTE' | 'CONFLICT_NEGOTIATING' | 'CHARGING' | 'EMERGENCY_STOP'
+export type Heading = 'NORTH' | 'SOUTH' | 'EAST' | 'WEST'
+export type Robot = { robot_id: string; position: Point; heading: Heading; state: RobotState; battery_pct: number; current_task_id: string | null; priority_score: number; last_updated_tick: number; path: Array<Point & { t: number }> }
+export type Conflict = { robot_ids?: string[]; cell: Point; resolved_by?: string; winner_id?: string; loser_id?: string; action?: string }
+export type TempObstacle = { obstacle_id: string; position: Point; created_tick: number; expires_at_tick: number }
+export type TickUpdate = { type?: string; tick: number; timestamp_ms: number; robots: Robot[]; active_conflicts: Conflict[]; temporary_obstacles: TempObstacle[] }
+export type Task = { task_id: string; pickup: Point; dropoff: Point; urgency: number; status: string; assigned_robot_id?: string | null; created_tick: number }
+export type World = { width: number; height: number; static_obstacles: Point[]; charging_stations: Point[]; pickup_stations: Point[]; dropoff_stations: Point[] }
+export type Metrics = { tick_ms_configured: number; last_tick_processing_ms: number; planner_latency_ms: number; broadcast_latency_ms: number; connected_clients: number; active_robots: number; active_conflicts: number; replans: number; total_ticks: number; task_injection_latency_ms: number; conflict_resolution_latency_ms: number }
+export type SimulationStatus = { running: boolean; tick: number; timestamp_ms: number; fleet_size: number; tick_ms: number }
