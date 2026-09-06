@@ -126,3 +126,14 @@ def detect_conflicts(robots: List[Any], current_tick: int) -> List[Dict[str, Any
                     break
 
     return conflicts
+
+
+def detect_peer_conflict(robot_a: Any, robot_b: Any, current_tick: int) -> Optional[Dict[str, Any]]:
+    """
+    Decentralized peer-to-peer conflict detection.
+    Allows a single robot to evaluate whether it has an imminent spatial or swap
+    conflict with a nearby peer within its 2-cell communication radius.
+    """
+    res = detect_conflicts([robot_a, robot_b], current_tick)
+    return res[0] if res else None
+

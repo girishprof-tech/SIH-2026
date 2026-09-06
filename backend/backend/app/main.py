@@ -87,17 +87,71 @@ async def lifespan(app: FastAPI):
     app.state.telemetry = telemetry
     app.state.engine = engine
 
+    # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
+    from app.services.telemetry_bus import read_latest_telemetry
+    import asyncio
+
+    async def _telemetry_forwarder():
+        """Reads updates from the independent robot processes and broadcasts them."""
+        last_tick = -1
+        while True:
+            try:
+                data = read_latest_telemetry()
+                if data and data.get("tick", -1) != last_tick:
+                    last_tick = data["tick"]
+                    fleet_state.tick = last_tick
+                    fleet_state.is_running = True
+                    # Update robot states for REST endpoints
+                    for r_dict in data.get("robots", []):
+                        rid = r_dict.get("id") or r_dict.get("robot_id")
+                        if not rid:
+                            continue
+                        pos = tuple(r_dict.get("position", [r_dict.get("x", 0), r_dict.get("y", 0)]))
+                        h_str = r_dict.get("heading", "NORTH")
+                        try:
+                            h_enum = Heading(h_str)
+                        except Exception:
+                            h_enum = Heading.NORTH
+
+                        if rid not in fleet_state.robots:
+                            fleet_state.robots[rid] = Robot(
+                                robot_id=rid,
+                                position=pos,
+                                heading=h_enum,
+                                battery_pct=r_dict.get("battery", 100.0),
+                            )
+                        else:
+                            rob = fleet_state.robots[rid]
+                            rob.position = pos
+                            rob.heading = h_enum
+                            rob.battery_pct = r_dict.get("battery", rob.battery_pct)
+                            rob.priority_score = r_dict.get("priority_score", rob.priority_score)
+                            rob.wait_ticks_so_far = r_dict.get("wait_ticks_so_far", rob.wait_ticks_so_far)
+
+                    # Forward TICK_UPDATE payload to WebSocket clients
+                    await connection_manager.broadcast_json(data)
+            except Exception as e:
+                log.debug("Telemetry forwarder error: %s", e)
+            await asyncio.sleep(0.04)
+
+    forwarder_task = asyncio.create_task(_telemetry_forwarder(), name="telemetry_forwarder")
+
     log.info(
-        "Backend ready. Grid=%dx%d Fleet=%d Tick=%dms Planner=%s",
-        cfg.GRID_WIDTH, cfg.GRID_HEIGHT, cfg.FLEET_SIZE,
-        cfg.SIM_TICK_MS, planner.name,
+        "Backend ready as Pure Telemetry Viewer. Grid=%dx%d Fleet=%d Tick=%dms",
+        cfg.GRID_WIDTH, cfg.GRID_HEIGHT, cfg.FLEET_SIZE, cfg.SIM_TICK_MS,
     )
 
     yield  # Application runs here
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
-    log.info("Shutting down simulation engine...")
-    if fleet_state.is_running:
+    log.info("Shutting down telemetry viewer...")
+    forwarder_task.cancel()
+    try:
+        await forwarder_task
+    except asyncio.CancelledError:
+        pass
+
+    if fleet_state.is_running and engine._running:
         await engine.pause()
     log.info("Backend shutdown complete.")
 

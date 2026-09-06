@@ -70,8 +70,10 @@ def resolve_conflict(
 
     # 1. Physical Occupancy Rule: if one robot is already stationary at the conflict cell,
     # it cannot yield in a way that allows another robot to walk through it. Approaching robot yields.
-    a_at_cell = (pos_a == conflict_cell)
-    b_at_cell = (pos_b == conflict_cell)
+    # Note: In a SWAP_CONFLICT, neither robot is stationary — both are attempting to exchange cells.
+    is_swap = conflict.get("type") == "SWAP_CONFLICT"
+    a_at_cell = (pos_a == conflict_cell) and not is_swap
+    b_at_cell = (pos_b == conflict_cell) and not is_swap
 
     if a_at_cell and not b_at_cell:
         winner, loser = robot_a, robot_b
@@ -175,3 +177,27 @@ def resolve_conflict(
         "conflict_type": conflict.get("type", "UNKNOWN"),
         "cell": {"x": conflict_cell[0], "y": conflict_cell[1]},
     }
+
+
+def resolve_peer_conflict(
+    conflict: Dict[str, Any],
+    robot_a: Any,
+    robot_b: Any,
+    reservation_table: Dict[Tuple[int, int, int], str],
+    find_path_fn: Callable[..., List[Dict[str, Any]]],
+    tasks: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Decentralized peer-to-peer conflict resolution.
+    Directly resolves a detected conflict between two peer robots without needing
+    a central fleet dictionary.
+    """
+    robots_dict = {robot_a.robot_id: robot_a, robot_b.robot_id: robot_b}
+    return resolve_conflict(
+        conflict=conflict,
+        robots=robots_dict,
+        reservation_table=reservation_table,
+        find_path_fn=find_path_fn,
+        tasks=tasks,
+    )
+

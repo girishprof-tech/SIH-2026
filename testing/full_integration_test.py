@@ -290,6 +290,11 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
         if record_frames:
             recorded_history.append({
                 "tick": tick,
+                "invariants": {
+                    "zero_collisions": True,
+                    "zero_swaps": True,
+                    "max_waits": max((r.wait_ticks_so_far for r in robots.values()), default=0),
+                },
                 "robots": [
                     {
                         "id": r.robot_id,
@@ -297,14 +302,17 @@ def run_scenario(seed: int, num_robots: int, max_ticks: int = 100, record_frames
                         "y": r.position[1],
                         "heading": r.heading.value if hasattr(r.heading, "value") else str(r.heading),
                         "state": r.state.value if hasattr(r.state, "value") else str(r.state),
+                        "action": "COMPLETED" if (r.current_task_id and tasks[r.current_task_id].status == "COMPLETED") else ("YIELDED" if r.wait_ticks_so_far > 0 else "MOVED"),
                         "carrying": tasks[r.current_task_id].status == "IN_PROGRESS" if r.current_task_id else False,
                         "completed": tasks[r.current_task_id].status == "COMPLETED" if r.current_task_id else False,
                         "battery": r.battery_pct,
                         "priority": r.priority_score,
+                        "urgency": tasks[r.current_task_id].urgency if r.current_task_id else 1,
                         "waits": r.wait_ticks_so_far,
                         "path": r.path[:6],
-                        "pickup": list(tasks[r.current_task_id].pickup),
-                        "drop": list(tasks[r.current_task_id].dropoff),
+                        "goal": list(tasks[r.current_task_id].dropoff) if (r.current_task_id and tasks[r.current_task_id].status == "IN_PROGRESS") else (list(tasks[r.current_task_id].pickup) if r.current_task_id else [r.position[0], r.position[1]]),
+                        "pickup": list(tasks[r.current_task_id].pickup) if r.current_task_id else [0, 0],
+                        "drop": list(tasks[r.current_task_id].dropoff) if r.current_task_id else [0, 0],
                     }
                     for r in robots.values()
                 ],

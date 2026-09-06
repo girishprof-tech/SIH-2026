@@ -64,18 +64,25 @@ def run_conflict_engine_tick(
             dist = robot.distance_to_goal() if hasattr(robot, "distance_to_goal") else 0
             robot.priority_score = calculate_priority_score(robot, task, dist)
 
-    # 2. Detect conflicts across the active fleet
-    conflicts = detect_conflicts(list(robots.values()), current_tick)
+    # 2 & 3. Multi-pass conflict detection and resolution
+    # Resolving one conflict (e.g. stopping a leading robot) can create a cascading conflict
+    # with trailing robots in a convoy; iterating until no conflicts remain ensures safe braking.
+    all_resolutions: List[Dict[str, Any]] = []
+    total_conflicts_found = 0
+    max_passes = 10
 
-    # 3. Resolve all identified conflicts sequentially
-    resolutions: List[Dict[str, Any]] = []
-    for conflict in conflicts:
-        conflict["current_tick"] = current_tick
-        res = resolve_conflict(conflict, robots, reservation_table, find_path_fn)
-        resolutions.append(res)
+    for _ in range(max_passes):
+        conflicts = detect_conflicts(list(robots.values()), current_tick)
+        if not conflicts:
+            break
+        total_conflicts_found += len(conflicts)
+        for conflict in conflicts:
+            conflict["current_tick"] = current_tick
+            res = resolve_conflict(conflict, robots, reservation_table, find_path_fn, tasks=tasks)
+            all_resolutions.append(res)
 
     return {
-        "conflicts_found": len(conflicts),
-        "resolutions": resolutions,
+        "conflicts_found": total_conflicts_found,
+        "resolutions": all_resolutions,
         "updated_robots": robots,
     }

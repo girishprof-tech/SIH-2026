@@ -1,0 +1,113 @@
+[13:04:18] Autonomous Robot Node initialized. PID=21864, Start=(7, 1), Goal=(7, 20), Urgency=4
+[13:04:18] Initial path planned: 20 steps to goal (7, 20).
+[13:04:18] [Tick 0] Pos=(7, 2), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=381.0, Battery=84.0%, Waits=0
+[13:04:18] [Tick 1] Pos=(7, 3), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=382.0, Battery=83.0%, Waits=0
+[13:04:18] [Tick 2] Pos=(7, 4), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=383.0, Battery=82.0%, Waits=0
+[13:04:18] [Tick 3] Pos=(7, 5), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=384.0, Battery=81.0%, Waits=0
+[13:04:19] [Tick 4] Pos=(7, 6), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=385.0, Battery=80.0%, Waits=0
+[13:04:19] [Tick 5] Pos=(7, 7), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=386.0, Battery=79.0%, Waits=0
+[13:04:19] [Tick 6] Pos=(7, 8), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=387.0, Battery=78.0%, Waits=0
+[13:04:19] [Tick 7] Pos=(7, 9), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=388.0, Battery=77.0%, Waits=0
+[13:04:19] [Tick 8] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=389.0, Battery=76.0%, Waits=0
+[13:04:19] [Tick 9] Pos=(7, 11), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=390.0, Battery=75.0%, Waits=0
+[13:04:19] [Tick 10] Pos=(7, 12), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=391.0, Battery=74.0%, Waits=0
+[13:04:19] [Tick 11] Pos=(7, 13), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=392.0, Battery=73.0%, Waits=0
+[13:04:19] [Tick 12] Pos=(7, 14), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=393.0, Battery=72.0%, Waits=0
+[13:04:19] [Tick 13] Pos=(7, 15), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=394.0, Battery=71.0%, Waits=0
+[13:04:20] [Tick 14] Pos=(7, 16), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=395.0, Battery=70.0%, Waits=0
+[13:04:20] [Tick 15] Pos=(7, 17), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=396.0, Battery=69.0%, Waits=0
+[13:04:20] [Tick 16] Pos=(7, 18), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=397.0, Battery=68.0%, Waits=0
+[13:04:20] [Tick 17] Pos=(7, 19), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=398.0, Battery=67.0%, Waits=0
+[13:04:20] [Tick 18] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 18] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=399.0, Battery=66.0%, Waits=0
+[13:04:20] [Tick 19] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 19] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:20] [Tick 20] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 20] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:20] [Tick 21] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 21] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:20] [Tick 22] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 22] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:20] [Tick 23] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:20] [Tick 23] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 24] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 24] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 25] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 25] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 26] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 26] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 27] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 27] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 28] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 28] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 29] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 29] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 30] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 30] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 31] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 31] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 32] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 32] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:21] [Tick 33] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:21] [Tick 33] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 34] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 34] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 35] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 35] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 36] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 36] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 37] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 37] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 38] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 38] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 39] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 39] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 40] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 40] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 41] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 41] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 42] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 42] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:22] [Tick 43] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:22] [Tick 43] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 44] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 44] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 45] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 45] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 46] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 46] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 47] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 47] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 48] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 48] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 49] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 49] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 50] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 50] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 51] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 51] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 52] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 52] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:23] [Tick 53] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:23] [Tick 53] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 54] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 54] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 55] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 55] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 56] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 56] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 57] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 57] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 58] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 58] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 59] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 59] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 60] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 60] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 61] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 61] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 62] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 62] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:24] [Tick 63] REACHED DESTINATION (7, 20)! Mission COMPLETED.
+[13:04:24] [Tick 63] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
+[13:04:25] Robot Process terminated after 64 ticks. Exiting.
