@@ -110,9 +110,11 @@ def main():
         # ── Phase 2: Start FastAPI Telemetry Viewer ───────────────────────────────
         print("\n[PHASE 2] Starting FastAPI Telemetry Viewer (uvicorn process)...")
         backend_cwd = ROOT_DIR / "backend" / "backend"
+        fastapi_env = {**os.environ, "SPAWN_FLEET_ORCHESTRATOR": "0"}
         fastapi_proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", "8000", "--log-level", "warning"],
             cwd=str(backend_cwd),
+            env=fastapi_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -197,6 +199,7 @@ def main():
         fastapi_proc2 = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", "8000", "--log-level", "warning"],
             cwd=str(backend_cwd),
+            env=fastapi_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

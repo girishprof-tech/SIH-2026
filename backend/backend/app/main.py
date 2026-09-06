@@ -19,10 +19,13 @@ All hot-path state is in memory. No database in the simulation loop.
 from __future__ import annotations
 
 import logging
+import os
+import socket
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from app.api import chaos, robots, simulation, tasks, websocket
 from app.api.chaos_and_world import router as world_router
@@ -80,9 +83,32 @@ async def lifespan(app: FastAPI):
         planner=planner,
     )
 
+    def _is_udp_port_bound(port: int = 9001, host: str = "127.0.0.1") -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                    try:
+                        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                    except Exception:
+                        pass
+                s.bind((host, port))
+                return False
+            except OSError:
+                return True
+
     # ── Autonomous Decentralized Fleet Orchestrator ───────────────────────────
-    orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0)
-    orchestrator.start()
+    orchestrator = None
+    fleet_already_running = _is_udp_port_bound(9001)
+    spawn_enabled = os.environ.get("SPAWN_FLEET_ORCHESTRATOR", "1") == "1"
+
+    if fleet_already_running:
+        log.info("Autonomous AMR Fleet detected on UDP port 9001. Acting as pure Telemetry Viewer.")
+    elif spawn_enabled:
+        log.info("Spawning autonomous decentralized robot processes for AMR fleet...")
+        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0)
+        orchestrator.start()
+    else:
+        log.info("SPAWN_FLEET_ORCHESTRATOR=0: Operating as pure Telemetry Viewer.")
 
     # ── Store in app.state for route handlers ─────────────────────────────────
     app.state.fleet_state = fleet_state
@@ -160,7 +186,8 @@ async def lifespan(app: FastAPI):
 
     if fleet_state.is_running and engine._running:
         await engine.pause()
-    orchestrator.stop()
+    if orchestrator is not None:
+        orchestrator.stop()
     log.info("Backend shutdown complete.")
 
 
@@ -224,11 +251,48 @@ _JSON_DATA_FILE = _ROOT_DIR / "scenarios_data.json"
 
 @app.get("/", include_in_schema=False)
 @app.get("/simulator", include_in_schema=False)
-async def serve_simulator() -> FileResponse:
+async def serve_simulator() -> Response:
     """Serve the primary fleet visualizer frontend directly from backend."""
     if _HTML_FILE.is_file():
         return FileResponse(_HTML_FILE, media_type="text/html")
-    return FileResponse(Path(__file__).resolve().parent / "index.html", media_type="text/html")
+    index_file = Path(__file__).resolve().parent / "index.html"
+    if index_file.is_file():
+        return FileResponse(index_file, media_type="text/html")
+    return HTMLResponse(
+        """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>SIH2026 Fleet Telemetry Backend</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 48px; }
+                .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px; max-width: 640px; margin: 0 auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
+                h1 { color: #38bdf8; margin-top: 0; font-size: 1.75rem; }
+                p { color: #94a3b8; line-height: 1.6; }
+                ul { list-style: none; padding: 0; }
+                li { margin: 12px 0; }
+                a { color: #38bdf8; text-decoration: none; font-weight: 500; }
+                a:hover { text-decoration: underline; }
+                code { background: #0f172a; padding: 4px 8px; border-radius: 6px; color: #a5f3fc; font-family: monospace; }
+                .status-badge { display: inline-block; background: #065f46; color: #6ee7b7; padding: 4px 10px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="status-badge">ONLINE • PURE TELEMETRY VIEWER</div>
+                <h1>SIH2026 Edge-AI Fleet Coordination</h1>
+                <p>Autonomous AMR nodes run in independent OS processes, communicating peer-to-peer over UDP sockets with cryptographic HMAC verification and ReplayGuard.</p>
+                <ul>
+                    <li>📄 <strong>Interactive API Docs:</strong> <a href="/docs">/docs</a></li>
+                    <li>🩺 <strong>System Health:</strong> <a href="/health">/health</a></li>
+                    <li>📡 <strong>Live Telemetry Stream:</strong> <code>ws://localhost:8000/ws/telemetry</code></li>
+                </ul>
+            </div>
+        </body>
+        </html>
+        """
+    )
 
 
 @app.get("/scenarios_data.js", include_in_schema=False)

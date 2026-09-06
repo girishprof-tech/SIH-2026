@@ -1,3 +1,8 @@
-[13:40:38] Autonomous Robot Node initialized. PID=14456, Start=(14, 1), Goal=(14, 20)
-[13:40:38] Initial path planned (20 steps) to (14, 20).
-[13:40:38] Robot Process terminated after 0 ticks. Exiting.
+[19:18:25] Autonomous Robot Node initialized. PID=5716, Start=(14, 1), Goal=(14, 20)
+[19:18:25] Initial path planned (20 steps) to (14, 20).
+[19:18:25] [Tick 0] Pos=(14, 2), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=481.0, Battery=94.0%, Waits=0
+[19:18:26] [Tick 1] Pos=(14, 3), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=482.0, Battery=93.0%, Waits=0
+[19:18:26] [Tick 2] Pos=(14, 4), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=483.0, Battery=92.0%, Waits=0
+[19:18:27] [Tick 3] Pos=(14, 5), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=484.0, Battery=91.0%, Waits=0
+[19:18:27] [Tick 4] Pos=(14, 6), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=485.0, Battery=90.0%, Waits=0
+[19:18:28] [Tick 5] Pos=(14, 7), Heading=SOUTH, State=EN_ROUTE_PICKUP, Action=MOVED, Priority=486.0, Battery=89.0%, Waits=0

@@ -38,7 +38,13 @@ class UdpTransport(Transport):
         self.packet_loss_pct = max(0.0, min(100.0, packet_loss_pct))
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            try:
+                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            except Exception:
+                pass
+        elif hasattr(socket, "SO_REUSEADDR"):
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((self.host, self.port))
         self.sock.setblocking(False)
 
