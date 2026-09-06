@@ -271,6 +271,25 @@ def run_peer_simulation_scenario(scenario: Dict[str, Any], max_ticks: int = 35) 
                 if re_path and len(re_path) > 1:
                     robot.path = re_path
                     reserve_path(re_path, robot.robot_id, local_reservations[robot.robot_id], hold_ticks_at_goal=HOLD)
+                elif robot.wait_ticks_so_far >= 3:
+                    # Deadlock breaker: search adjacent free nook to step aside
+                    rx, ry = robot.position
+                    candidate_nooks = [(rx, ry - 1), (rx, ry + 1), (rx + 1, ry), (rx - 1, ry)]
+                    other_positions = {r.position for r in robots.values() if r.robot_id != robot.robot_id}
+                    nook_path = None
+                    for cand in candidate_nooks:
+                        if 0 <= cand[0] < grid.width and 0 <= cand[1] < grid.height:
+                            if grid.is_free(cand) and cand not in other_positions:
+                                n_p = find_path(robot.position, cand, tick, local_reservations[robot.robot_id], robot_id=robot.robot_id, grid=grid)
+                                if n_p and len(n_p) > 1:
+                                    nook_path = n_p
+                                    break
+                    if nook_path:
+                        robot.path = nook_path
+                        reserve_path(nook_path, robot.robot_id, local_reservations[robot.robot_id], hold_ticks_at_goal=HOLD)
+                    else:
+                        robot.path = [{"x": robot.position[0], "y": robot.position[1], "t": tick}, {"x": robot.position[0], "y": robot.position[1], "t": tick + 1}]
+                        reserve_path(robot.path, robot.robot_id, local_reservations[robot.robot_id], hold_ticks_at_goal=HOLD)
                 else:
                     robot.path = [{"x": robot.position[0], "y": robot.position[1], "t": tick}, {"x": robot.position[0], "y": robot.position[1], "t": tick + 1}]
                     reserve_path(robot.path, robot.robot_id, local_reservations[robot.robot_id], hold_ticks_at_goal=HOLD)

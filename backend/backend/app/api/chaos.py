@@ -42,7 +42,11 @@ class ChaosStatusOut(BaseModel):
 async def toggle_chaos(body: ChaosToggleRequest, request: Request) -> ChaosStatusOut:
     engine = request.app.state.engine
     enabled = body.packet_loss_pct > 0
-    engine.set_chaos(enabled, body.packet_loss_pct)
+    if engine and hasattr(engine, "set_chaos"):
+        engine.set_chaos(enabled, body.packet_loss_pct)
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator and hasattr(orchestrator, "set_packet_loss"):
+        orchestrator.set_packet_loss(body.packet_loss_pct)
     log.info("CHAOS_TOGGLE enabled=%s packet_loss=%d%%", enabled, body.packet_loss_pct)
     return ChaosStatusOut(enabled=enabled, packet_loss_pct=body.packet_loss_pct)
 

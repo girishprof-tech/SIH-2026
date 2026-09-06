@@ -28,7 +28,9 @@ from app.api import chaos, robots, simulation, tasks, websocket
 from app.api.chaos_and_world import router as world_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.models.robot import Heading, Robot
 from app.services.conflict_manager import ConflictManager
+from app.services.fleet_orchestrator import FleetOrchestrator
 from app.services.fleet_state import FleetState
 from app.services.planner_adapter import get_planner_adapter
 from app.services.reservation_manager import ReservationManager
@@ -78,6 +80,10 @@ async def lifespan(app: FastAPI):
         planner=planner,
     )
 
+    # ── Autonomous Decentralized Fleet Orchestrator ───────────────────────────
+    orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0)
+    orchestrator.start()
+
     # ── Store in app.state for route handlers ─────────────────────────────────
     app.state.fleet_state = fleet_state
     app.state.reservation_manager = reservation_manager
@@ -86,6 +92,7 @@ async def lifespan(app: FastAPI):
     app.state.connection_manager = connection_manager
     app.state.telemetry = telemetry
     app.state.engine = engine
+    app.state.orchestrator = orchestrator
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
@@ -153,6 +160,7 @@ async def lifespan(app: FastAPI):
 
     if fleet_state.is_running and engine._running:
         await engine.pause()
+    orchestrator.stop()
     log.info("Backend shutdown complete.")
 
 

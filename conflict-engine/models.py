@@ -75,6 +75,7 @@ class Task:
     created_tick: int
     assigned_robot_id: Optional[str] = None
     status: str = "PENDING"  # PENDING, ASSIGNED, IN_PROGRESS, COMPLETED
+    payload_weight_kg: float = 0.0
 
     @property
     def pickup_x(self) -> int:

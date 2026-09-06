@@ -112,6 +112,10 @@ class FleetOrchestrator:
             self.bus.process_incoming()
             time.sleep(0.02)
 
+    def set_packet_loss(self, pct: float) -> None:
+        """Sets packet loss percentage across fleet."""
+        self.packet_loss_pct = pct
+
     def is_alive(self) -> bool:
         """Returns True if any robot process is currently active."""
         return any(p.is_alive() for p in self.processes)

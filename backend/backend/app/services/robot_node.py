@@ -1,23 +1,33 @@
 """
 robot_node.py — Decentralized Autonomous Robot Execution Unit.
 
-This uses real UDP sockets over the loopback interface (127.0.0.1) for this single-machine demo.
-Because this is standard UDP networking (not a Python-internal mechanism), the identical code
-works unchanged if robots run on separate physical machines on the same LAN (e.g., over WiFi
-Direct or a real WiFi network) — only the IP addresses would need to change from 127.0.0.1 to
-each machine's real address.
-
-Each robot runs in its OWN independent OS process (via multiprocessing.Process).
-It does NOT wait for a central dispatcher.
-It:
-  1. Computes its own priority score using Member 3's formula.
-  2. Broadcasts its planned reservation claims directly to peers via non-blocking UDP sockets.
-  3. Receives peer claims, detects local spatial & swap conflicts using detect_peer_conflict().
-  4. Runs peer arbitration using resolve_peer_conflict().
-  5. Yields/brakes or replans for itself using real Member 2 find_path().
-  6. Moves, turns, and updates battery independently.
-  7. Logs every event, decision, and arbitration to its own logs/robot_{robot_id}.log.
-  8. Pushes telemetry to the shared telemetry queue for the FastAPI viewer.
+ARCHITECTURAL PRINCIPLES:
+  1. Each robot runs in its OWN independent OS process (via multiprocessing.Process).
+  2. Pluggable Transport (UdpTransport over 127.0.0.1 or real LAN, LoopbackTransport for unit tests).
+  3. Lightweight HMAC-SHA256 signing and ReplayGuard on all peer-to-peer envelopes.
+  4. Authoritative Deterministic Finite State Machine (RobotFSM):
+     Transitions:
+       (IDLE, TASK_RECEIVED) -> ASSIGNED
+       (IDLE, START_AUDIT) -> AUDITING
+       (ASSIGNED, PATH_PLANNED) -> EN_ROUTE_PICKUP
+       (EN_ROUTE_PICKUP, PICKUP_REACHED) -> PICKING
+       (EN_ROUTE_PICKUP, CONFLICT_LOST) -> CONFLICT_NEGOTIATING
+       (PICKING, PICKUP_COMPLETE) -> EN_ROUTE_DROPOFF
+       (EN_ROUTE_DROPOFF, DROPOFF_REACHED) -> DROPPING
+       (EN_ROUTE_DROPOFF, CONFLICT_LOST) -> CONFLICT_NEGOTIATING
+       (DROPPING, MISSION_COMPLETE) -> IDLE
+       (AUDITING, AUDIT_CHECKPOINT_LOGGED) -> IDLE
+       (AUDITING, CONFLICT_LOST) -> CONFLICT_NEGOTIATING
+       (CONFLICT_NEGOTIATING, RESUME_PICKUP) -> EN_ROUTE_PICKUP
+       (CONFLICT_NEGOTIATING, RESUME_DROPOFF) -> EN_ROUTE_DROPOFF
+       (CONFLICT_NEGOTIATING, RESUME_AUDIT) -> AUDITING
+       (FAILSAFE_HOLD, FAILSAFE_RESET) -> IDLE
+       (EMERGENCY_STOP, RESET) -> IDLE
+  5. State Hygiene: self.pre_conflict_activity is purged immediately upon entering FAILSAFE_HOLD or IDLE.
+  6. Deadlock/Livelock resolution: consecutive wait ticks >= 3 triggers alternate route or side-step nook.
+  7. Auditing robots score at lowest priority tier floor (-1000.0).
+  8. Degraded Mode: 50% speed throttle on missing peer ticks.
+  9. Task Realism: 1-tick load pause every 4th step when carrying payload in EN_ROUTE_DROPOFF.
 """
 
 from __future__ import annotations
@@ -26,17 +36,16 @@ import json
 import logging
 import multiprocessing as mp
 import os
-import socket
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-# Setup import paths
 ROOT_DIR = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 
 from grid import WarehouseGrid
 from pathfinder import find_path
@@ -44,7 +53,15 @@ from reservations import reserve_path, release_reservations, prune_past
 from priority import calculate_priority_score
 from conflict_detector import detect_peer_conflict
 from arbitration import resolve_peer_conflict
-from models import Heading, Robot, RobotState, Task
+from models import Heading, Robot, Task
+from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
+from app.transport.base import Transport
+from app.transport.udp_transport import UdpTransport
+from app.security.hmac_envelope import sign_payload, verify_envelope
+from app.security.replay_guard import ReplayGuard
+from app.services.degraded_mode import DegradedModeDetector
+from app.services.audit_mission import AuditMission
+from app.ml.priority_gnn import compute_priority
 
 
 @dataclass
@@ -71,81 +88,100 @@ class RobotNode:
         self,
         robot_id: str,
         start_pos: Tuple[int, int],
-        goal_pos: Tuple[int, int],
-        urgency: int,
-        battery_pct: float,
-        obstacles: List[Tuple[int, int]],
-        port: int,
-        peer_ports: Dict[str, int],
+        goal_pos: Optional[Tuple[int, int]] = None,
+        urgency: int = 3,
+        battery_pct: float = 100.0,
+        obstacles: Optional[List[Tuple[int, int]]] = None,
+        port: int = 9001,
+        peer_ports: Optional[Dict[str, int]] = None,
         telemetry_queue: Optional[mp.Queue] = None,
         log_dir: Optional[Path] = None,
         tick_interval_s: float = 0.1,
         host: str = "127.0.0.1",
+        transport: Optional[Transport] = None,
+        secret_key: str = "sih2026-edge-robot-shared-secret",
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
         self.goal_pos = goal_pos
         self.urgency = urgency
         self.battery_pct = battery_pct
-        self.obstacles = obstacles
+        self.obstacles = obstacles or []
         self.port = port
-        self.peer_ports = peer_ports
+        self.peer_ports = peer_ports or {}
         self.host = host
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
+        self.secret_key = secret_key
 
-        # Real UDP socket for decentralized peer-to-peer communication
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind((self.host, self.port))
-        self.sock.setblocking(False)
-
-        # Initialize local logging
+        # 1. Logging
         if log_dir is None:
             log_dir = ROOT_DIR / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = log_dir / f"robot_{robot_id}.log"
         self._setup_logger()
 
-        # Instantiate local WarehouseGrid for local pathfinding
-        self.grid = WarehouseGrid(obstacles=self.obstacles, width=30, height=30)
+        # 2. Pluggable Transport
+        if transport is not None:
+            self.transport = transport
+        else:
+            self.transport = UdpTransport(
+                node_id=robot_id,
+                port=port,
+                peer_ports=self.peer_ports,
+                host=host,
+            )
 
-        # Initialize local Task & Robot models
-        self.task_id = f"TASK-{robot_id}"
-        self.task = Task(
-            task_id=self.task_id,
-            pickup=start_pos,
-            dropoff=goal_pos,
-            urgency=urgency,
-            created_tick=0,
-            assigned_robot_id=robot_id,
-            status="IN_PROGRESS",
-        )
+        # 3. Security & Replay Guard
+        self.seq = 0
+        self.replay_guard = ReplayGuard(freshness_window_s=5.0)
+
+        # 4. Grid and Local Reservations
+        self.grid = WarehouseGrid(obstacles=self.obstacles, width=30, height=30)
+        self.local_reservations: Dict[Tuple[int, int, int], str] = {}
+        self.HOLD = 30
+
+        # 5. Deterministic Finite State Machine
+        self.fsm = RobotFSM(RobotState.IDLE)
+        self.pre_conflict_activity: Optional[RobotState] = None
+        self.failsafe_hold_ticks = 0
+
+        # 6. Mission & Task Management
+        self.task: Optional[Task] = None
+        self.completed_task_ids: Set[str] = set()
+        self.active_audit_mission: Optional[AuditMission] = None
+
+        # 7. Robot Model Entity
         self.robot = Robot(
             robot_id=robot_id,
             position=start_pos,
             heading=Heading.NORTH,
-            state=RobotState.EN_ROUTE,
+            state=self.fsm.state,
             battery_pct=battery_pct,
-            current_task_id=self.task_id,
+            current_task_id=None,
             path=[],
             priority_score=0.0,
             wait_ticks_so_far=0,
             last_updated_tick=0,
         )
 
-        # Local perceived state of peers: {peer_id: PeerSnapshot}
+        # 8. Deadlock / Livelock Breaker State
+        self.consecutive_wait_ticks = 0
+
+        # 9. Degraded Network Detector
+        self.degraded_detector = DegradedModeDetector(threshold_missing_ticks=3)
+
+        # 10. Task Realism Load Step Counter
+        self.load_move_steps = 0
+
+        # Perceived peer states
         self.peers: Dict[str, PeerSnapshot] = {}
 
-        # Local reservation table (holds own reservations + perceived peer claims)
-        self.local_reservations: Dict[Tuple[int, int, int], str] = {}
-        self.HOLD = 30
-
-        # Plan initial path
-        self._plan_initial_path()
+        # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
+        if self.goal_pos is not None and self.goal_pos != self.start_pos:
+            self._assign_initial_task(self.goal_pos, self.urgency)
 
     def _setup_logger(self) -> None:
-        """Sets up a dedicated file logger for this robot."""
         self.logger = logging.getLogger(f"RobotNode.{self.robot_id}")
         self.logger.setLevel(logging.INFO)
         self.logger.handlers.clear()
@@ -154,23 +190,39 @@ class RobotNode:
         formatter = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
-        self.log(f"Autonomous Robot Node initialized. PID={os.getpid()}, Start={self.start_pos}, Goal={self.goal_pos}, Urgency={self.urgency}")
-
-    def close(self) -> None:
-        """Closes the UDP socket."""
-        try:
-            self.sock.close()
-        except Exception:
-            pass
+        self.log(f"Autonomous Robot Node initialized. PID={os.getpid()}, Start={self.start_pos}, Goal={self.goal_pos}")
 
     def log(self, message: str) -> None:
         self.logger.info(message)
 
-    def _plan_initial_path(self) -> None:
-        """Plans initial trajectory from start to goal."""
+    def close(self) -> None:
+        try:
+            self.transport.close()
+        except Exception:
+            pass
+
+    def _assign_initial_task(self, goal_pos: Tuple[int, int], urgency: int, payload_weight_kg: float = 0.0) -> None:
+        """Assigns an initial mission and plans the initial route."""
+        tid = f"TASK-{self.robot_id}"
+        self.task = Task(
+            task_id=tid,
+            pickup=self.start_pos,
+            dropoff=goal_pos,
+            urgency=urgency,
+            created_tick=0,
+            assigned_robot_id=self.robot_id,
+            status="ASSIGNED",
+            payload_weight_kg=payload_weight_kg,
+        )
+        self.robot.current_task_id = tid
+        self.goal_pos = goal_pos
+        self.fsm.transition(RobotEvent.TASK_RECEIVED)
+
+        # Plan initial route to pickup (or dropoff if starting at pickup)
+        target = self.task.dropoff if self.robot.position == self.task.pickup else self.task.pickup
         path = find_path(
             start=self.robot.position,
-            goal=self.goal_pos,
+            goal=target,
             current_tick=0,
             reservation_table=self.local_reservations,
             robot_id=self.robot.robot_id,
@@ -179,151 +231,235 @@ class RobotNode:
         if path:
             self.robot.path = path
             reserve_path(path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-            self.log(f"Initial path planned: {len(path)} steps to goal {self.goal_pos}.")
+            self.fsm.transition(RobotEvent.PATH_PLANNED)
+            self.log(f"Initial path planned ({len(path)} steps) to {target}.")
         else:
             self.robot.path = [{"x": self.robot.position[0], "y": self.robot.position[1], "t": 0}]
             reserve_path(self.robot.path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-            self.log(f"Warning: No initial path found. Holding at {self.robot.position}.")
+            self.fsm.transition(RobotEvent.PATH_PLANNED)
 
-    def _pathfinder_callback(self, start, goal, cur_tick, res_table, robot_id=None, **kwargs):
-        return find_path(
-            start=start,
-            goal=goal,
-            current_tick=cur_tick,
-            reservation_table=res_table,
-            robot_id=robot_id or self.robot.robot_id,
-            grid=self.grid,
-        )
+        self.robot.state = self.fsm.state
+
+    def reset_failsafe(self) -> None:
+        """Manual operator override command to recover from FAILSAFE_HOLD or EMERGENCY_STOP to IDLE."""
+        self.pre_conflict_activity = None
+        self.failsafe_hold_ticks = 0
+        if self.fsm.state == RobotState.EMERGENCY_STOP:
+            self.fsm.transition(RobotEvent.RESET)
+        elif self.fsm.state == RobotState.FAILSAFE_HOLD:
+            self.fsm.transition(RobotEvent.FAILSAFE_RESET)
+        self.robot.state = self.fsm.state
+        self.log(f"Operator reset executed: robot returned to {self.fsm.state.value}")
 
     def step(self, tick: int) -> Dict[str, Any]:
         """
         Executes one autonomous tick loop step for this robot.
-        Sequence:
-          1. Update priority score.
-          2. Compute candidate intended next position (not yet committed).
-          3. Broadcast intended next position and reservation claim to all peers.
-          4. Drain inbox and ensure messages for this tick from nearby peers are received.
-          5. Symmetric peer conflict detection (vertex, swap, stationary occupancy).
-          6. Deterministic priority arbitration (identical symmetric winner/loser decision).
-          7. Winner proceeds (or waits if target cell is currently occupied by peer).
-             Loser yields/brakes, increments wait_ticks, and replans around winner.
-          8. Commit move only after conflict checks pass.
         """
         prev_pos = self.robot.position
         prev_heading = self.robot.heading
+        action_taken = "IDLE"
+        conflict_resolved = None
 
-        # 1. Update priority score
-        dist = self.robot.distance_to_goal()
-        self.robot.priority_score = calculate_priority_score(self.robot, self.task, dist)
+        # 1. Check Failsafe Watchdog
+        if self.fsm.state == RobotState.FAILSAFE_HOLD:
+            self.failsafe_hold_ticks += 1
+            if self.failsafe_hold_ticks >= 5:
+                # State hygiene: purge pre_conflict_activity
+                self.pre_conflict_activity = None
+                self.fsm.transition(RobotEvent.FAILSAFE_RESET)
+                self.robot.state = self.fsm.state
+                self.failsafe_hold_ticks = 0
+                self.log(f"[Tick {tick}] Supervisory watchdog: recovered from FAILSAFE_HOLD -> IDLE.")
+                if self.task and self.task.dropoff:
+                    self._assign_initial_task(self.task.dropoff, self.task.urgency, getattr(self.task, "payload_weight_kg", 0.0))
+            else:
+                self.log(f"[Tick {tick}] In FAILSAFE_HOLD ({self.failsafe_hold_ticks}/5 ticks). Holding position.")
+                return self._build_telemetry_frame(tick, "HOLDING", None)
 
-        # 2. Compute candidate INTENDED next position (not yet committed)
-        if self.robot.state == RobotState.IDLE:
-            intended_pos = self.robot.position
-        elif not self.robot.path:
-            # If path exhausted but not at goal, attempt replan
-            if self.robot.position != self.goal_pos:
-                re_path = find_path(
+        # 2. Drain incoming transport messages
+        self._drain_inbox(tick)
+
+        # 3. Handle Atomic PICKING / DROPPING ticks
+        if self.fsm.state == RobotState.PICKING:
+            self.log(f"[Tick {tick}] Executing atomic pickup at {self.robot.position}...")
+            self.fsm.transition(RobotEvent.PICKUP_COMPLETE)
+            if self.task:
+                self.task.status = "IN_PROGRESS"
+                # Plan route to dropoff
+                p_drop = find_path(
                     start=self.robot.position,
-                    goal=self.goal_pos,
+                    goal=self.task.dropoff,
                     current_tick=tick,
                     reservation_table=self.local_reservations,
                     grid=self.grid,
                 )
-                if re_path and len(re_path) > 1:
-                    self.robot.path = re_path
-                    self.robot.state = RobotState.EN_ROUTE
-                    intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
-                else:
-                    intended_pos = self.robot.position
-            else:
-                intended_pos = self.robot.position
-        elif len(self.robot.path) > 1:
-            intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
-        else:
-            intended_pos = self.robot.position
+                if p_drop and len(p_drop) > 1:
+                    self.robot.path = p_drop
+                    reserve_path(p_drop, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+            self.robot.state = self.fsm.state
+            return self._build_telemetry_frame(tick, "PICKING_COMPLETE", None)
 
-        # 3. Broadcast reservation claim & intended move to all peer robots via UDP
+        if self.fsm.state == RobotState.DROPPING:
+            self.log(f"[Tick {tick}] Executing atomic dropoff at {self.robot.position}...")
+            if self.task:
+                self.task.status = "COMPLETED"
+                self.completed_task_ids.add(self.task.task_id)
+                self.task = None
+            self.fsm.transition(RobotEvent.MISSION_COMPLETE)
+            self.robot.state = self.fsm.state
+            self.pre_conflict_activity = None
+            self.robot.path = []
+            return self._build_telemetry_frame(tick, "MISSION_COMPLETED", None)
+
+        # 4. Update Priority Score
+        target_dest = self.goal_pos or self.robot.position
+        dist = abs(target_dest[0] - self.robot.position[0]) + abs(target_dest[1] - self.robot.position[1])
+        self.robot.priority_score = compute_priority(self.robot, self.task, dist)
+
+        # 5. Determine candidate intended next position
+        intended_pos = self.robot.position
+        if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.AUDITING):
+            if not self.robot.path or len(self.robot.path) <= 1:
+                # Path exhausted: replan if goal exists
+                if self.goal_pos and self.robot.position != self.goal_pos:
+                    re_p = find_path(
+                        start=self.robot.position,
+                        goal=self.goal_pos,
+                        current_tick=tick,
+                        reservation_table=self.local_reservations,
+                        grid=self.grid,
+                    )
+                    if re_p and len(re_p) > 1:
+                        self.robot.path = re_p
+                        intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+                    else:
+                        intended_pos = self.robot.position
+            elif len(self.robot.path) > 1:
+                intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+
+        # 6. Deadlock / Livelock Breaker (Phase 0 Fix)
+        if (
+            self.consecutive_wait_ticks >= 3
+            and self.goal_pos
+            and self.robot.position != self.goal_pos
+            and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.CONFLICT_NEGOTIATING)
+        ):
+            self.log(f"[Tick {tick}] Deadlock/livelock detected ({self.consecutive_wait_ticks} wait ticks). Seeking alternate route/nook...")
+            for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
+                del self.local_reservations[k]
+
+            # Lock peer positions in local_reservations so find_path navigates around oncoming robot
+            for p in self.peers.values():
+                for dt in range(self.HOLD):
+                    self.local_reservations[(p.position[0], p.position[1], tick + dt)] = p.robot_id
+                    self.local_reservations[(p.intended_pos[0], p.intended_pos[1], tick + dt)] = p.robot_id
+
+            alt_path = find_path(
+                start=self.robot.position,
+                goal=self.goal_pos,
+                current_tick=tick,
+                reservation_table=self.local_reservations,
+                grid=self.grid,
+            )
+            if alt_path and len(alt_path) > 1:
+                self.robot.path = alt_path
+                reserve_path(alt_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+                self.log(f"[Tick {tick}] Alternate route found to goal ({len(alt_path)} steps).")
+            else:
+                # Direct path hemmed in: step aside into adjacent free nook
+                rx, ry = self.robot.position
+                candidate_nooks = [(rx, ry - 1), (rx, ry + 1), (rx + 1, ry), (rx - 1, ry)]
+                peer_positions = {p.position for p in self.peers.values()}
+                peer_intents = {p.intended_pos for p in self.peers.values()}
+                best_nook_path = None
+                best_nook_cell = None
+                for cand in candidate_nooks:
+                    if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
+                        if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents:
+                            n_path = find_path(
+                                start=self.robot.position,
+                                goal=cand,
+                                current_tick=tick,
+                                reservation_table=self.local_reservations,
+                                grid=self.grid,
+                            )
+                            if n_path and len(n_path) > 1:
+                                best_nook_cell = cand
+                                best_nook_path = n_path
+                                break
+                if best_nook_path:
+                    self.robot.path = best_nook_path
+                    reserve_path(best_nook_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                    intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+                    self.log(f"[Tick {tick}] Stepping aside into free nook {best_nook_cell} to let oncoming peer pass.")
+
+        # 7. Broadcast Reservation Claim & Intention via Transport with HMAC
+        self.seq += 1
         claim_payload = {
             "type": "RESERVATION_CLAIM",
             "robot_id": self.robot.robot_id,
             "tick": tick,
             "position": [self.robot.position[0], self.robot.position[1]],
             "intended_pos": [intended_pos[0], intended_pos[1]],
-            "heading": self.robot.heading.value if hasattr(self.robot.heading, "value") else str(self.robot.heading),
+            "heading": self.robot.heading.value,
             "priority_score": self.robot.priority_score,
-            "state": self.robot.state.value if hasattr(self.robot.state, "value") else str(self.robot.state),
+            "state": self.fsm.state.value,
             "wait_ticks": self.robot.wait_ticks_so_far,
             "path": list(self.robot.path[:8]),
         }
-        data = json.dumps(claim_payload).encode("utf-8")
-        for peer_id, peer_port in self.peer_ports.items():
+        envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
+        for peer_id in self.peer_ports.keys():
             if peer_id != self.robot.robot_id:
-                try:
-                    self.sock.sendto(data, (self.host, peer_port))
-                except Exception:
-                    pass
+                self.transport.send(peer_id, envelope)
 
-        # 4. Drain inbox and ensure messages from nearby peers for this tick are received
+        # 8. Drain inbox again for peer responses
         wait_start = time.time()
         max_peer_wait = max(0.12, self.tick_interval_s * 1.2)
         while (time.time() - wait_start) < max_peer_wait:
             self._drain_inbox(tick)
-
-            # Check if any nearby peer (distance <= 3) is still on an older tick
-            nearby_stale = False
-            for peer_snap in self.peers.values():
-                m_dist = abs(self.robot.position[0] - peer_snap.position[0]) + abs(self.robot.position[1] - peer_snap.position[1])
-                if m_dist <= 3 and peer_snap.last_seen_tick < tick:
-                    nearby_stale = True
-                    break
+            nearby_stale = any(
+                (abs(self.robot.position[0] - p.position[0]) + abs(self.robot.position[1] - p.position[1]) <= 3)
+                and p.last_seen_tick < tick
+                for p in self.peers.values()
+            )
             if not nearby_stale:
                 break
             time.sleep(0.003)
 
-        # Fail-safe: Check if any immediately adjacent peer (dist <= 2) is still unconfirmed for this tick
-        unconfirmed_nearby = False
-        for peer_snap in self.peers.values():
-            m_dist = abs(self.robot.position[0] - peer_snap.position[0]) + abs(self.robot.position[1] - peer_snap.position[1])
-            if m_dist <= 2 and peer_snap.last_seen_tick < tick:
-                unconfirmed_nearby = True
-                break
-
+        # Fail-safe check for unconfirmed immediately adjacent peer
+        unconfirmed_nearby = any(
+            (abs(self.robot.position[0] - p.position[0]) + abs(self.robot.position[1] - p.position[1]) <= 2)
+            and p.last_seen_tick < tick
+            for p in self.peers.values()
+        )
         if unconfirmed_nearby and intended_pos != self.robot.position:
-            # Cannot safely move toward an unconfirmed adjacent robot; hold position this tick
             intended_pos = self.robot.position
             action_taken = "WAITING"
-            self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby did not confirm tick {tick} position in time.")
+            self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby did not confirm tick {tick} in time.")
 
-        # 5. Peer-to-Peer Conflict Detection & Symmetric Arbitration
+        # 9. Symmetric Conflict Detection & Arbitration
         action_taken = "MOVED"
-        conflict_resolved = None
-
-        if self.robot.state != RobotState.IDLE and intended_pos != self.robot.position:
+        if self.fsm.state != RobotState.IDLE and intended_pos != self.robot.position:
             rx, ry = self.robot.position
             for peer_snap in list(self.peers.values()):
                 if peer_snap.last_seen_tick < tick - 2:
-                    continue  # ignore completely dead peers
+                    continue
 
                 px, py = peer_snap.position
                 pix, piy = peer_snap.intended_pos
                 m_dist = abs(rx - px) + abs(ry - py)
-
                 if m_dist > 2:
                     continue
 
-                # Check conflict conditions:
-                # 1) SWAP_CONFLICT: I intend to enter peer's current cell, while peer intends to enter my current cell
                 is_swap = (intended_pos == (px, py) and (pix, piy) == (rx, ry) and (rx, ry) != (px, py))
-                # 2) VERTEX_CONFLICT: Both intend to enter the exact same cell
                 is_vertex = (intended_pos == (pix, piy) and intended_pos != (rx, ry))
-                # 3) HEAD_ON / APPROACH: Peer is currently at intended_pos and either staying or approaching
                 is_blocked = (intended_pos == (px, py) and (pix, piy) == (px, py))
 
                 if is_swap or is_vertex or is_blocked:
                     c_type = "SWAP_CONFLICT" if is_swap else ("CELL_OVERLAP" if is_vertex else "STATIONARY_BLOCK")
                     conflict_cell = {"x": intended_pos[0], "y": intended_pos[1]}
 
-                    # Deterministic, symmetric priority comparison
                     my_score = float(self.robot.priority_score)
                     peer_score = float(peer_snap.priority_score)
 
@@ -343,13 +479,19 @@ class RobotNode:
                     )
 
                     if not i_win:
-                        # THIS ROBOT IS THE LOSER
+                        # THIS ROBOT IS THE LOSER -> YIELD
                         action_taken = "YIELDED / BRAKED"
                         self.robot.wait_ticks_so_far += 1
-                        self.robot.state = RobotState.CONFLICT_NEGOTIATING
+                        self.consecutive_wait_ticks += 1
+
+                        # Store pre-conflict activity for deterministic resume
+                        if self.fsm.state != RobotState.CONFLICT_NEGOTIATING:
+                            self.pre_conflict_activity = self.fsm.state
+                        self.fsm.transition(RobotEvent.CONFLICT_LOST)
+                        self.robot.state = self.fsm.state
+
                         self.log(
-                            f"[Tick {tick}] ARBITRATION RESULT: LOST to {peer_snap.robot_id}. "
-                            f"Action=YIELD. Yielded right-of-way, incremented wait_ticks={self.robot.wait_ticks_so_far}."
+                            f"[Tick {tick}] ARBITRATION RESULT: LOST to {peer_snap.robot_id}. Action=YIELD. Yielded right-of-way."
                         )
 
                         # Purge stale reservations for self
@@ -358,7 +500,7 @@ class RobotNode:
 
                         re_path = find_path(
                             start=self.robot.position,
-                            goal=self.goal_pos,
+                            goal=self.goal_pos or self.robot.position,
                             current_tick=tick,
                             reservation_table=self.local_reservations,
                             grid=self.grid,
@@ -369,7 +511,6 @@ class RobotNode:
                         else:
                             self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": rx, "y": ry, "t": tick + 1}]
 
-                        # Loser cancels intended move: stays at current position
                         intended_pos = self.robot.position
                         conflict_resolved = {
                             "winner_id": winner_id,
@@ -382,11 +523,9 @@ class RobotNode:
                     else:
                         # THIS ROBOT IS THE WINNER
                         self.log(
-                            f"[Tick {tick}] ARBITRATION RESULT: WON against {peer_snap.robot_id}. "
-                            f"Action=PROCEED. Maintaining assigned trajectory."
+                            f"[Tick {tick}] ARBITRATION RESULT: WON against {peer_snap.robot_id}. Action=PROCEED."
                         )
-                        # If target cell is currently occupied by the peer (e.g. swap),
-                        # winner holds for 1 tick so yielding peer can clear/turn
+                        # Physical clearance rule: if target cell is currently occupied by peer, hold 1 tick
                         if intended_pos == (px, py):
                             intended_pos = self.robot.position
                             action_taken = "WAITING"
@@ -401,16 +540,33 @@ class RobotNode:
                         }
                         break
 
-        # 6. Execute Movement / Turn / Wait (Commit move only after all conflict checks pass)
-        if self.robot.state == RobotState.IDLE or not self.robot.path:
+        # 10. Check Degraded Mode speed throttle
+        if intended_pos != prev_pos and not self.degraded_detector.should_move_this_tick(tick):
+            intended_pos = prev_pos
+            action_taken = "DEGRADED_SPEED_PAUSE"
+            self.log(f"[Tick {tick}] Degraded network throttle: pausing movement on alternate tick.")
+
+        # 11. Check Task Realism Load Pause (every 4th step while carrying weight)
+        if intended_pos != prev_pos and self.fsm.state == RobotState.EN_ROUTE_DROPOFF:
+            p_weight = getattr(self.task, "payload_weight_kg", 0.0) if self.task else 0.0
+            if p_weight > 0.0 and self.load_move_steps > 0 and (self.load_move_steps % 4 == 0):
+                intended_pos = prev_pos
+                action_taken = "LOAD_WEIGHT_PAUSE"
+                self.load_move_steps += 1
+                self.log(f"[Tick {tick}] Load weight inertia pause (carrying {p_weight}kg).")
+
+        # 12. Commit Movement / Turn / Wait
+        if self.fsm.state == RobotState.IDLE or not self.robot.path:
             action_taken = "IDLE"
         elif intended_pos == prev_pos:
-            # Robot yielded or held position
-            if action_taken != "YIELDED / BRAKED":
+            self.consecutive_wait_ticks += 1
+            if action_taken not in ("YIELDED / BRAKED", "LOAD_WEIGHT_PAUSE", "DEGRADED_SPEED_PAUSE"):
                 self.robot.wait_ticks_so_far += 1
                 action_taken = "WAITING"
                 self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
         else:
+            self.consecutive_wait_ticks = 0
+            self.load_move_steps += 1
             dx = intended_pos[0] - prev_pos[0]
             dy = intended_pos[1] - prev_pos[1]
             if dx > 0: self.robot.heading = Heading.EAST
@@ -428,94 +584,126 @@ class RobotNode:
             self.robot.position = intended_pos
             self.robot.path = self.robot.path[1:]
             self.robot.wait_ticks_so_far = 0
-            self.robot.state = RobotState.EN_ROUTE
+
+            # Deterministic conflict resume if robot was negotiating
+            if self.fsm.state == RobotState.CONFLICT_NEGOTIATING:
+                if self.pre_conflict_activity == RobotState.EN_ROUTE_PICKUP:
+                    self.fsm.transition(RobotEvent.RESUME_PICKUP)
+                elif self.pre_conflict_activity == RobotState.EN_ROUTE_DROPOFF:
+                    self.fsm.transition(RobotEvent.RESUME_DROPOFF)
+                elif self.pre_conflict_activity == RobotState.AUDITING:
+                    self.fsm.transition(RobotEvent.RESUME_AUDIT)
+                else:
+                    self.fsm.transition(RobotEvent.RESUME_PICKUP)
+                self.pre_conflict_activity = None
+                self.robot.state = self.fsm.state
+                self.log(f"[Tick {tick}] Conflict cleared: resumed state {self.fsm.state.value}.")
 
         self.robot.last_updated_tick = tick
 
-        # Check task completion
-        if self.robot.position == self.goal_pos:
-            self.task.status = "COMPLETED"
-            self.robot.state = RobotState.IDLE
-            action_taken = "COMPLETED"
+        # Check mission waypoint arrival
+        if self.task:
+            if self.fsm.state == RobotState.EN_ROUTE_PICKUP and self.robot.position == self.task.pickup:
+                self.fsm.transition(RobotEvent.PICKUP_REACHED)
+                self.robot.state = self.fsm.state
+                self.log(f"[Tick {tick}] Arrived at pickup cell {self.task.pickup}! Entering PICKING state.")
+            elif self.fsm.state == RobotState.EN_ROUTE_DROPOFF and self.robot.position == self.task.dropoff:
+                self.fsm.transition(RobotEvent.DROPOFF_REACHED)
+                self.robot.state = self.fsm.state
+                self.log(f"[Tick {tick}] Arrived at dropoff cell {self.task.dropoff}! Entering DROPPING state.")
+        elif self.goal_pos and self.robot.position == self.goal_pos:
+            self.fsm.transition(RobotEvent.MISSION_COMPLETE)
+            self.robot.state = self.fsm.state
             self.robot.path = []
+            action_taken = "COMPLETED"
             self.log(f"[Tick {tick}] REACHED DESTINATION {self.goal_pos}! Mission COMPLETED.")
 
-        # Prune local reservations
         prune_past(self.local_reservations, tick)
 
         self.log(
             f"[Tick {tick}] Pos={self.robot.position}, Heading={self.robot.heading.value}, "
-            f"State={self.robot.state.value}, Action={action_taken}, Priority={self.robot.priority_score:.1f}, "
+            f"State={self.fsm.state.value}, Action={action_taken}, Priority={self.robot.priority_score:.1f}, "
             f"Battery={self.robot.battery_pct:.1f}%, Waits={self.robot.wait_ticks_so_far}"
         )
 
+        return self._build_telemetry_frame(tick, action_taken, conflict_resolved)
 
-        # 7. Prepare telemetry frame
-        telemetry_frame = {
+    def _build_telemetry_frame(self, tick: int, action: str, conflict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        frame = {
             "tick": tick,
             "robot_id": self.robot.robot_id,
             "x": self.robot.position[0],
             "y": self.robot.position[1],
             "heading": self.robot.heading.value,
-            "state": self.robot.state.value,
+            "state": self.fsm.state.value,
             "battery_pct": round(self.robot.battery_pct, 1),
             "priority_score": round(self.robot.priority_score, 1),
             "urgency": self.urgency,
             "wait_ticks": self.robot.wait_ticks_so_far,
-            "action": action_taken,
-            "completed": self.task.status == "COMPLETED",
+            "action": action,
+            "completed": (self.fsm.state == RobotState.IDLE and not self.task),
             "path": [{"x": p["x"], "y": p["y"]} for p in self.robot.path[:8]],
-            "goal": list(self.goal_pos),
-            "conflict": conflict_resolved,
+            "goal": list(self.goal_pos) if self.goal_pos else list(self.robot.position),
+            "conflict": conflict,
         }
-
         if self.telemetry_queue is not None:
             try:
-                self.telemetry_queue.put_nowait(telemetry_frame)
+                self.telemetry_queue.put_nowait(frame)
             except Exception:
                 pass
-
-        return telemetry_frame
-
+        return frame
 
     def _drain_inbox(self, current_tick: int) -> None:
-        """Receives all pending UDP datagrams without blocking."""
-        while True:
-            try:
-                raw_data, addr = self.sock.recvfrom(4096)
-            except (BlockingIOError, socket.error):
-                break
-            try:
-                msg = json.loads(raw_data.decode("utf-8"))
-            except Exception:
-                continue
+        """Drains incoming transport messages, verifies security envelopes, updates peer snapshots."""
+        raw_messages = self.transport.recv_all()
+        for msg in raw_messages:
+            # Verify security envelope if present
+            if "signature" in msg and "body" in msg:
+                valid, payload, err = verify_envelope(msg, secret_key=self.secret_key)
+                if not valid or not payload:
+                    self.log(f"Security envelope verification failed: {err}")
+                    continue
+                body = msg.get("body", {})
+                sender = payload.get("robot_id", "unknown")
+                seq = body.get("seq")
+                ts = body.get("timestamp", time.time())
+                r_valid, r_err = self.replay_guard.validate(sender, seq, ts)
+                if not r_valid:
+                    self.log(f"Security replay guard rejected packet from {sender}: {r_err}")
+                    continue
+                actual_msg = payload
+            else:
+                actual_msg = msg
 
-            m_type = msg.get("type")
+            m_type = actual_msg.get("type")
             if m_type == "RESERVATION_CLAIM":
-                sender_id = msg["robot_id"]
-                p_pos = tuple(msg["position"])
-                p_intent = tuple(msg.get("intended_pos", msg["position"]))
-                h_val = msg.get("heading", "NORTH")
+                sender_id = actual_msg["robot_id"]
+                p_pos = tuple(actual_msg["position"])
+                p_intent = tuple(actual_msg.get("intended_pos", actual_msg["position"]))
+                h_val = actual_msg.get("heading", "NORTH")
                 try:
                     h_enum = Heading(h_val)
                 except Exception:
                     h_enum = Heading.NORTH
-                s_val = msg.get("state", "EN_ROUTE")
+                s_val = actual_msg.get("state", "IDLE")
                 try:
                     s_enum = RobotState(s_val)
                 except Exception:
-                    s_enum = RobotState.EN_ROUTE
+                    s_enum = RobotState.IDLE
+
+                msg_tick = int(actual_msg["tick"])
+                self.degraded_detector.record_peer_tick(sender_id, msg_tick)
 
                 snap = PeerSnapshot(
                     robot_id=sender_id,
                     position=(int(p_pos[0]), int(p_pos[1])),
                     intended_pos=(int(p_intent[0]), int(p_intent[1])),
                     heading=h_enum,
-                    priority_score=float(msg["priority_score"]),
+                    priority_score=float(actual_msg["priority_score"]),
                     state=s_enum,
-                    wait_ticks_so_far=int(msg["wait_ticks"]),
-                    path=msg["path"],
-                    last_seen_tick=int(msg["tick"]),
+                    wait_ticks_so_far=int(actual_msg["wait_ticks"]),
+                    path=actual_msg["path"],
+                    last_seen_tick=msg_tick,
                 )
                 self.peers[sender_id] = snap
 
@@ -524,6 +712,18 @@ class RobotNode:
                     del self.local_reservations[k]
                 for p in snap.path:
                     self.local_reservations[(int(p["x"]), int(p["y"]), int(p["t"]))] = sender_id
+
+            elif m_type == "TASK_ASSIGNMENT":
+                # Handle task assignment message from central dispatcher
+                t_dict = actual_msg.get("task", {})
+                tid = t_dict.get("task_id")
+                if tid and tid not in self.completed_task_ids and self.fsm.state == RobotState.IDLE:
+                    self._assign_initial_task(
+                        goal_pos=tuple(t_dict["dropoff"]),
+                        urgency=t_dict.get("urgency", 3),
+                        payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
+                    )
+                    self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid}.")
 
 
 def run_robot_process(

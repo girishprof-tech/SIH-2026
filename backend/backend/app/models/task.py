@@ -35,6 +35,7 @@ class Task:
     created_tick: int
     status: TaskStatus = TaskStatus.PENDING
     assigned_robot_id: Optional[str] = None
+    payload_weight_kg: float = 0.0
 
     # Internal tracking
     _pickup_done: bool = field(default=False, repr=False)
