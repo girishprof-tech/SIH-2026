@@ -25,6 +25,17 @@ export function useFleetSocket(onTick: (tick: TickUpdate) => void) {
         try {
           const update = JSON.parse(event.data) as TickUpdate
           if (update.type && update.type !== 'TICK_UPDATE') return
+          if (update.robots && Array.isArray(update.robots)) {
+            update.robots = update.robots.map((r: any) => ({
+              ...r,
+              robot_id: r.robot_id ?? r.id,
+              position: Array.isArray(r.position)
+                ? { x: r.position[0], y: r.position[1] }
+                : (r.position ?? { x: r.x ?? 0, y: r.y ?? 0 }),
+              battery_pct: r.battery_pct ?? r.battery ?? 100,
+              path: (r.path || []).map((p: any) => ({ x: p.x, y: p.y, t: p.t ?? 0 }))
+            }))
+          }
           if (lastTick.current !== null && update.tick > lastTick.current + 1) setSkippedTicks(update.tick - lastTick.current - 1)
           lastTick.current = update.tick
           callback.current(update)

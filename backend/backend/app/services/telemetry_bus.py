@@ -72,7 +72,8 @@ class TelemetryBus:
         for rid, s in sorted(self.robot_states.items()):
             robots_list.append({
                 "id": s["robot_id"],
-                "position": [s["x"], s["y"]],
+                "robot_id": s["robot_id"],
+                "position": {"x": s["x"], "y": s["y"]},
                 "x": s["x"],
                 "y": s["y"],
                 "heading": s["heading"],

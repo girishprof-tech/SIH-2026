@@ -139,7 +139,13 @@ async def lifespan(app: FastAPI):
                         rid = r_dict.get("id") or r_dict.get("robot_id")
                         if not rid:
                             continue
-                        pos = tuple(r_dict.get("position", [r_dict.get("x", 0), r_dict.get("y", 0)]))
+                        pos_raw = r_dict.get("position")
+                        if isinstance(pos_raw, dict):
+                            pos = (int(pos_raw.get("x", 0)), int(pos_raw.get("y", 0)))
+                        elif isinstance(pos_raw, (list, tuple)):
+                            pos = (int(pos_raw[0]), int(pos_raw[1]))
+                        else:
+                            pos = (int(r_dict.get("x", 0)), int(r_dict.get("y", 0)))
                         h_str = r_dict.get("heading", "NORTH")
                         try:
                             h_enum = Heading(h_str)
