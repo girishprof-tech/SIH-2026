@@ -1,113 +1,232 @@
-[13:04:18] Autonomous Robot Node initialized. PID=21864, Start=(7, 1), Goal=(7, 20), Urgency=4
-[13:04:18] Initial path planned: 20 steps to goal (7, 20).
-[13:04:18] [Tick 0] Pos=(7, 2), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=381.0, Battery=84.0%, Waits=0
-[13:04:18] [Tick 1] Pos=(7, 3), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=382.0, Battery=83.0%, Waits=0
-[13:04:18] [Tick 2] Pos=(7, 4), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=383.0, Battery=82.0%, Waits=0
-[13:04:18] [Tick 3] Pos=(7, 5), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=384.0, Battery=81.0%, Waits=0
-[13:04:19] [Tick 4] Pos=(7, 6), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=385.0, Battery=80.0%, Waits=0
-[13:04:19] [Tick 5] Pos=(7, 7), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=386.0, Battery=79.0%, Waits=0
-[13:04:19] [Tick 6] Pos=(7, 8), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=387.0, Battery=78.0%, Waits=0
-[13:04:19] [Tick 7] Pos=(7, 9), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=388.0, Battery=77.0%, Waits=0
-[13:04:19] [Tick 8] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=389.0, Battery=76.0%, Waits=0
-[13:04:19] [Tick 9] Pos=(7, 11), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=390.0, Battery=75.0%, Waits=0
-[13:04:19] [Tick 10] Pos=(7, 12), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=391.0, Battery=74.0%, Waits=0
-[13:04:19] [Tick 11] Pos=(7, 13), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=392.0, Battery=73.0%, Waits=0
-[13:04:19] [Tick 12] Pos=(7, 14), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=393.0, Battery=72.0%, Waits=0
-[13:04:19] [Tick 13] Pos=(7, 15), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=394.0, Battery=71.0%, Waits=0
-[13:04:20] [Tick 14] Pos=(7, 16), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=395.0, Battery=70.0%, Waits=0
-[13:04:20] [Tick 15] Pos=(7, 17), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=396.0, Battery=69.0%, Waits=0
-[13:04:20] [Tick 16] Pos=(7, 18), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=397.0, Battery=68.0%, Waits=0
-[13:04:20] [Tick 17] Pos=(7, 19), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=398.0, Battery=67.0%, Waits=0
-[13:04:20] [Tick 18] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 18] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=399.0, Battery=66.0%, Waits=0
-[13:04:20] [Tick 19] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 19] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:20] [Tick 20] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 20] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:20] [Tick 21] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 21] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:20] [Tick 22] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 22] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:20] [Tick 23] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:20] [Tick 23] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 24] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 24] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 25] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 25] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 26] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 26] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 27] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 27] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 28] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 28] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 29] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 29] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 30] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 30] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 31] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 31] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 32] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 32] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:21] [Tick 33] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:21] [Tick 33] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 34] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 34] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 35] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 35] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 36] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 36] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 37] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 37] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 38] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 38] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 39] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 39] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 40] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 40] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 41] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 41] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 42] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 42] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:22] [Tick 43] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:22] [Tick 43] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 44] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 44] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 45] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 45] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 46] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 46] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 47] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 47] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 48] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 48] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 49] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 49] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 50] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 50] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 51] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 51] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 52] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 52] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:23] [Tick 53] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:23] [Tick 53] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 54] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 54] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 55] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 55] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 56] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 56] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 57] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 57] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 58] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 58] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 59] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 59] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 60] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 60] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 61] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 61] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 62] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 62] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:24] [Tick 63] REACHED DESTINATION (7, 20)! Mission COMPLETED.
-[13:04:24] [Tick 63] Pos=(7, 20), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=400.0, Battery=66.0%, Waits=0
-[13:04:25] Robot Process terminated after 64 ticks. Exiting.
+[17:58:58] Autonomous Robot Node initialized. PID=7008, Start=(7, 1), Goal=(7, 20), Urgency=4
+[17:58:58] Initial path planned: 20 steps to goal (7, 20).
+[17:58:58] [Tick 0] Pos=(7, 2), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=381.0, Battery=84.0%, Waits=0
+[17:58:58] [Tick 1] Pos=(7, 3), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=382.0, Battery=83.0%, Waits=0
+[17:58:58] [Tick 2] Pos=(7, 4), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=383.0, Battery=82.0%, Waits=0
+[17:58:58] [Tick 3] Pos=(7, 5), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=384.0, Battery=81.0%, Waits=0
+[17:58:58] [Tick 4] Pos=(7, 6), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=385.0, Battery=80.0%, Waits=0
+[17:58:58] [Tick 5] Pos=(7, 7), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=386.0, Battery=79.0%, Waits=0
+[17:58:59] [Tick 6] Pos=(7, 8), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=387.0, Battery=78.0%, Waits=0
+[17:58:59] [Tick 7] Pos=(7, 9), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=388.0, Battery=77.0%, Waits=0
+[17:58:59] [Tick 8] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=MOVED, Priority=389.0, Battery=76.0%, Waits=0
+[17:58:59] [Tick 9] CONFLICT DETECTED with AMR-04 (SWAP_CONFLICT) at cell (7, 11)! My Priority=390.0, Peer Priority=190.0
+[17:58:59] [Tick 9] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 9] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 9] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=390.0, Battery=75.9%, Waits=1
+[17:58:59] [Tick 10] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=400.0, Peer Priority=210.0
+[17:58:59] [Tick 10] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 10] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 10] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=400.0, Battery=75.8%, Waits=2
+[17:58:59] [Tick 11] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=410.0, Peer Priority=220.0
+[17:58:59] [Tick 11] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 11] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 11] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=410.0, Battery=75.7%, Waits=3
+[17:58:59] [Tick 12] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=420.0, Peer Priority=230.0
+[17:58:59] [Tick 12] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 12] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 12] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=420.0, Battery=75.6%, Waits=4
+[17:58:59] [Tick 13] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=430.0, Peer Priority=240.0
+[17:58:59] [Tick 13] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 13] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 13] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=430.0, Battery=75.5%, Waits=5
+[17:58:59] [Tick 14] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=440.0, Peer Priority=250.0
+[17:58:59] [Tick 14] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 14] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 14] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=440.0, Battery=75.4%, Waits=6
+[17:58:59] [Tick 15] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=450.0, Peer Priority=260.0
+[17:58:59] [Tick 15] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:58:59] [Tick 15] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:58:59] [Tick 15] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=450.0, Battery=75.3%, Waits=7
+[17:59:00] [Tick 16] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=460.0, Peer Priority=270.0
+[17:59:00] [Tick 16] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 16] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 16] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=460.0, Battery=75.2%, Waits=8
+[17:59:00] [Tick 17] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=470.0, Peer Priority=280.0
+[17:59:00] [Tick 17] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 17] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 17] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=470.0, Battery=75.1%, Waits=9
+[17:59:00] [Tick 18] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=480.0, Peer Priority=290.0
+[17:59:00] [Tick 18] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 18] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 18] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=480.0, Battery=75.0%, Waits=10
+[17:59:00] [Tick 19] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=490.0, Peer Priority=300.0
+[17:59:00] [Tick 19] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 19] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 19] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=490.0, Battery=74.9%, Waits=11
+[17:59:00] [Tick 20] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=500.0, Peer Priority=310.0
+[17:59:00] [Tick 20] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 20] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 20] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=500.0, Battery=74.8%, Waits=12
+[17:59:00] [Tick 21] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=510.0, Peer Priority=320.0
+[17:59:00] [Tick 21] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 21] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 21] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=510.0, Battery=74.7%, Waits=13
+[17:59:00] [Tick 22] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=520.0, Peer Priority=330.0
+[17:59:00] [Tick 22] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 22] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 22] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=520.0, Battery=74.6%, Waits=14
+[17:59:00] [Tick 23] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=530.0, Peer Priority=340.0
+[17:59:00] [Tick 23] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 23] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 23] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=530.0, Battery=74.5%, Waits=15
+[17:59:00] [Tick 24] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=540.0, Peer Priority=350.0
+[17:59:00] [Tick 24] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 24] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 24] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=540.0, Battery=74.4%, Waits=16
+[17:59:00] [Tick 25] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=550.0, Peer Priority=360.0
+[17:59:00] [Tick 25] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:00] [Tick 25] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:00] [Tick 25] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=550.0, Battery=74.3%, Waits=17
+[17:59:01] [Tick 26] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=560.0, Peer Priority=370.0
+[17:59:01] [Tick 26] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 26] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 26] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=560.0, Battery=74.2%, Waits=18
+[17:59:01] [Tick 27] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=570.0, Peer Priority=380.0
+[17:59:01] [Tick 27] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 27] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 27] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=570.0, Battery=74.1%, Waits=19
+[17:59:01] [Tick 28] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=580.0, Peer Priority=390.0
+[17:59:01] [Tick 28] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 28] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 28] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=580.0, Battery=74.0%, Waits=20
+[17:59:01] [Tick 29] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=590.0, Peer Priority=400.0
+[17:59:01] [Tick 29] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 29] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 29] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=590.0, Battery=73.9%, Waits=21
+[17:59:01] [Tick 30] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=600.0, Peer Priority=410.0
+[17:59:01] [Tick 30] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 30] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 30] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=600.0, Battery=73.8%, Waits=22
+[17:59:01] [Tick 31] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=610.0, Peer Priority=420.0
+[17:59:01] [Tick 31] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 31] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 31] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=610.0, Battery=73.7%, Waits=23
+[17:59:01] [Tick 32] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=620.0, Peer Priority=430.0
+[17:59:01] [Tick 32] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 32] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 32] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=620.0, Battery=73.6%, Waits=24
+[17:59:01] [Tick 33] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=630.0, Peer Priority=440.0
+[17:59:01] [Tick 33] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 33] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 33] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=630.0, Battery=73.5%, Waits=25
+[17:59:01] [Tick 34] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=640.0, Peer Priority=450.0
+[17:59:01] [Tick 34] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 34] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 34] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=640.0, Battery=73.4%, Waits=26
+[17:59:01] [Tick 35] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=650.0, Peer Priority=460.0
+[17:59:01] [Tick 35] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:01] [Tick 35] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:01] [Tick 35] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=650.0, Battery=73.3%, Waits=27
+[17:59:02] [Tick 36] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=660.0, Peer Priority=470.0
+[17:59:02] [Tick 36] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 36] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 36] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=660.0, Battery=73.2%, Waits=28
+[17:59:02] [Tick 37] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=670.0, Peer Priority=480.0
+[17:59:02] [Tick 37] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 37] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 37] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=670.0, Battery=73.1%, Waits=29
+[17:59:02] [Tick 38] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=680.0, Peer Priority=490.0
+[17:59:02] [Tick 38] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 38] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 38] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=680.0, Battery=73.0%, Waits=30
+[17:59:02] [Tick 39] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=690.0, Peer Priority=500.0
+[17:59:02] [Tick 39] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 39] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 39] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=690.0, Battery=72.9%, Waits=31
+[17:59:02] [Tick 40] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=700.0, Peer Priority=510.0
+[17:59:02] [Tick 40] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 40] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 40] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=700.0, Battery=72.8%, Waits=32
+[17:59:02] [Tick 41] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=710.0, Peer Priority=520.0
+[17:59:02] [Tick 41] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 41] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 41] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=710.0, Battery=72.7%, Waits=33
+[17:59:02] [Tick 42] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=720.0, Peer Priority=530.0
+[17:59:02] [Tick 42] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 42] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 42] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=720.0, Battery=72.6%, Waits=34
+[17:59:02] [Tick 43] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=730.0, Peer Priority=540.0
+[17:59:02] [Tick 43] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 43] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 43] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=730.0, Battery=72.5%, Waits=35
+[17:59:02] [Tick 44] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=740.0, Peer Priority=550.0
+[17:59:02] [Tick 44] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 44] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 44] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=740.0, Battery=72.4%, Waits=36
+[17:59:02] [Tick 45] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=750.0, Peer Priority=560.0
+[17:59:02] [Tick 45] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:02] [Tick 45] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:02] [Tick 45] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=750.0, Battery=72.3%, Waits=37
+[17:59:03] [Tick 46] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=760.0, Peer Priority=570.0
+[17:59:03] [Tick 46] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 46] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 46] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=760.0, Battery=72.2%, Waits=38
+[17:59:03] [Tick 47] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=770.0, Peer Priority=580.0
+[17:59:03] [Tick 47] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 47] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 47] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=770.0, Battery=72.1%, Waits=39
+[17:59:03] [Tick 48] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=780.0, Peer Priority=590.0
+[17:59:03] [Tick 48] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 48] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 48] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=780.0, Battery=72.0%, Waits=40
+[17:59:03] [Tick 49] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=790.0, Peer Priority=600.0
+[17:59:03] [Tick 49] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 49] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 49] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=790.0, Battery=71.9%, Waits=41
+[17:59:03] [Tick 50] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=800.0, Peer Priority=610.0
+[17:59:03] [Tick 50] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 50] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 50] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=800.0, Battery=71.8%, Waits=42
+[17:59:03] [Tick 51] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=810.0, Peer Priority=620.0
+[17:59:03] [Tick 51] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 51] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 51] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=810.0, Battery=71.7%, Waits=43
+[17:59:03] [Tick 52] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=820.0, Peer Priority=630.0
+[17:59:03] [Tick 52] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 52] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 52] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=820.0, Battery=71.6%, Waits=44
+[17:59:03] [Tick 53] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=830.0, Peer Priority=640.0
+[17:59:03] [Tick 53] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 53] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 53] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=830.0, Battery=71.5%, Waits=45
+[17:59:03] [Tick 54] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=840.0, Peer Priority=650.0
+[17:59:03] [Tick 54] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 54] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 54] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=840.0, Battery=71.4%, Waits=46
+[17:59:03] [Tick 55] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=850.0, Peer Priority=660.0
+[17:59:03] [Tick 55] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:03] [Tick 55] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:03] [Tick 55] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=850.0, Battery=71.3%, Waits=47
+[17:59:04] [Tick 56] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=860.0, Peer Priority=670.0
+[17:59:04] [Tick 56] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 56] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 56] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=860.0, Battery=71.2%, Waits=48
+[17:59:04] [Tick 57] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=870.0, Peer Priority=680.0
+[17:59:04] [Tick 57] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 57] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 57] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=870.0, Battery=71.1%, Waits=49
+[17:59:04] [Tick 58] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=880.0, Peer Priority=690.0
+[17:59:04] [Tick 58] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 58] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 58] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=880.0, Battery=71.0%, Waits=50
+[17:59:04] [Tick 59] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=890.0, Peer Priority=700.0
+[17:59:04] [Tick 59] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 59] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 59] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=890.0, Battery=70.9%, Waits=51
+[17:59:04] [Tick 60] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=900.0, Peer Priority=710.0
+[17:59:04] [Tick 60] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 60] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 60] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=900.0, Battery=70.8%, Waits=52
+[17:59:04] [Tick 61] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=910.0, Peer Priority=720.0
+[17:59:04] [Tick 61] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 61] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 61] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=910.0, Battery=70.7%, Waits=53
+[17:59:04] [Tick 62] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=920.0, Peer Priority=730.0
+[17:59:04] [Tick 62] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 62] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 62] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=920.0, Battery=70.6%, Waits=54
+[17:59:04] [Tick 63] CONFLICT DETECTED with AMR-04 (CELL_OVERLAP) at cell (7, 11)! My Priority=930.0, Peer Priority=740.0
+[17:59:04] [Tick 63] ARBITRATION RESULT: WON against AMR-04. Action=PROCEED. Maintaining assigned trajectory.
+[17:59:04] [Tick 63] Pausing 1 tick at (7, 10) for yielding peer AMR-04 to clear (7, 11).
+[17:59:04] [Tick 63] Pos=(7, 10), Heading=SOUTH, State=EN_ROUTE, Action=WAITING, Priority=930.0, Battery=70.5%, Waits=55
+[17:59:04] Robot Process terminated after 64 ticks. Exiting.

@@ -106,12 +106,52 @@ def resolve_conflict(
     for k in stale_keys:
         del reservation_table[k]
 
-    # Compute new path for loser
-    start_pos = _extract_pos(loser)
-    goal_pos = _extract_goal(loser, tasks=tasks)
-    current_tick = conflict.get("current_tick", getattr(loser, "last_updated_tick", 0))
-    if current_tick <= 0:
+    current_tick = conflict.get("current_tick")
+    if current_tick is None:
+        current_tick = getattr(loser, "last_updated_tick", None)
+    if current_tick is None:
         current_tick = max(0, conflict.get("tick", 1) - 1)
+
+    # 5. If winner intends to move into loser's current cell, winner holds 1 tick at its current cell to let yielding loser clear/turn
+    start_pos = _extract_pos(loser)
+    if getattr(winner, "path", None) and len(winner.path) > 1:
+        w_pos = _extract_pos(winner)
+        nxt = winner.path[1]
+        nx = nxt["x"] if isinstance(nxt, dict) or hasattr(nxt, "__getitem__") else getattr(nxt, "x")
+        ny = nxt["y"] if isinstance(nxt, dict) or hasattr(nxt, "__getitem__") else getattr(nxt, "y")
+        if (int(nx), int(ny)) == start_pos:
+            hold_step = {"x": w_pos[0], "y": w_pos[1], "t": current_tick + 1}
+            shifted = [{"x": w_pos[0], "y": w_pos[1], "t": current_tick}, hold_step]
+            for idx, step in enumerate(winner.path[1:], start=2):
+                sx = step["x"] if isinstance(step, dict) or hasattr(step, "__getitem__") else getattr(step, "x")
+                sy = step["y"] if isinstance(step, dict) or hasattr(step, "__getitem__") else getattr(step, "y")
+                shifted.append({"x": sx, "y": sy, "t": current_tick + idx})
+            winner.path = shifted
+
+    # Ensure winner's planned path is explicitly locked in reservation_table so loser avoids it
+    if getattr(winner, "path", None):
+        for step in winner.path:
+            wx = step["x"] if isinstance(step, dict) or hasattr(step, "__getitem__") else getattr(step, "x")
+            wy = step["y"] if isinstance(step, dict) or hasattr(step, "__getitem__") else getattr(step, "y")
+            wt = step["t"] if isinstance(step, dict) or hasattr(step, "__getitem__") else getattr(step, "t")
+            reservation_table[(int(wx), int(wy), int(wt))] = winner.robot_id
+        # Extend hold reservation at winner's final waypoint so loser does not collide into stationary winner
+        last_step = winner.path[-1]
+        w_lx = last_step["x"] if isinstance(last_step, dict) or hasattr(last_step, "__getitem__") else getattr(last_step, "x")
+        w_ly = last_step["y"] if isinstance(last_step, dict) or hasattr(last_step, "__getitem__") else getattr(last_step, "y")
+        w_lt = last_step["t"] if isinstance(last_step, dict) or hasattr(last_step, "__getitem__") else getattr(last_step, "t")
+        for extra in range(1, 31):
+            key = (int(w_lx), int(w_ly), int(w_lt) + extra)
+            reservation_table.setdefault(key, winner.robot_id)
+    else:
+        # If winner has no path, it is stationary at its current position
+        w_cur = _extract_pos(winner)
+        for extra in range(31):
+            key = (int(w_cur[0]), int(w_cur[1]), current_tick + extra)
+            reservation_table.setdefault(key, winner.robot_id)
+
+    # Compute new path for loser
+    goal_pos = _extract_goal(loser, tasks=tasks)
 
     # Call find_path_fn adaptively
     try:

@@ -62,8 +62,9 @@ class FleetOrchestrator:
 
         self.telemetry_queue: mp.Queue = mp.Queue()
         self.stop_event: mp.Event = mp.Event()
-        self.mailboxes: Dict[str, mp.Queue] = {
-            cfg["robot_id"]: mp.Queue() for cfg in self.robots_config
+        # Distinct UDP ports for real decentralized networking (e.g. 9000 + N)
+        self.peer_ports: Dict[str, int] = {
+            cfg["robot_id"]: 9000 + i for i, cfg in enumerate(self.robots_config, start=1)
         }
         self.processes: List[mp.Process] = []
         self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
@@ -90,8 +91,8 @@ class FleetOrchestrator:
                     cfg["urgency"],
                     cfg["battery_pct"],
                     self.obstacles,
-                    self.mailboxes[rid],
-                    self.mailboxes,
+                    self.peer_ports[rid],
+                    self.peer_ports,
                     self.telemetry_queue,
                     self.stop_event,
                     str(self.log_dir),

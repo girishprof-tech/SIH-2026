@@ -1,11 +1,17 @@
 """
 robot_node.py — Decentralized Autonomous Robot Execution Unit.
 
+This uses real UDP sockets over the loopback interface (127.0.0.1) for this single-machine demo.
+Because this is standard UDP networking (not a Python-internal mechanism), the identical code
+works unchanged if robots run on separate physical machines on the same LAN (e.g., over WiFi
+Direct or a real WiFi network) — only the IP addresses would need to change from 127.0.0.1 to
+each machine's real address.
+
 Each robot runs in its OWN independent OS process (via multiprocessing.Process).
 It does NOT wait for a central dispatcher.
 It:
   1. Computes its own priority score using Member 3's formula.
-  2. Broadcasts its planned reservation claims directly to peers via multiprocessing.Queue.
+  2. Broadcasts its planned reservation claims directly to peers via non-blocking UDP sockets.
   3. Receives peer claims, detects local spatial & swap conflicts using detect_peer_conflict().
   4. Runs peer arbitration using resolve_peer_conflict().
   5. Yields/brakes or replans for itself using real Member 2 find_path().
@@ -16,9 +22,11 @@ It:
 
 from __future__ import annotations
 
+import json
 import logging
 import multiprocessing as mp
 import os
+import socket
 import sys
 import time
 from dataclasses import dataclass, field
@@ -44,6 +52,7 @@ class PeerSnapshot:
     """Lightweight representation of a peer robot received via peer-to-peer message."""
     robot_id: str
     position: Tuple[int, int]
+    intended_pos: Tuple[int, int]
     heading: Heading
     priority_score: float
     state: RobotState
@@ -66,11 +75,12 @@ class RobotNode:
         urgency: int,
         battery_pct: float,
         obstacles: List[Tuple[int, int]],
-        inbox: mp.Queue,
-        peer_mailboxes: Dict[str, mp.Queue],
+        port: int,
+        peer_ports: Dict[str, int],
         telemetry_queue: Optional[mp.Queue] = None,
         log_dir: Optional[Path] = None,
         tick_interval_s: float = 0.1,
+        host: str = "127.0.0.1",
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -78,10 +88,17 @@ class RobotNode:
         self.urgency = urgency
         self.battery_pct = battery_pct
         self.obstacles = obstacles
-        self.inbox = inbox
-        self.peer_mailboxes = peer_mailboxes
+        self.port = port
+        self.peer_ports = peer_ports
+        self.host = host
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
+
+        # Real UDP socket for decentralized peer-to-peer communication
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind((self.host, self.port))
+        self.sock.setblocking(False)
 
         # Initialize local logging
         if log_dir is None:
@@ -139,6 +156,13 @@ class RobotNode:
         self.logger.addHandler(fh)
         self.log(f"Autonomous Robot Node initialized. PID={os.getpid()}, Start={self.start_pos}, Goal={self.goal_pos}, Urgency={self.urgency}")
 
+    def close(self) -> None:
+        """Closes the UDP socket."""
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+
     def log(self, message: str) -> None:
         self.logger.info(message)
 
@@ -174,6 +198,16 @@ class RobotNode:
     def step(self, tick: int) -> Dict[str, Any]:
         """
         Executes one autonomous tick loop step for this robot.
+        Sequence:
+          1. Update priority score.
+          2. Compute candidate intended next position (not yet committed).
+          3. Broadcast intended next position and reservation claim to all peers.
+          4. Drain inbox and ensure messages for this tick from nearby peers are received.
+          5. Symmetric peer conflict detection (vertex, swap, stationary occupancy).
+          6. Deterministic priority arbitration (identical symmetric winner/loser decision).
+          7. Winner proceeds (or waits if target cell is currently occupied by peer).
+             Loser yields/brakes, increments wait_ticks, and replans around winner.
+          8. Commit move only after conflict checks pass.
         """
         prev_pos = self.robot.position
         prev_heading = self.robot.heading
@@ -182,145 +216,219 @@ class RobotNode:
         dist = self.robot.distance_to_goal()
         self.robot.priority_score = calculate_priority_score(self.robot, self.task, dist)
 
-        # 2. Broadcast reservation claim to all peer robots directly
+        # 2. Compute candidate INTENDED next position (not yet committed)
+        if self.robot.state == RobotState.IDLE:
+            intended_pos = self.robot.position
+        elif not self.robot.path:
+            # If path exhausted but not at goal, attempt replan
+            if self.robot.position != self.goal_pos:
+                re_path = find_path(
+                    start=self.robot.position,
+                    goal=self.goal_pos,
+                    current_tick=tick,
+                    reservation_table=self.local_reservations,
+                    grid=self.grid,
+                )
+                if re_path and len(re_path) > 1:
+                    self.robot.path = re_path
+                    self.robot.state = RobotState.EN_ROUTE
+                    intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+                else:
+                    intended_pos = self.robot.position
+            else:
+                intended_pos = self.robot.position
+        elif len(self.robot.path) > 1:
+            intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+        else:
+            intended_pos = self.robot.position
+
+        # 3. Broadcast reservation claim & intended move to all peer robots via UDP
         claim_payload = {
             "type": "RESERVATION_CLAIM",
             "robot_id": self.robot.robot_id,
             "tick": tick,
-            "position": self.robot.position,
-            "heading": self.robot.heading,
+            "position": [self.robot.position[0], self.robot.position[1]],
+            "intended_pos": [intended_pos[0], intended_pos[1]],
+            "heading": self.robot.heading.value if hasattr(self.robot.heading, "value") else str(self.robot.heading),
             "priority_score": self.robot.priority_score,
-            "state": self.robot.state,
+            "state": self.robot.state.value if hasattr(self.robot.state, "value") else str(self.robot.state),
             "wait_ticks": self.robot.wait_ticks_so_far,
-            "path": list(self.robot.path[:6]),
+            "path": list(self.robot.path[:8]),
         }
-        for peer_id, mailbox in self.peer_mailboxes.items():
+        data = json.dumps(claim_payload).encode("utf-8")
+        for peer_id, peer_port in self.peer_ports.items():
             if peer_id != self.robot.robot_id:
                 try:
-                    mailbox.put_nowait(claim_payload)
+                    self.sock.sendto(data, (self.host, peer_port))
                 except Exception:
                     pass
 
-        # 3. Read incoming peer messages from inbox
-        while not self.inbox.empty():
-            try:
-                msg = self.inbox.get_nowait()
-            except Exception:
+        # 4. Drain inbox and ensure messages from nearby peers for this tick are received
+        wait_start = time.time()
+        max_peer_wait = max(0.12, self.tick_interval_s * 1.2)
+        while (time.time() - wait_start) < max_peer_wait:
+            self._drain_inbox(tick)
+
+            # Check if any nearby peer (distance <= 3) is still on an older tick
+            nearby_stale = False
+            for peer_snap in self.peers.values():
+                m_dist = abs(self.robot.position[0] - peer_snap.position[0]) + abs(self.robot.position[1] - peer_snap.position[1])
+                if m_dist <= 3 and peer_snap.last_seen_tick < tick:
+                    nearby_stale = True
+                    break
+            if not nearby_stale:
+                break
+            time.sleep(0.003)
+
+        # Fail-safe: Check if any immediately adjacent peer (dist <= 2) is still unconfirmed for this tick
+        unconfirmed_nearby = False
+        for peer_snap in self.peers.values():
+            m_dist = abs(self.robot.position[0] - peer_snap.position[0]) + abs(self.robot.position[1] - peer_snap.position[1])
+            if m_dist <= 2 and peer_snap.last_seen_tick < tick:
+                unconfirmed_nearby = True
                 break
 
-            m_type = msg.get("type")
-            if m_type == "RESERVATION_CLAIM":
-                sender_id = msg["robot_id"]
-                snap = PeerSnapshot(
-                    robot_id=sender_id,
-                    position=msg["position"],
-                    heading=msg["heading"],
-                    priority_score=msg["priority_score"],
-                    state=msg["state"],
-                    wait_ticks_so_far=msg["wait_ticks"],
-                    path=msg["path"],
-                    last_seen_tick=msg["tick"],
-                )
-                self.peers[sender_id] = snap
+        if unconfirmed_nearby and intended_pos != self.robot.position:
+            # Cannot safely move toward an unconfirmed adjacent robot; hold position this tick
+            intended_pos = self.robot.position
+            action_taken = "WAITING"
+            self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby did not confirm tick {tick} position in time.")
 
-                # Update local reservation table with peer's claimed steps
-                # Purge old reservations for this peer first
-                for k in [k for k, v in self.local_reservations.items() if v == sender_id]:
-                    del self.local_reservations[k]
-                for p in snap.path:
-                    self.local_reservations[(p["x"], p["y"], p["t"])] = sender_id
-
-        # 4. Filter nearby peers (Manhattan distance <= 2)
-        rx, ry = self.robot.position
-        nearby_peers: List[PeerSnapshot] = []
-        for snap in self.peers.values():
-            px, py = snap.position
-            if abs(rx - px) + abs(ry - py) <= 2 and snap.last_seen_tick >= tick - 2:
-                nearby_peers.append(snap)
-
-        # 5. Peer-to-Peer Conflict Detection & Arbitration
+        # 5. Peer-to-Peer Conflict Detection & Symmetric Arbitration
         action_taken = "MOVED"
         conflict_resolved = None
 
-        if self.robot.state != RobotState.IDLE:
-            for peer_snap in nearby_peers:
-                # Wrap peer snapshot into Robot proxy for detector/arbitration
-                peer_proxy = Robot(
-                    robot_id=peer_snap.robot_id,
-                    position=peer_snap.position,
-                    heading=peer_snap.heading,
-                    state=peer_snap.state,
-                    battery_pct=80.0,
-                    current_task_id=f"TASK-{peer_snap.robot_id}",
-                    path=peer_snap.path,
-                    priority_score=peer_snap.priority_score,
-                    wait_ticks_so_far=peer_snap.wait_ticks_so_far,
-                    last_updated_tick=peer_snap.last_seen_tick,
-                )
+        if self.robot.state != RobotState.IDLE and intended_pos != self.robot.position:
+            rx, ry = self.robot.position
+            for peer_snap in list(self.peers.values()):
+                if peer_snap.last_seen_tick < tick - 2:
+                    continue  # ignore completely dead peers
 
-                conflict = detect_peer_conflict(self.robot, peer_proxy, tick)
-                if conflict:
-                    c_cell = conflict["cell"]
-                    c_type = conflict["type"]
+                px, py = peer_snap.position
+                pix, piy = peer_snap.intended_pos
+                m_dist = abs(rx - px) + abs(ry - py)
+
+                if m_dist > 2:
+                    continue
+
+                # Check conflict conditions:
+                # 1) SWAP_CONFLICT: I intend to enter peer's current cell, while peer intends to enter my current cell
+                is_swap = (intended_pos == (px, py) and (pix, piy) == (rx, ry) and (rx, ry) != (px, py))
+                # 2) VERTEX_CONFLICT: Both intend to enter the exact same cell
+                is_vertex = (intended_pos == (pix, piy) and intended_pos != (rx, ry))
+                # 3) HEAD_ON / APPROACH: Peer is currently at intended_pos and either staying or approaching
+                is_blocked = (intended_pos == (px, py) and (pix, piy) == (px, py))
+
+                if is_swap or is_vertex or is_blocked:
+                    c_type = "SWAP_CONFLICT" if is_swap else ("CELL_OVERLAP" if is_vertex else "STATIONARY_BLOCK")
+                    conflict_cell = {"x": intended_pos[0], "y": intended_pos[1]}
+
+                    # Deterministic, symmetric priority comparison
+                    my_score = float(self.robot.priority_score)
+                    peer_score = float(peer_snap.priority_score)
+
+                    if my_score > peer_score:
+                        i_win = True
+                    elif my_score < peer_score:
+                        i_win = False
+                    else:
+                        i_win = (self.robot.robot_id < peer_snap.robot_id)
+
+                    winner_id = self.robot.robot_id if i_win else peer_snap.robot_id
+                    loser_id = peer_snap.robot_id if i_win else self.robot.robot_id
+
                     self.log(
-                        f"[Tick {tick}] CONFLICT DETECTED with {peer_snap.robot_id} ({c_type}) at cell ({c_cell['x']}, {c_cell['y']})! "
-                        f"My Priority={self.robot.priority_score:.1f}, Peer Priority={peer_snap.priority_score:.1f}"
+                        f"[Tick {tick}] CONFLICT DETECTED with {peer_snap.robot_id} ({c_type}) at cell ({conflict_cell['x']}, {conflict_cell['y']})! "
+                        f"My Priority={my_score:.1f}, Peer Priority={peer_score:.1f}"
                     )
 
-                    resolution = resolve_peer_conflict(
-                        conflict=conflict,
-                        robot_a=self.robot,
-                        robot_b=peer_proxy,
-                        reservation_table=self.local_reservations,
-                        find_path_fn=self._pathfinder_callback,
-                        tasks={self.task_id: self.task},
-                    )
-                    conflict_resolved = resolution
-
-                    if resolution["loser_id"] == self.robot.robot_id:
+                    if not i_win:
+                        # THIS ROBOT IS THE LOSER
                         action_taken = "YIELDED / BRAKED"
+                        self.robot.wait_ticks_so_far += 1
+                        self.robot.state = RobotState.CONFLICT_NEGOTIATING
                         self.log(
                             f"[Tick {tick}] ARBITRATION RESULT: LOST to {peer_snap.robot_id}. "
                             f"Action=YIELD. Yielded right-of-way, incremented wait_ticks={self.robot.wait_ticks_so_far}."
                         )
+
+                        # Purge stale reservations for self
+                        for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
+                            del self.local_reservations[k]
+
+                        re_path = find_path(
+                            start=self.robot.position,
+                            goal=self.goal_pos,
+                            current_tick=tick,
+                            reservation_table=self.local_reservations,
+                            grid=self.grid,
+                        )
+                        if re_path and len(re_path) > 1:
+                            self.robot.path = re_path
+                            self.log(f"[Tick {tick}] Replanned alternate detour path ({len(re_path)} steps).")
+                        else:
+                            self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": rx, "y": ry, "t": tick + 1}]
+
+                        # Loser cancels intended move: stays at current position
+                        intended_pos = self.robot.position
+                        conflict_resolved = {
+                            "winner_id": winner_id,
+                            "loser_id": loser_id,
+                            "action": "YIELD_AND_WAIT",
+                            "type": c_type,
+                            "cell": conflict_cell,
+                        }
+                        break
                     else:
+                        # THIS ROBOT IS THE WINNER
                         self.log(
                             f"[Tick {tick}] ARBITRATION RESULT: WON against {peer_snap.robot_id}. "
                             f"Action=PROCEED. Maintaining assigned trajectory."
                         )
+                        # If target cell is currently occupied by the peer (e.g. swap),
+                        # winner holds for 1 tick so yielding peer can clear/turn
+                        if intended_pos == (px, py):
+                            intended_pos = self.robot.position
+                            action_taken = "WAITING"
+                            self.log(f"[Tick {tick}] Pausing 1 tick at {self.robot.position} for yielding peer {peer_snap.robot_id} to clear {px, py}.")
 
-        # 6. Execute Movement / Turn / Wait
+                        conflict_resolved = {
+                            "winner_id": winner_id,
+                            "loser_id": loser_id,
+                            "action": "PROCEED",
+                            "type": c_type,
+                            "cell": conflict_cell,
+                        }
+                        break
+
+        # 6. Execute Movement / Turn / Wait (Commit move only after all conflict checks pass)
         if self.robot.state == RobotState.IDLE or not self.robot.path:
             action_taken = "IDLE"
-        elif action_taken == "YIELDED / BRAKED":
-            # Robot yielded: hold position for this tick
-            pass
-        elif len(self.robot.path) > 1 and self.robot.path[1]["t"] == tick + 1:
-            next_step = self.robot.path[1]
-            next_pos = (next_step["x"], next_step["y"])
-
-            dx = next_pos[0] - self.robot.position[0]
-            dy = next_pos[1] - self.robot.position[1]
+        elif intended_pos == prev_pos:
+            # Robot yielded or held position
+            if action_taken != "YIELDED / BRAKED":
+                self.robot.wait_ticks_so_far += 1
+                action_taken = "WAITING"
+                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
+        else:
+            dx = intended_pos[0] - prev_pos[0]
+            dy = intended_pos[1] - prev_pos[1]
             if dx > 0: self.robot.heading = Heading.EAST
             elif dx < 0: self.robot.heading = Heading.WEST
             elif dy > 0: self.robot.heading = Heading.SOUTH
             elif dy < 0: self.robot.heading = Heading.NORTH
 
-            if prev_heading != self.robot.heading and prev_pos == next_pos:
+            if prev_heading != self.robot.heading and prev_pos == intended_pos:
                 action_taken = "TURNED"
                 self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.5)
             else:
                 action_taken = "MOVED"
                 self.robot.battery_pct = max(0.0, self.robot.battery_pct - 1.0)
 
-            self.robot.position = next_pos
+            self.robot.position = intended_pos
             self.robot.path = self.robot.path[1:]
             self.robot.wait_ticks_so_far = 0
             self.robot.state = RobotState.EN_ROUTE
-        else:
-            self.robot.wait_ticks_so_far += 1
-            action_taken = "WAITING"
-            self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
 
         self.robot.last_updated_tick = tick
 
@@ -340,6 +448,7 @@ class RobotNode:
             f"State={self.robot.state.value}, Action={action_taken}, Priority={self.robot.priority_score:.1f}, "
             f"Battery={self.robot.battery_pct:.1f}%, Waits={self.robot.wait_ticks_so_far}"
         )
+
 
         # 7. Prepare telemetry frame
         telemetry_frame = {
@@ -369,6 +478,54 @@ class RobotNode:
         return telemetry_frame
 
 
+    def _drain_inbox(self, current_tick: int) -> None:
+        """Receives all pending UDP datagrams without blocking."""
+        while True:
+            try:
+                raw_data, addr = self.sock.recvfrom(4096)
+            except (BlockingIOError, socket.error):
+                break
+            try:
+                msg = json.loads(raw_data.decode("utf-8"))
+            except Exception:
+                continue
+
+            m_type = msg.get("type")
+            if m_type == "RESERVATION_CLAIM":
+                sender_id = msg["robot_id"]
+                p_pos = tuple(msg["position"])
+                p_intent = tuple(msg.get("intended_pos", msg["position"]))
+                h_val = msg.get("heading", "NORTH")
+                try:
+                    h_enum = Heading(h_val)
+                except Exception:
+                    h_enum = Heading.NORTH
+                s_val = msg.get("state", "EN_ROUTE")
+                try:
+                    s_enum = RobotState(s_val)
+                except Exception:
+                    s_enum = RobotState.EN_ROUTE
+
+                snap = PeerSnapshot(
+                    robot_id=sender_id,
+                    position=(int(p_pos[0]), int(p_pos[1])),
+                    intended_pos=(int(p_intent[0]), int(p_intent[1])),
+                    heading=h_enum,
+                    priority_score=float(msg["priority_score"]),
+                    state=s_enum,
+                    wait_ticks_so_far=int(msg["wait_ticks"]),
+                    path=msg["path"],
+                    last_seen_tick=int(msg["tick"]),
+                )
+                self.peers[sender_id] = snap
+
+                # Update local reservation table
+                for k in [k for k, v in list(self.local_reservations.items()) if v == sender_id]:
+                    del self.local_reservations[k]
+                for p in snap.path:
+                    self.local_reservations[(int(p["x"]), int(p["y"]), int(p["t"]))] = sender_id
+
+
 def run_robot_process(
     robot_id: str,
     start_pos: Tuple[int, int],
@@ -376,8 +533,8 @@ def run_robot_process(
     urgency: int,
     battery_pct: float,
     obstacles: List[Tuple[int, int]],
-    inbox: mp.Queue,
-    peer_mailboxes: Dict[str, mp.Queue],
+    port: int,
+    peer_ports: Dict[str, int],
     telemetry_queue: mp.Queue,
     stop_event: mp.Event,
     log_dir_str: str,
@@ -395,21 +552,24 @@ def run_robot_process(
         urgency=urgency,
         battery_pct=battery_pct,
         obstacles=obstacles,
-        inbox=inbox,
-        peer_mailboxes=peer_mailboxes,
+        port=port,
+        peer_ports=peer_ports,
         telemetry_queue=telemetry_queue,
         log_dir=Path(log_dir_str),
         tick_interval_s=tick_interval_s,
     )
 
     tick = 0
-    while not stop_event.is_set() and tick < max_ticks:
-        t0 = time.time()
-        node.step(tick)
-        tick += 1
+    try:
+        while not stop_event.is_set() and tick < max_ticks:
+            t0 = time.time()
+            node.step(tick)
+            tick += 1
 
-        elapsed = time.time() - t0
-        sleep_time = max(0.0, tick_interval_s - elapsed)
-        time.sleep(sleep_time)
+            elapsed = time.time() - t0
+            sleep_time = max(0.0, tick_interval_s - elapsed)
+            time.sleep(sleep_time)
+    finally:
+        node.close()
 
     node.log(f"Robot Process terminated after {tick} ticks. Exiting.")
