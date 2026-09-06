@@ -57,30 +57,66 @@ class WorldConfig:
             key=lambda c: (c[0] - x) ** 2 + (c[1] - y) ** 2,
         )
 
+    def zone_for(self, x: int, y: int) -> str:
+        """Return a coarse warehouse zone label for rendering and dispatch hints."""
+        if (x, y) in self.pickup_stations:
+            return "IMPORT_DOCK"
+        if (x, y) in self.dropoff_stations:
+            return "EXPORT_DOCK"
+
+        # Goods-to-Person traffic clusters around the defined shelving rows.
+        if 7 <= x <= 22 and 8 <= y <= 22:
+            return "GOODS_TO_PERSON_ZONE"
+
+        # Sorting traffic clusters near the docks and perimeter staging lanes.
+        if x <= 5 or x >= 24 or y <= 4 or y >= 24:
+            return "SORTING_ZONE"
+
+        return "GENERAL"
+
 
 def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
     """
-    Build the default SCHEMA.md warehouse:
-      - static obstacles: column x=5, rows y=5..7
-      - charging stations: (0,0) and (29,29)
-      - pickup: (4,22)
-      - dropoff: (27,3)
+    Build a more realistic warehouse layout with:
+      - multi-cell inbound import dock near the west side,
+      - multi-cell outbound export dock near the east side,
+      - perimeter charging stations distributed for short-range charging, and
+      - central shelving rows for Goods-to-Person AMRs.
     """
     static_obstacles: Set[Tuple[int, int]] = {
         (5, 5), (5, 6), (5, 7),
     }
-    # Generate a more interesting warehouse with shelving rows
-    # Rows of shelves at y=10,12,14,16,18,20 for x=7..22
+    # Generate a more interesting warehouse with shelving rows.
     for shelf_y in range(10, 22, 2):
         for shelf_x in range(7, 23):
             static_obstacles.add((shelf_x, shelf_y))
+
+    # Distributed perimeter chargers keep robots near the outer lanes instead of forcing
+    # long cross-grid travel to reach a single charger.
+    charging_stations = frozenset({
+        (1, 1), (1, 28),
+        (14, 1), (14, 28),
+        (27, 1), (27, 27),
+    })
+
+    # Multi-cell dock queues: import dock on the west side; export dock on the east side.
+    import_dock = frozenset({
+        (0, 10), (1, 10), (2, 10),
+        (0, 11), (1, 11), (2, 11),
+        (0, 12), (1, 12), (2, 12),
+    })
+    export_dock = frozenset({
+        (27, 17), (28, 17), (29, 17),
+        (27, 18), (28, 18), (29, 18),
+        (27, 19), (28, 19), (29, 19),
+    })
 
     return WorldConfig(
         width=width,
         height=height,
         cell_size_m=1.0,
         static_obstacles=frozenset(static_obstacles),
-        charging_stations=frozenset({(0, 0), (29, 29)}),
-        pickup_stations=frozenset({(4, 22)}),
-        dropoff_stations=frozenset({(27, 3)}),
+        charging_stations=charging_stations,
+        pickup_stations=import_dock,
+        dropoff_stations=export_dock,
     )

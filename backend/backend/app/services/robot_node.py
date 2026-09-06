@@ -63,6 +63,7 @@ from app.services.degraded_mode import DegradedModeDetector
 from app.services.audit_mission import AuditMission
 from app.ml.priority_gnn import compute_priority
 from app.core.config import get_settings
+from app.models.world import build_default_world
 
 cfg = get_settings()
 
@@ -103,6 +104,8 @@ class RobotNode:
         host: str = "127.0.0.1",
         transport: Optional[Transport] = None,
         secret_key: str = "sih2026-edge-robot-shared-secret",
+        charging_stations: Optional[Set[Tuple[int, int]]] = None,
+        robot_type: str = "GOODS_TO_PERSON",
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -116,6 +119,9 @@ class RobotNode:
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
         self.secret_key = secret_key
+        self.charging_stations = charging_stations or set(build_default_world().charging_stations)
+        self.charger_target: Optional[Tuple[int, int]] = None
+        self.robot_type = robot_type
 
         # 1. Logging
         if log_dir is None:
@@ -310,14 +316,31 @@ class RobotNode:
             if self.robot.battery_pct >= 95.0:
                 self.fsm.transition(RobotEvent.CHARGE_COMPLETE)
                 self.robot.state = self.fsm.state
+                self.charger_target = None
                 self.log(f"[Tick {tick}] Charging complete ({self.robot.battery_pct:.1f}%). Returning to IDLE.")
             return self._build_telemetry_frame(tick, "CHARGING", None)
 
         if self.robot.battery_pct <= cfg.BATTERY_LOW_THRESHOLD and self.fsm.state != RobotState.CHARGING:
-            self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}% <= {cfg.BATTERY_LOW_THRESHOLD}%). Entering CHARGING.")
-            self.fsm.transition(RobotEvent.BATTERY_LOW)
+            if self.charger_target is None:
+                self.charger_target = self._nearest_available_charger()
+            if self.charger_target is None:
+                self.log(f"[Tick {tick}] All charging stations occupied; holding at {self.robot.position}.")
+                return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
+            self.goal_pos = self.charger_target
+            self.fsm.state = RobotState.EN_ROUTE_PICKUP
             self.robot.state = self.fsm.state
-            return self._build_telemetry_frame(tick, "CHARGING", None)
+            charging_path = self._timed_find_path(
+                start=self.robot.position,
+                goal=self.charger_target,
+                current_tick=tick,
+                reservation_table=self.local_reservations,
+                robot_id=self.robot.robot_id,
+                grid=self.grid,
+            )
+            if charging_path and len(charging_path) > 1:
+                self.robot.path = charging_path
+                reserve_path(charging_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+            self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
 
         # Check idle background audit patrol trigger
         if self.fsm.state == RobotState.IDLE and not self.task:
@@ -462,6 +485,7 @@ class RobotNode:
         claim_payload = {
             "type": "RESERVATION_CLAIM",
             "robot_id": self.robot.robot_id,
+            "robot_type": self.robot_type,
             "tick": tick,
             "position": [self.robot.position[0], self.robot.position[1]],
             "intended_pos": [intended_pos[0], intended_pos[1]],
@@ -681,6 +705,10 @@ class RobotNode:
                 self.fsm.transition(RobotEvent.DROPOFF_REACHED)
                 self.robot.state = self.fsm.state
                 self.log(f"[Tick {tick}] Reached mission destination {self.task.dropoff}! Entering DROPPING state.")
+        elif self.charger_target and self.robot.position == self.charger_target:
+            self.fsm.state = RobotState.CHARGING
+            self.robot.state = self.fsm.state
+            self.log(f"[Tick {tick}] Arrived at charger {self.charger_target}; charging.")
         elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
             if self.robot.position == self.active_audit_mission.checkpoint:
                 scan_msg = self.active_audit_mission.record_scan(self.robot.position)
@@ -707,6 +735,19 @@ class RobotNode:
         )
 
         return self._build_telemetry_frame(tick, action_taken, conflict_resolved)
+
+    def _nearest_available_charger(self) -> Optional[Tuple[int, int]]:
+        occupied = {
+            peer.position for peer in self.peers.values()
+            if peer.state == RobotState.CHARGING
+        } | {
+            peer.intended_pos for peer in self.peers.values()
+            if peer.intended_pos in self.charging_stations
+        }
+        candidates = [station for station in self.charging_stations if station not in occupied]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda station: (abs(station[0] - self.robot.position[0]) + abs(station[1] - self.robot.position[1]), station[0], station[1]))
 
     def _build_telemetry_frame(self, tick: int, action: str, conflict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         frame = {
@@ -836,6 +877,8 @@ def run_robot_process(
     log_dir_str: str,
     tick_interval_s: float = 0.1,
     max_ticks: int = 100,
+    charging_stations: Optional[Set[Tuple[int, int]]] = None,
+    robot_type: str = "GOODS_TO_PERSON",
 ) -> None:
     """
     Process target function for an autonomous robot.
@@ -853,6 +896,8 @@ def run_robot_process(
         telemetry_queue=telemetry_queue,
         log_dir=Path(log_dir_str),
         tick_interval_s=tick_interval_s,
+        charging_stations=charging_stations,
+        robot_type=robot_type,
     )
 
     tick = 0

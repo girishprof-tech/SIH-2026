@@ -45,6 +45,39 @@ Get a single task. **404** if not found.
 
 ---
 
+### POST `/api/job`
+Create a user-facing job intent instead of a raw pickup/dropoff coordinate pair.
+
+**Request:**
+```json
+{
+  "job_type": "fetch_item",
+  "item_id": "SKU-1042",
+  "urgency": 4
+}
+```
+
+**Response (200):**
+```json
+{
+  "job_type": "fetch_item",
+  "robot_type": "GOODS_TO_PERSON",
+  "task_id": "TASK-A3B9C1",
+  "robot_id": "AMR-01",
+  "status": "ASSIGNED",
+  "message": "Fetch item job assigned to a GOODS_TO_PERSON robot"
+}
+```
+
+**Job types:**
+- `fetch_item`: resolves to a shelving-zone pickup and export-dock dropoff; requires `GOODS_TO_PERSON` robots.
+- `sort_batch`: resolves to import-dock pickup and sorting-zone dropoff; requires `SORTING` robots.
+- `audit_checkpoint`: schedules a checkpoint task on an idle `SCANNING_AUDIT` robot and returns `audit_id` instead of a `task_id`.
+
+**Errors:** 400 (unsupported job type), 409 (no robot of the required type is available)
+
+---
+
 ## Robot Endpoints
 
 ### GET `/api/robots/`
@@ -104,7 +137,35 @@ List all currently active temporary obstacles.
 ## World
 
 ### GET `/api/world`
-Returns the full warehouse layout: static obstacles, charging stations, pickup/dropoff stations.
+Returns the full warehouse layout: static obstacles, charging stations, and dock cells for import/export workflows.
+
+**Response body:**
+```json
+{
+  "width": 30,
+  "height": 30,
+  "cell_size_m": 1.0,
+  "static_obstacles": [{"x": 5, "y": 5}, {"x": 5, "y": 6}, {"x": 5, "y": 7}],
+  "charging_stations": [
+    {"x": 1, "y": 1},
+    {"x": 1, "y": 28},
+    {"x": 14, "y": 1},
+    {"x": 14, "y": 28},
+    {"x": 27, "y": 1},
+    {"x": 27, "y": 27}
+  ],
+  "pickup_stations": [
+    {"x": 0, "y": 10, "dock_type": "import"},
+    {"x": 1, "y": 10, "dock_type": "import"},
+    {"x": 2, "y": 10, "dock_type": "import"}
+  ],
+  "dropoff_stations": [
+    {"x": 27, "y": 17, "dock_type": "export"},
+    {"x": 28, "y": 17, "dock_type": "export"},
+    {"x": 29, "y": 17, "dock_type": "export"}
+  ]
+}
+```
 
 ---
 
@@ -160,6 +221,7 @@ Returns `{"enabled": true, "packet_loss_pct": 40}`
       "position": {"x": 12, "y": 7},
       "heading": "NORTH",
       "state": "EN_ROUTE",
+      "robot_type": "GOODS_TO_PERSON",
       "battery_pct": 78.5,
       "current_task_id": "TASK-0042",
       "priority_score": 245,
@@ -189,7 +251,10 @@ Returns `{"enabled": true, "packet_loss_pct": 40}`
 ```
 
 **Robot States:** `IDLE` | `EN_ROUTE` | `CONFLICT_NEGOTIATING` | `CHARGING` | `EMERGENCY_STOP`  
+**Robot Types:** `GOODS_TO_PERSON` | `SORTING` | `SCANNING_AUDIT`  
 **Headings:** `NORTH` | `SOUTH` | `EAST` | `WEST`
+
+Pickup/dropoff mission tasks are only assigned to `GOODS_TO_PERSON` and `SORTING` robots. `SCANNING_AUDIT` robots are reserved for audit and checkpoint patrol behavior when idle and are excluded from task injection routing.
 
 ---
 

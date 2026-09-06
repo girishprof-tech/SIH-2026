@@ -1,17 +1,29 @@
-import type { RobotState } from './types'
+import type { RobotState, RobotType } from './types'
+
+export const ROBOT_TYPE_COLORS: Record<RobotType, string> = {
+  GOODS_TO_PERSON: '#d48645',
+  SORTING: '#4f9b9a',
+  SCANNING_AUDIT: '#8b9fbd',
+}
+
+export const ROBOT_TYPE_LABELS: Record<RobotType, string> = {
+  GOODS_TO_PERSON: 'GOODS-TO-PERSON',
+  SORTING: 'SORTING',
+  SCANNING_AUDIT: 'SCANNING & AUDIT',
+}
 
 export const STATE_COLORS: Record<RobotState, string> = {
-  IDLE: '#68e0a0',
-  ASSIGNED: '#7eb6ff',
-  EN_ROUTE_PICKUP: '#57a9ff',
-  PICKING: '#38d9a9',
-  EN_ROUTE_DROPOFF: '#4dabf7',
-  DROPPING: '#fcc419',
-  CONFLICT_NEGOTIATING: '#ffc857',
-  AUDITING: '#b197fc',
-  CHARGING: '#4de1e8',
-  FAILSAFE_HOLD: '#ff922b',
-  EMERGENCY_STOP: '#ff5d68',
+  IDLE: '#78a987',
+  ASSIGNED: '#91a9b6',
+  EN_ROUTE_PICKUP: '#728c96',
+  PICKING: '#6d9b91',
+  EN_ROUTE_DROPOFF: '#668b9a',
+  DROPPING: '#b69a62',
+  CONFLICT_NEGOTIATING: '#bd8154',
+  AUDITING: '#8294a8',
+  CHARGING: '#688b93',
+  FAILSAFE_HOLD: '#b9784c',
+  EMERGENCY_STOP: '#b85f58',
 }
 
 export const STATE_LABELS: Record<RobotState, string> = {

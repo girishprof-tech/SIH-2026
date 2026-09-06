@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # ── Fleet (SCHEMA.md: fleet_size=10, prefix="AMR") ────────────────────────
     FLEET_SIZE: int = 10
     ROBOT_PREFIX: str = "AMR"
+    FLEET_COMPOSITION: dict[str, float] = {
+        "GOODS_TO_PERSON": 0.4,
+        "SORTING": 0.3,
+        "SCANNING_AUDIT": 0.3,
+    }
 
     # ── Conflict detection radius (SCHEMA.md: 2-cell) ─────────────────────────
     CONFLICT_RADIUS: int = 2

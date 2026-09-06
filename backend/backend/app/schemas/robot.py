@@ -23,6 +23,7 @@ class RobotOut(BaseModel):
     position: dict  # {"x": int, "y": int}
     heading: str
     state: str
+    robot_type: str
     battery_pct: float
     current_task_id: Optional[str] = None
     priority_score: int

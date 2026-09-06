@@ -115,6 +115,7 @@ class SimulationEngine:
         self._chaos_enabled: bool = False
         self._chaos_packet_loss: int = 0
         self.ticks_executed: int = 0
+        self._charger_assignments: Dict[Tuple[int, int], str] = {}
 
         # Update telemetry config
         self._tel.tick_ms_configured = cfg.SIM_TICK_MS
@@ -153,6 +154,7 @@ class SimulationEngine:
         self._reservations._robot_keys.clear()
         self._tel.replans = 0
         self._tel.total_ticks = 0
+        self._charger_assignments.clear()
         if was_running:
             await self.start()
         log.info("SIMULATION_RESET done")
@@ -246,9 +248,7 @@ class SimulationEngine:
 
         # Plan charging routes for low-battery robots
         for robot in self._state.robots.values():
-            if robot.needs_charge and robot.state not in (
-                RobotState.CHARGING, RobotState.CONFLICT_NEGOTIATING
-            ):
+            if robot.needs_charge and robot.state != RobotState.CHARGING:
                 await self._plan_charging_route(robot, tick, temp_blocked)
 
         # ── Step 7: Execute movement ───────────────────────────────────────────
@@ -305,9 +305,17 @@ class SimulationEngine:
         tick: int,
         temp_blocked: Set[Tuple[int, int]],
     ) -> None:
-        charger = self._state.world.nearest_charger(robot.x, robot.y)
+        charger = self._available_charger(robot)
         if charger is None:
+            # Every station is occupied or reserved. Hold the robot in its
+            # current cell and retry next tick instead of sending it into a
+            # charger queue it cannot safely enter.
+            robot.state = RobotState.CONFLICT_NEGOTIATING
+            robot._needs_replan = True
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick)
+            self._reservations.reserve_single(robot.robot_id, robot.x, robot.y, tick + 1)
             return
+        self._charger_assignments[charger] = robot.robot_id
         robot._charger_target = charger
         robot.state = RobotState.EN_ROUTE
         await self._plan_to(robot, charger, tick, temp_blocked)
@@ -326,8 +334,10 @@ class SimulationEngine:
         robot._path_idx = 0
 
         if robot.state == RobotState.CHARGING or robot._charger_target:
-            charger = robot._charger_target or self._state.world.nearest_charger(robot.x, robot.y)
+            charger = robot._charger_target or self._available_charger(robot)
             if charger:
+                self._charger_assignments[charger] = robot.robot_id
+                robot._charger_target = charger
                 await self._plan_to(robot, charger, tick, temp_blocked)
         elif robot.current_task_id:
             await self._plan_robot_task(robot, tick, temp_blocked)
@@ -361,6 +371,8 @@ class SimulationEngine:
         self._tel.record_planner(planner_ms)
 
         if not path_raw:
+            if robot._charger_target and self._charger_assignments.get(robot._charger_target) == robot.robot_id:
+                self._charger_assignments.pop(robot._charger_target, None)
             log.warning("NO_PATH robot=%s → %s", robot.robot_id, goal)
             return
 
@@ -477,7 +489,9 @@ class SimulationEngine:
         # Check arrival at charger
         if (nx, ny) == robot._charger_target:
             robot.state = RobotState.CHARGING
-            robot._charger_target = None
+            self._reservations.release(robot.robot_id)
+            self._reservations.reserve_single(robot.robot_id, nx, ny, tick)
+            self._reservations.reserve_single(robot.robot_id, nx, ny, tick + 1)
             log.info("ROBOT_CHARGING robot=%s pos=(%d,%d)", robot.robot_id, nx, ny)
 
     # ── Charging ──────────────────────────────────────────────────────────────
@@ -493,9 +507,26 @@ class SimulationEngine:
             robot.state = RobotState.IDLE
             robot.path.clear()
             robot._path_idx = 0
+            if robot._charger_target and self._charger_assignments.get(robot._charger_target) == robot.robot_id:
+                self._charger_assignments.pop(robot._charger_target, None)
+            robot._charger_target = None
             self._reservations.release(robot.robot_id)
             log.info("ROBOT_CHARGED robot=%s battery=%.0f%% tick=%d",
                      robot.robot_id, robot.battery_pct, tick)
+
+    def _available_charger(self, robot: Robot) -> Optional[Tuple[int, int]]:
+        """Choose the nearest station not owned by another charging robot."""
+        candidates = [
+            station for station in self._state.world.charging_stations
+            if self._charger_assignments.get(station) in (None, robot.robot_id)
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda station: (
+            (station[0] - robot.x) ** 2 + (station[1] - robot.y) ** 2,
+            station[0],
+            station[1],
+        ))
 
     # ── Pickup / Dropoff ──────────────────────────────────────────────────────
 

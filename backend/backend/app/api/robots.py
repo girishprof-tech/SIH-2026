@@ -33,6 +33,7 @@ async def get_robot(robot_id: str, request: Request) -> dict:
         "position": {"x": robot.x, "y": robot.y},
         "heading": robot.heading.value,
         "state": robot.state.value,
+        "robot_type": robot.robot_type.value,
         "battery_pct": round(robot.battery_pct, 2),
         "current_task_id": robot.current_task_id,
         "priority_score": robot.priority_score,

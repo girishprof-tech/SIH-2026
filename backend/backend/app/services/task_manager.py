@@ -19,7 +19,7 @@ import logging
 import socket
 from typing import Any, Callable, Dict, List, Optional
 
-from app.models.robot import Robot, RobotState
+from app.models.robot import AMRType, Robot, RobotState
 from app.models.task import Task, TaskStatus
 from app.security.hmac_envelope import DEFAULT_SECRET_KEY, sign_payload
 from app.services.telemetry_bus import read_latest_telemetry
@@ -99,9 +99,13 @@ class NearestIdleAssignment(AbstractTaskAssigner):
         best_robot_id: Optional[str] = None
         best_dist = float("inf")
 
-        for robot in robots.values():
-            if robot.state != RobotState.IDLE:
-                continue
+        eligible_robots = [
+            robot for robot in robots.values()
+            if robot.state == RobotState.IDLE
+            and robot.robot_type in (AMRType.GOODS_TO_PERSON, AMRType.SORTING)
+        ]
+
+        for robot in eligible_robots:
             dist = abs(robot.x - task.pickup_x) + abs(robot.y - task.pickup_y)
             if dist < best_dist:
                 best_dist = dist

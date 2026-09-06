@@ -97,8 +97,8 @@ async def get_world(request: Request) -> dict:
         "cell_size_m": w.cell_size_m,
         "static_obstacles": [{"x": x, "y": y} for x, y in sorted(w.static_obstacles)],
         "charging_stations": [{"x": x, "y": y} for x, y in sorted(w.charging_stations)],
-        "pickup_stations": [{"x": x, "y": y} for x, y in sorted(w.pickup_stations)],
-        "dropoff_stations": [{"x": x, "y": y} for x, y in sorted(w.dropoff_stations)],
+        "pickup_stations": [{"x": x, "y": y, "dock_type": "import"} for x, y in sorted(w.pickup_stations)],
+        "dropoff_stations": [{"x": x, "y": y, "dock_type": "export"} for x, y in sorted(w.dropoff_stations)],
     }
 
 

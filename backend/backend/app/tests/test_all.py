@@ -23,7 +23,7 @@ import pytest
 from typing import Dict, List
 from unittest.mock import AsyncMock, MagicMock
 
-from app.models.robot import Heading, PathNode, Robot, RobotState
+from app.models.robot import AMRType, Heading, PathNode, Robot, RobotState
 from app.models.task import Task, TaskStatus
 from app.models.obstacle import TemporaryObstacle
 from app.models.world import WorldConfig, build_default_world
@@ -34,6 +34,8 @@ from app.services.task_manager import TaskManager
 from app.services.fleet_state import FleetState
 from app.services.planner_adapter import MockPlannerAdapter
 from app.services.telemetry import Telemetry
+from app.schemas.robot import RobotOut
+from fastapi import HTTPException
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,12 +62,14 @@ def reservation_manager() -> ReservationManager:
 
 
 def make_robot(robot_id="AMR-01", x=10, y=10, heading=Heading.NORTH,
-               state=RobotState.IDLE, battery=100.0) -> Robot:
+               state=RobotState.IDLE, battery=100.0,
+               robot_type=AMRType.GOODS_TO_PERSON) -> Robot:
     return Robot(
         robot_id=robot_id,
         x=x, y=y,
         heading=heading,
         state=state,
+        robot_type=robot_type,
         battery_pct=battery,
         current_task_id=None,
         priority_score=0,
@@ -135,6 +139,16 @@ class TestWorld:
         nearest = world.nearest_charger(28, 28)
         assert nearest == (29, 29)
 
+    def test_default_world_has_multi_cell_docks_and_perimeter_chargers(self):
+        w = build_default_world()
+        assert 4 <= len(w.charging_stations) <= 6
+        assert len(w.pickup_stations) > 1
+        assert len(w.dropoff_stations) > 1
+        assert w.zone_for(1, 10) == "IMPORT_DOCK"
+        assert w.zone_for(28, 17) == "EXPORT_DOCK"
+        assert w.zone_for(12, 14) == "GOODS_TO_PERSON_ZONE"
+        assert w.zone_for(2, 2) == "SORTING_ZONE"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Robot model tests
@@ -146,6 +160,32 @@ class TestRobotModel:
         assert r.state == RobotState.IDLE
         assert r.battery_pct == 100.0
         assert r.heading == Heading.NORTH
+        assert r.robot_type == AMRType.GOODS_TO_PERSON
+
+    def test_new_fleet_has_valid_types(self):
+        fleet = FleetState()
+        assert all(isinstance(r.robot_type, AMRType) for r in fleet.robots.values())
+        assert {r.robot_type for r in fleet.robots.values()} <= {
+            AMRType.GOODS_TO_PERSON,
+            AMRType.SORTING,
+            AMRType.SCANNING_AUDIT,
+        }
+
+    def test_robotout_serializes_robot_type(self):
+        payload = RobotOut(
+            robot_id="AMR-02",
+            position={"x": 1, "y": 2},
+            heading="NORTH",
+            state="IDLE",
+            battery_pct=79.5,
+            current_task_id=None,
+            priority_score=10,
+            last_updated_tick=3,
+            robot_type="SCANNING_AUDIT",
+            path=[],
+        )
+        assert payload.robot_type == "SCANNING_AUDIT"
+        assert payload.model_dump()["robot_type"] == "SCANNING_AUDIT"
 
     def test_battery_clamp_upper(self):
         r = make_robot(battery=100.0)
@@ -312,6 +352,24 @@ class TestTaskManager:
         assert result is None
         assert task.status == TaskStatus.PENDING
 
+    def test_scanning_audit_robot_not_task_assignable(self):
+        tm = TaskManager()
+        scanning = make_robot("AMR-99", state=RobotState.IDLE, robot_type=AMRType.SCANNING_AUDIT)
+        goods = make_robot("AMR-01", state=RobotState.IDLE, robot_type=AMRType.GOODS_TO_PERSON)
+        task = tm.create_task(4, 22, 27, 3, urgency=3, current_tick=0)
+        result = tm.try_assign(task, {"AMR-99": scanning, "AMR-01": goods}, current_tick=1)
+        assert result == "AMR-01"
+        assert task.assigned_robot_id == "AMR-01"
+        assert task.status == TaskStatus.ASSIGNED
+
+    def test_scanning_audit_only_never_assigned(self):
+        tm = TaskManager()
+        scanning = make_robot("AMR-99", state=RobotState.IDLE, robot_type=AMRType.SCANNING_AUDIT)
+        task = tm.create_task(4, 22, 27, 3, urgency=3, current_tick=0)
+        result = tm.try_assign(task, {"AMR-99": scanning}, current_tick=1)
+        assert result is None
+        assert task.status == TaskStatus.PENDING
+
     def test_mark_completed(self):
         tm = TaskManager()
         robot = make_robot(state=RobotState.EN_ROUTE)
@@ -322,6 +380,80 @@ class TestTaskManager:
         assert task.status == TaskStatus.COMPLETED
         assert robot.state == RobotState.IDLE
         assert robot.current_task_id is None
+
+    def test_job_fetch_item_assigns_goods_to_person(self):
+        fleet = FleetState()
+        for robot in fleet.robots.values():
+            if robot.robot_type == AMRType.GOODS_TO_PERSON:
+                robot.state = RobotState.IDLE
+        selected = min(
+            [r for r in fleet.robots.values() if r.robot_type == AMRType.GOODS_TO_PERSON],
+            key=lambda r: abs(r.x - 11) + abs(r.y - 12),
+        )
+        task_manager = TaskManager()
+        from app.api.tasks import create_job
+        from app.schemas.task import JobRequest
+        request = MagicMock()
+        request.app.state.fleet_state = fleet
+        request.app.state.task_manager = task_manager
+        result = asyncio.run(create_job(JobRequest(job_type="fetch_item", urgency=3), request))
+        assert result.robot_type == "GOODS_TO_PERSON"
+        assert result.task_id is not None
+        assert result.robot_id == selected.robot_id
+
+    def test_job_sort_batch_assigns_sorting(self):
+        fleet = FleetState()
+        for robot in fleet.robots.values():
+            if robot.robot_type == AMRType.SORTING:
+                robot.state = RobotState.IDLE
+        selected = min(
+            [r for r in fleet.robots.values() if r.robot_type == AMRType.SORTING],
+            key=lambda r: abs(r.x - 1) + abs(r.y - 10),
+        )
+        task_manager = TaskManager()
+        from app.api.tasks import create_job
+        from app.schemas.task import JobRequest
+        request = MagicMock()
+        request.app.state.fleet_state = fleet
+        request.app.state.task_manager = task_manager
+        result = asyncio.run(create_job(JobRequest(job_type="sort_batch", urgency=2), request))
+        assert result.robot_type == "SORTING"
+        assert result.task_id is not None
+        assert result.robot_id == selected.robot_id
+
+    def test_job_audit_checkpoint_assigns_scanning_audit(self):
+        fleet = FleetState()
+        for robot in fleet.robots.values():
+            if robot.robot_type == AMRType.SCANNING_AUDIT:
+                robot.state = RobotState.IDLE
+        selected = min(
+            [r for r in fleet.robots.values() if r.robot_type == AMRType.SCANNING_AUDIT],
+            key=lambda r: abs(r.x - 15) + abs(r.y - 15),
+        )
+        task_manager = TaskManager()
+        from app.api.tasks import create_job
+        from app.schemas.task import JobRequest
+        request = MagicMock()
+        request.app.state.fleet_state = fleet
+        request.app.state.task_manager = task_manager
+        result = asyncio.run(create_job(JobRequest(job_type="audit_checkpoint", urgency=4), request))
+        assert result.robot_type == "SCANNING_AUDIT"
+        assert result.audit_id is not None
+        assert result.robot_id == selected.robot_id
+
+    def test_job_missing_robot_returns_409(self):
+        fleet = FleetState()
+        for robot in fleet.robots.values():
+            if robot.robot_type == AMRType.GOODS_TO_PERSON:
+                robot.state = RobotState.CHARGING
+        task_manager = TaskManager()
+        from app.api.tasks import create_job
+        from app.schemas.task import JobRequest
+        request = MagicMock()
+        request.app.state.fleet_state = fleet
+        request.app.state.task_manager = task_manager
+        with pytest.raises(HTTPException, match="No GOODS_TO_PERSON robot available"):
+            asyncio.run(create_job(JobRequest(job_type="fetch_item", urgency=3), request))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

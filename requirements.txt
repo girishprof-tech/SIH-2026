@@ -1,2 +1,3 @@
 -r backend/requirements.txt
 -r pathfinding/requirements.txt
+pygame-ce>=2.5.5

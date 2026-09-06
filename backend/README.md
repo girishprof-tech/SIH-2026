@@ -16,6 +16,8 @@ This backend runs the authoritative simulation of a 30×30 warehouse with 10 aut
 - Broadcasts live updates over WebSocket (`/ws/fleet`)
 - Exposes REST APIs for task injection, simulation control, and chaos testing
 
+The default fleet is heterogeneous: 4 Goods-to-Person AMRs, 3 Sorting AMRs, and 3 Scanning & Audit AMRs. The warehouse geometry includes a nine-cell west-side import dock, a nine-cell east-side export dock, central shelving rows, and six perimeter charging stations. Low-battery robots select the nearest available charger; occupied stations cause a nearby queue wait.
+
 ---
 
 ## Architecture
@@ -97,6 +99,7 @@ docker-compose up --build
 | Method | Route | Description |
 |--------|-------|-------------|
 | POST | `/api/task/inject` | Inject a new warehouse task |
+| POST | `/api/job` | Submit a user-facing fetch, sort, or audit job |
 | GET | `/api/tasks/all` | List all tasks |
 | GET | `/api/tasks/{id}` | Get a single task |
 | GET | `/api/robots/` | List all robot states |
@@ -113,6 +116,16 @@ docker-compose up --build
 | GET | `/api/metrics` | Performance metrics |
 | WS | `/ws/fleet` | Live fleet updates |
 | GET | `/health` | Health check |
+
+### Job submission
+
+`POST /api/job` accepts one of three intents:
+
+```json
+{"job_type":"fetch_item","item_id":"SKU-1042","urgency":4}
+```
+
+`fetch_item` routes from a shelving cell to the export dock and selects a Goods-to-Person AMR. `sort_batch` routes from the import dock to the sorting zone and selects a Sorting AMR. `audit_checkpoint` sends a Scanning & Audit AMR to a checkpoint and returns an `audit_id`. A `409` response means no idle AMR of the required type is currently available.
 
 ---
 

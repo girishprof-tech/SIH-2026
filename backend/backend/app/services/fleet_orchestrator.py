@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT_DIR / "testing"))
 
 from app.services.robot_node import run_robot_process
 from app.services.telemetry_bus import TelemetryBus
+from app.models.world import build_default_world
 from full_integration_test import get_static_shelves
 
 log = logging.getLogger(__name__)
@@ -43,19 +44,30 @@ class FleetOrchestrator:
         log_dir: Optional[Path] = None,
     ) -> None:
         self.obstacles = obstacles if obstacles is not None else get_static_shelves()
+        self.charging_stations = set(build_default_world().charging_stations)
         self.tick_interval_s = tick_interval_s
         self.max_ticks = max_ticks
         self.log_dir = log_dir or (ROOT_DIR / "logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         if robots_config is None:
-            # Default 5 AMRs scenario with crossing trajectories
+            # Match the backend fleet size. Robots remain idle until a REST job
+            # is dispatched, so demo trajectories cannot steal job capacity.
+            starts = [(1, 28), (3, 28), (5, 28), (7, 28), (9, 28),
+                      (11, 28), (13, 28), (15, 28), (17, 28), (19, 28)]
+            robot_types = (["GOODS_TO_PERSON"] * 4
+                           + ["SORTING"] * 3
+                           + ["SCANNING_AUDIT"] * 3)
             self.robots_config = [
-                {"robot_id": "AMR-01", "start": (1, 6), "goal": (18, 6), "urgency": 5, "battery_pct": 90.0},
-                {"robot_id": "AMR-02", "start": (18, 6), "goal": (1, 6), "urgency": 3, "battery_pct": 75.0},
-                {"robot_id": "AMR-03", "start": (7, 1), "goal": (7, 20), "urgency": 4, "battery_pct": 85.0},
-                {"robot_id": "AMR-04", "start": (7, 20), "goal": (7, 1), "urgency": 2, "battery_pct": 60.0},
-                {"robot_id": "AMR-05", "start": (14, 1), "goal": (14, 20), "urgency": 5, "battery_pct": 95.0},
+                {
+                    "robot_id": f"AMR-{index:02d}",
+                    "start": start,
+                    "goal": start,
+                    "urgency": 1,
+                    "battery_pct": 100.0,
+                    "robot_type": robot_types[index - 1],
+                }
+                for index, start in enumerate(starts, start=1)
             ]
         else:
             self.robots_config = robots_config
@@ -98,6 +110,8 @@ class FleetOrchestrator:
                     str(self.log_dir),
                     self.tick_interval_s,
                     self.max_ticks,
+                    self.charging_stations,
+                    cfg.get("robot_type", "GOODS_TO_PERSON"),
                 ),
             )
             p.start()

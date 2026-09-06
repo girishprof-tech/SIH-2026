@@ -302,6 +302,7 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(tasks.router)
+app.include_router(tasks.job_router)
 app.include_router(simulation.router)
 app.include_router(chaos.router)
 app.include_router(robots.router)

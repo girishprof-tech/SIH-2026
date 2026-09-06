@@ -21,6 +21,13 @@ class RobotState(str, enum.Enum):
     EMERGENCY_STOP = "EMERGENCY_STOP"
 
 
+class AMRType(str, enum.Enum):
+    """Warehouse robot classes used for fleet dispatch and zone routing."""
+    GOODS_TO_PERSON = "GOODS_TO_PERSON"
+    SORTING = "SORTING"
+    SCANNING_AUDIT = "SCANNING_AUDIT"
+
+
 class Heading(str, enum.Enum):
     """SCHEMA.md §4 — Heading Values."""
     NORTH = "NORTH"
@@ -81,6 +88,8 @@ class Robot:
     current_task_id: Optional[str]
     priority_score: int
     last_updated_tick: int
+    robot_type: AMRType = AMRType.GOODS_TO_PERSON
+    capacity: int = 1
 
     # Planned path — list of PathNode
     path: List[PathNode] = field(default_factory=list)
@@ -136,6 +145,10 @@ class Robot:
     @property
     def is_charging(self) -> bool:
         return self.state == RobotState.CHARGING
+
+    @property
+    def can_handle_pickup_dropoff(self) -> bool:
+        return self.robot_type in (AMRType.GOODS_TO_PERSON, AMRType.SORTING)
 
     @property
     def needs_charge(self) -> bool:

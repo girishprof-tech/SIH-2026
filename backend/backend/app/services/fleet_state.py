@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from app.core.config import get_settings
 from app.models.obstacle import TemporaryObstacle
-from app.models.robot import Heading, PathNode, Robot, RobotState
+from app.models.robot import AMRType, Heading, PathNode, Robot, RobotState
 from app.models.task import Task, TaskStatus
 from app.models.world import WorldConfig, build_default_world
 from app.services.conflict_manager import ConflictRecord
@@ -86,6 +86,16 @@ class FleetState:
         self._pending_obstacles.clear()
         self._obstacle_removals.clear()
 
+        composition = cfg.FLEET_COMPOSITION
+        desired_types = []
+        for robot_type_name, ratio in composition.items():
+            count = int(round(cfg.FLEET_SIZE * ratio))
+            desired_types.extend([AMRType[robot_type_name]] * count)
+        while len(desired_types) < cfg.FLEET_SIZE:
+            desired_types.append(AMRType.GOODS_TO_PERSON)
+        while len(desired_types) > cfg.FLEET_SIZE:
+            desired_types.pop()
+
         # Spread robots along bottom row away from obstacles/chargers
         start_positions = [
             (1, 28), (3, 28), (5, 28), (7, 28), (9, 28),
@@ -98,23 +108,26 @@ class FleetState:
         for i in range(cfg.FLEET_SIZE):
             robot_id = f"{cfg.ROBOT_PREFIX}-{i + 1:02d}"
             sx, sy = start_positions[i % len(start_positions)]
-            # Ensure start position is not on a static obstacle
             while self.world.is_static_blocked(sx, sy):
                 sy -= 1
 
+            robot_type = desired_types[i]
+            capacity = 1 if robot_type in (AMRType.GOODS_TO_PERSON, AMRType.SCANNING_AUDIT) else 3
             robot = Robot(
                 robot_id=robot_id,
                 x=sx,
                 y=sy,
                 heading=Heading.NORTH,
                 state=RobotState.IDLE,
-                battery_pct=100.0 - i * 5.0,   # Stagger battery for demo
+                battery_pct=100.0 - i * 5.0,
                 current_task_id=None,
                 priority_score=0,
                 last_updated_tick=0,
+                robot_type=robot_type,
+                capacity=capacity,
             )
             self.robots[robot_id] = robot
-            log.debug("Spawned %s at (%d,%d) battery=%.0f%%", robot_id, sx, sy, robot.battery_pct)
+            log.debug("Spawned %s at (%d,%d) type=%s battery=%.0f%%", robot_id, sx, sy, robot_type.value, robot.battery_pct)
 
     # ── Obstacle management ───────────────────────────────────────────────────
 
@@ -195,6 +208,7 @@ class FleetState:
                 "position": {"x": r.x, "y": r.y},
                 "heading": r.heading.value,
                 "state": r.state.value,
+                "robot_type": r.robot_type.value,
                 "battery_pct": round(r.battery_pct, 2),
                 "current_task_id": r.current_task_id,
                 "priority_score": r.priority_score,
