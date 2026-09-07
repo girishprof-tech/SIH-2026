@@ -1,203 +1,308 @@
-[01:23:39] Autonomous Robot Node initialized. PID=25000, Start=(5, 28), Goal=(5, 28)
-[01:23:39] [Tick 0] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:39] [Tick 0] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:39] [Tick 1] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:40] [Tick 2] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:40] [Tick 3] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:41] [Tick 4] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:41] [Tick 5] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:41] [Tick 5] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:41] [Tick 5] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:42] [Tick 6] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:42] [Tick 7] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:43] [Tick 8] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:43] [Tick 9] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:44] [Tick 10] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:44] [Tick 10] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:44] [Tick 10] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:44] [Tick 11] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:45] [Tick 12] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:45] [Tick 13] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:46] [Tick 14] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:46] [Tick 15] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:46] [Tick 15] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:46] [Tick 15] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:47] [Tick 16] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:47] [Tick 17] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:48] [Tick 18] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:48] [Tick 19] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:49] [Tick 20] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:49] [Tick 20] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:49] [Tick 20] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:49] [Tick 21] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:50] [Tick 22] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:50] [Tick 23] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:51] [Tick 24] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:51] [Tick 25] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 12.52s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 12.51s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 12.51s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-04: Expired message timestamp: age 12.50s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 12.49s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 12.45s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 12.45s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 12.45s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 12.43s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 10.01s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 10.01s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 10.01s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-04: Expired message timestamp: age 10.00s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 9.99s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 9.95s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 9.95s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 9.95s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 9.93s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 7.51s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 7.51s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 7.51s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-04: Expired message timestamp: age 7.50s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 7.49s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 7.45s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 7.44s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 7.44s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 7.43s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 5.01s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 5.01s > window 5.00s
-[01:23:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 5.01s > window 5.00s
-[01:23:51] [Tick 25] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:51] [Tick 25] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:52] [Tick 26] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:52] [Tick 27] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:53] [Tick 28] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:53] [Tick 29] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:54] [Tick 30] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:54] [Tick 30] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:54] [Tick 30] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:54] [Tick 31] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:55] [Tick 32] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:55] [Tick 33] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:56] [Tick 34] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:56] [Tick 35] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:56] [Tick 35] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:56] [Tick 35] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:57] [Tick 36] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:57] [Tick 37] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:58] [Tick 38] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:58] [Tick 39] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:59] [Tick 40] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:59] [Tick 40] REACHED DESTINATION (5, 28)! Mission COMPLETED.
-[01:23:59] [Tick 40] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:59] [Tick 41] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:24:00] [Tick 42] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:24:00] [Tick 43] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:24:01] [Tick 44] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:24:01] [Tick 45] Recovered from failsafe/emergency stop -> IDLE.
-[01:24:01] [Tick 45] Triggered background audit mission to (7, 12).
-[01:24:01] [Tick 45] Degraded network throttle: pausing movement on alternate tick.
-[01:24:01] [Tick 45] Pos=(5, 28), Heading=NORTH, State=AUDITING, Action=DEGRADED_SPEED_PAUSE, Priority=0.0, Battery=100.0%, Waits=0
-[01:24:02] [Tick 46] Pos=(5, 27), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=99.0%, Waits=0
-[01:24:02] [Tick 47] Pos=(5, 26), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=98.0%, Waits=0
-[01:24:03] [Tick 48] Pos=(5, 25), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=97.0%, Waits=0
-[01:24:03] [Tick 49] Pos=(5, 24), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=96.0%, Waits=0
-[01:24:04] [Tick 50] Pos=(5, 23), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=95.0%, Waits=0
-[01:24:04] [Tick 51] Pos=(5, 22), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=94.0%, Waits=0
-[01:24:05] [Tick 52] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=93.0%, Waits=0
-[01:24:05] [Tick 53] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.9%, Waits=1
-[01:24:06] [Tick 54] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.8%, Waits=2
-[01:24:06] [Tick 55] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.7%, Waits=3
-[01:24:07] [Tick 56] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
-[01:24:07] [Tick 56] Alternate route found to goal (24 steps).
-[01:24:07] [Tick 56] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.6%, Waits=4
-[01:24:07] [Tick 57] Deadlock/livelock detected (4 wait ticks). Seeking alternate route/nook...
-[01:24:07] [Tick 57] Alternate route found to goal (20 steps).
-[01:24:07] [Tick 57] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.5%, Waits=5
-[01:24:08] [Tick 58] Deadlock/livelock detected (5 wait ticks). Seeking alternate route/nook...
-[01:24:08] [Tick 58] Alternate route found to goal (24 steps).
-[01:24:08] [Tick 58] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.4%, Waits=6
-[01:24:08] [Tick 59] Deadlock/livelock detected (6 wait ticks). Seeking alternate route/nook...
-[01:24:08] [Tick 59] Alternate route found to goal (24 steps).
-[01:24:08] [Tick 59] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.3%, Waits=7
-[01:24:09] [Tick 60] Deadlock/livelock detected (7 wait ticks). Seeking alternate route/nook...
-[01:24:09] [Tick 60] Alternate route found to goal (24 steps).
-[01:24:09] [Tick 60] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.2%, Waits=8
-[01:24:09] [Tick 61] Deadlock/livelock detected (8 wait ticks). Seeking alternate route/nook...
-[01:24:09] [Tick 61] Alternate route found to goal (24 steps).
-[01:24:09] [Tick 61] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.1%, Waits=9
-[01:24:10] [Tick 62] Deadlock/livelock detected (9 wait ticks). Seeking alternate route/nook...
-[01:24:10] [Tick 62] Alternate route found to goal (31 steps).
-[01:24:10] [Tick 62] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.0%, Waits=10
-[01:24:10] [Tick 63] Deadlock/livelock detected (10 wait ticks). Seeking alternate route/nook...
-[01:24:10] [Tick 63] Alternate route found to goal (31 steps).
-[01:24:10] [Tick 63] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.9%, Waits=11
-[01:24:11] [Tick 64] Deadlock/livelock detected (11 wait ticks). Seeking alternate route/nook...
-[01:24:11] [Tick 64] Alternate route found to goal (31 steps).
-[01:24:11] [Tick 64] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.8%, Waits=12
-[01:24:11] [Tick 65] Deadlock/livelock detected (12 wait ticks). Seeking alternate route/nook...
-[01:24:11] [Tick 65] Alternate route found to goal (31 steps).
-[01:24:11] [Tick 65] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.7%, Waits=13
-[01:24:12] [Tick 66] Deadlock/livelock detected (13 wait ticks). Seeking alternate route/nook...
-[01:24:12] [Tick 66] Alternate route found to goal (31 steps).
-[01:24:12] [Tick 66] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.6%, Waits=14
-[01:24:12] [Tick 67] Deadlock/livelock detected (14 wait ticks). Seeking alternate route/nook...
-[01:24:12] [Tick 67] Alternate route found to goal (31 steps).
-[01:24:12] [Tick 67] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.5%, Waits=15
-[01:24:13] [Tick 68] Deadlock/livelock detected (15 wait ticks). Seeking alternate route/nook...
-[01:24:13] [Tick 68] Alternate route found to goal (31 steps).
-[01:24:13] [Tick 68] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.4%, Waits=16
-[01:24:13] [Tick 69] Deadlock/livelock detected (16 wait ticks). Seeking alternate route/nook...
-[01:24:13] [Tick 69] Alternate route found to goal (31 steps).
-[01:24:13] [Tick 69] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.3%, Waits=17
-[01:24:14] [Tick 70] Deadlock/livelock detected (17 wait ticks). Seeking alternate route/nook...
-[01:24:14] [Tick 70] Alternate route found to goal (31 steps).
-[01:24:14] [Tick 70] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.2%, Waits=18
-[01:24:14] [Tick 71] Deadlock/livelock detected (18 wait ticks). Seeking alternate route/nook...
-[01:24:14] [Tick 71] Alternate route found to goal (31 steps).
-[01:24:14] [Tick 71] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.1%, Waits=19
-[01:24:15] [Tick 72] Deadlock/livelock detected (19 wait ticks). Seeking alternate route/nook...
-[01:24:15] [Tick 72] Alternate route found to goal (31 steps).
-[01:24:15] [Tick 72] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.0%, Waits=20
-[01:24:15] [Tick 73] Deadlock/livelock detected (20 wait ticks). Seeking alternate route/nook...
-[01:24:15] [Tick 73] Alternate route found to goal (17 steps).
-[01:24:15] [Tick 73] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.9%, Waits=21
-[01:24:16] [Tick 74] Deadlock/livelock detected (21 wait ticks). Seeking alternate route/nook...
-[01:24:16] [Tick 74] Alternate route found to goal (31 steps).
-[01:24:16] [Tick 74] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.8%, Waits=22
-[01:24:16] [Tick 75] Deadlock/livelock detected (22 wait ticks). Seeking alternate route/nook...
-[01:24:16] [Tick 75] Alternate route found to goal (31 steps).
-[01:24:16] [Tick 75] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.7%, Waits=23
-[01:24:17] [Tick 76] Deadlock/livelock detected (23 wait ticks). Seeking alternate route/nook...
-[01:24:17] [Tick 76] Alternate route found to goal (31 steps).
-[01:24:17] [Tick 76] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.6%, Waits=24
-[01:24:17] [Tick 77] Deadlock/livelock detected (24 wait ticks). Seeking alternate route/nook...
-[01:24:17] [Tick 77] Alternate route found to goal (31 steps).
-[01:24:17] [Tick 77] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.5%, Waits=25
-[01:24:18] [Tick 78] Deadlock/livelock detected (25 wait ticks). Seeking alternate route/nook...
-[01:24:18] [Tick 78] Alternate route found to goal (31 steps).
-[01:24:18] [Tick 78] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.4%, Waits=26
-[01:24:18] [Tick 79] Deadlock/livelock detected (26 wait ticks). Seeking alternate route/nook...
-[01:24:18] [Tick 79] Alternate route found to goal (31 steps).
-[01:24:18] [Tick 79] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.3%, Waits=27
-[01:24:19] [Tick 80] Deadlock/livelock detected (27 wait ticks). Seeking alternate route/nook...
-[01:24:19] [Tick 80] Alternate route found to goal (31 steps).
-[01:24:19] [Tick 80] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.2%, Waits=28
-[01:24:19] [Tick 81] Deadlock/livelock detected (28 wait ticks). Seeking alternate route/nook...
-[01:24:19] [Tick 81] Alternate route found to goal (31 steps).
-[01:24:19] [Tick 81] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.1%, Waits=29
-[01:24:20] [Tick 82] Deadlock/livelock detected (29 wait ticks). Seeking alternate route/nook...
-[01:24:20] [Tick 82] Alternate route found to goal (31 steps).
-[01:24:20] [Tick 82] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.0%, Waits=30
-[01:24:20] [Tick 83] Deadlock/livelock detected (30 wait ticks). Seeking alternate route/nook...
-[01:24:20] [Tick 83] Alternate route found to goal (31 steps).
-[01:24:20] [Tick 83] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.9%, Waits=31
-[01:24:21] [Tick 84] Deadlock/livelock detected (31 wait ticks). Seeking alternate route/nook...
-[01:24:21] [Tick 84] Alternate route found to goal (31 steps).
-[01:24:21] [Tick 84] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.8%, Waits=32
-[01:24:21] [Tick 85] Deadlock/livelock detected (32 wait ticks). Seeking alternate route/nook...
-[01:24:21] [Tick 85] Alternate route found to goal (17 steps).
-[01:24:21] [Tick 85] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.7%, Waits=33
-[01:24:22] [Tick 86] Deadlock/livelock detected (33 wait ticks). Seeking alternate route/nook...
-[01:24:22] [Tick 86] Alternate route found to goal (15 steps).
-[01:24:22] [Tick 86] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.6%, Waits=34
-[01:24:22] [Tick 87] Deadlock/livelock detected (34 wait ticks). Seeking alternate route/nook...
-[01:24:22] [Tick 87] Alternate route found to goal (14 steps).
-[01:24:22] [Tick 87] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.5%, Waits=35
+[11:06:41] Autonomous Robot Node initialized. PID=6968, Start=(5, 28), Goal=(5, 28)
+[11:06:41] [Tick 0] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:41] [Tick 0] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:42] [Tick 1] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:42] [Tick 2] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:43] [Tick 3] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:43] [Tick 4] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:44] [Tick 5] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:44] [Tick 5] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:44] [Tick 5] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:44] [Tick 6] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:45] [Tick 7] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:45] [Tick 8] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:46] [Tick 9] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:46] [Tick 10] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:46] [Tick 10] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:46] [Tick 10] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:47] [Tick 11] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:47] [Tick 12] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:48] [Tick 13] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:48] [Tick 14] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:49] [Tick 15] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:49] [Tick 15] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:49] [Tick 15] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:49] [Tick 16] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:50] [Tick 17] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:50] [Tick 18] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:51] [Tick 19] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:51] [Tick 20] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:51] Security replay guard rejected packet from AMR-04: Expired message timestamp: age 9.96s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 9.92s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 9.89s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 9.85s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 9.82s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 9.79s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 9.76s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 7.58s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 7.55s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-04: Expired message timestamp: age 7.46s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 7.42s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 7.39s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 7.35s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 7.32s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 7.29s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 7.25s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 5.08s > window 5.00s
+[11:06:51] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 5.05s > window 5.00s
+[11:06:51] [Tick 20] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:51] [Tick 20] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:52] [Tick 21] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:52] [Tick 22] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:53] [Tick 23] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:53] [Tick 24] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:54] [Tick 25] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:54] [Tick 25] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:54] [Tick 25] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:54] [Tick 26] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:55] [Tick 27] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:55] [Tick 28] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:56] [Tick 29] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:56] [Tick 30] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:56] [Tick 30] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:56] [Tick 30] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:57] [Tick 31] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:57] [Tick 32] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:58] [Tick 33] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:58] [Tick 34] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:59] [Tick 35] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:59] [Tick 35] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:06:59] [Tick 35] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:59] [Tick 36] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:07:00] [Tick 37] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:07:00] [Tick 38] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:07:01] [Tick 39] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:07:01] [Tick 40] Recovered from failsafe/emergency stop -> IDLE.
+[11:07:01] [Tick 40] REACHED DESTINATION (5, 28)! Mission COMPLETED.
+[11:07:01] [Tick 40] Pos=(5, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:07:02] [Tick 41] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:07:02] [Tick 42] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:07:03] [Tick 43] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:07:03] [Tick 44] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:07:04] [Tick 45] Recovered from failsafe/emergency stop -> IDLE.
+[11:07:04] [Tick 45] Triggered background audit mission to (7, 12).
+[11:07:04] [Tick 45] Degraded network throttle: pausing movement on alternate tick.
+[11:07:04] [Tick 45] Pos=(5, 28), Heading=NORTH, State=AUDITING, Action=DEGRADED_SPEED_PAUSE, Priority=0.0, Battery=100.0%, Waits=0
+[11:07:04] [Tick 46] Pos=(5, 27), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=99.0%, Waits=0
+[11:07:05] [Tick 47] Pos=(5, 26), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=98.0%, Waits=0
+[11:07:05] [Tick 48] Pos=(5, 25), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=97.0%, Waits=0
+[11:07:06] [Tick 49] Pos=(5, 24), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=96.0%, Waits=0
+[11:07:06] [Tick 50] Pos=(5, 23), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=95.0%, Waits=0
+[11:07:07] [Tick 51] Pos=(5, 22), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=94.0%, Waits=0
+[11:07:07] [Tick 52] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=93.0%, Waits=0
+[11:07:08] [Tick 53] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.9%, Waits=1
+[11:07:08] [Tick 54] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.8%, Waits=2
+[11:07:09] [Tick 55] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.7%, Waits=3
+[11:07:09] [Tick 56] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
+[11:07:09] [Tick 56] Alternate route found to goal (24 steps).
+[11:07:09] [Tick 56] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.6%, Waits=4
+[11:07:10] [Tick 57] Deadlock/livelock detected (4 wait ticks). Seeking alternate route/nook...
+[11:07:10] [Tick 57] Alternate route found to goal (21 steps).
+[11:07:10] [Tick 57] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.5%, Waits=5
+[11:07:10] [Tick 58] Deadlock/livelock detected (5 wait ticks). Seeking alternate route/nook...
+[11:07:10] [Tick 58] Alternate route found to goal (24 steps).
+[11:07:10] [Tick 58] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.4%, Waits=6
+[11:07:11] [Tick 59] Deadlock/livelock detected (6 wait ticks). Seeking alternate route/nook...
+[11:07:11] [Tick 59] Alternate route found to goal (24 steps).
+[11:07:11] [Tick 59] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.3%, Waits=7
+[11:07:11] [Tick 60] Deadlock/livelock detected (7 wait ticks). Seeking alternate route/nook...
+[11:07:11] [Tick 60] Alternate route found to goal (24 steps).
+[11:07:11] [Tick 60] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.2%, Waits=8
+[11:07:12] [Tick 61] Deadlock/livelock detected (8 wait ticks). Seeking alternate route/nook...
+[11:07:12] [Tick 61] Alternate route found to goal (24 steps).
+[11:07:12] [Tick 61] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.1%, Waits=9
+[11:07:12] [Tick 62] Deadlock/livelock detected (9 wait ticks). Seeking alternate route/nook...
+[11:07:12] [Tick 62] Alternate route found to goal (31 steps).
+[11:07:12] [Tick 62] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=92.0%, Waits=10
+[11:07:13] [Tick 63] Deadlock/livelock detected (10 wait ticks). Seeking alternate route/nook...
+[11:07:13] [Tick 63] Alternate route found to goal (31 steps).
+[11:07:13] [Tick 63] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.9%, Waits=11
+[11:07:13] [Tick 64] Deadlock/livelock detected (11 wait ticks). Seeking alternate route/nook...
+[11:07:13] [Tick 64] Alternate route found to goal (31 steps).
+[11:07:13] [Tick 64] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.8%, Waits=12
+[11:07:14] [Tick 65] Deadlock/livelock detected (12 wait ticks). Seeking alternate route/nook...
+[11:07:14] [Tick 65] Alternate route found to goal (31 steps).
+[11:07:14] [Tick 65] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.7%, Waits=13
+[11:07:14] [Tick 66] Deadlock/livelock detected (13 wait ticks). Seeking alternate route/nook...
+[11:07:14] [Tick 66] Alternate route found to goal (31 steps).
+[11:07:14] [Tick 66] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.6%, Waits=14
+[11:07:15] [Tick 67] Deadlock/livelock detected (14 wait ticks). Seeking alternate route/nook...
+[11:07:15] [Tick 67] Alternate route found to goal (31 steps).
+[11:07:15] [Tick 67] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.5%, Waits=15
+[11:07:15] [Tick 68] Deadlock/livelock detected (15 wait ticks). Seeking alternate route/nook...
+[11:07:15] [Tick 68] Alternate route found to goal (31 steps).
+[11:07:15] [Tick 68] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.4%, Waits=16
+[11:07:16] [Tick 69] Deadlock/livelock detected (16 wait ticks). Seeking alternate route/nook...
+[11:07:16] [Tick 69] Alternate route found to goal (31 steps).
+[11:07:16] [Tick 69] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.3%, Waits=17
+[11:07:16] [Tick 70] Deadlock/livelock detected (17 wait ticks). Seeking alternate route/nook...
+[11:07:16] [Tick 70] Alternate route found to goal (31 steps).
+[11:07:16] [Tick 70] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.2%, Waits=18
+[11:07:17] [Tick 71] Deadlock/livelock detected (18 wait ticks). Seeking alternate route/nook...
+[11:07:17] [Tick 71] Alternate route found to goal (31 steps).
+[11:07:17] [Tick 71] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.1%, Waits=19
+[11:07:17] [Tick 72] Deadlock/livelock detected (19 wait ticks). Seeking alternate route/nook...
+[11:07:17] [Tick 72] Alternate route found to goal (31 steps).
+[11:07:17] [Tick 72] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=91.0%, Waits=20
+[11:07:18] [Tick 73] Deadlock/livelock detected (20 wait ticks). Seeking alternate route/nook...
+[11:07:18] [Tick 73] Alternate route found to goal (31 steps).
+[11:07:18] [Tick 73] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.9%, Waits=21
+[11:07:18] [Tick 74] Deadlock/livelock detected (21 wait ticks). Seeking alternate route/nook...
+[11:07:18] [Tick 74] Alternate route found to goal (31 steps).
+[11:07:18] [Tick 74] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.8%, Waits=22
+[11:07:19] [Tick 75] Deadlock/livelock detected (22 wait ticks). Seeking alternate route/nook...
+[11:07:19] [Tick 75] Alternate route found to goal (31 steps).
+[11:07:19] [Tick 75] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.7%, Waits=23
+[11:07:19] [Tick 76] Deadlock/livelock detected (23 wait ticks). Seeking alternate route/nook...
+[11:07:19] [Tick 76] Alternate route found to goal (31 steps).
+[11:07:19] [Tick 76] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.6%, Waits=24
+[11:07:20] [Tick 77] Deadlock/livelock detected (24 wait ticks). Seeking alternate route/nook...
+[11:07:20] [Tick 77] Alternate route found to goal (31 steps).
+[11:07:20] [Tick 77] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.5%, Waits=25
+[11:07:20] [Tick 78] Deadlock/livelock detected (25 wait ticks). Seeking alternate route/nook...
+[11:07:20] [Tick 78] Alternate route found to goal (31 steps).
+[11:07:20] [Tick 78] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.4%, Waits=26
+[11:07:21] [Tick 79] Deadlock/livelock detected (26 wait ticks). Seeking alternate route/nook...
+[11:07:21] [Tick 79] Alternate route found to goal (31 steps).
+[11:07:21] [Tick 79] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.3%, Waits=27
+[11:07:21] [Tick 80] Deadlock/livelock detected (27 wait ticks). Seeking alternate route/nook...
+[11:07:21] [Tick 80] Alternate route found to goal (31 steps).
+[11:07:21] [Tick 80] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.2%, Waits=28
+[11:07:22] [Tick 81] Deadlock/livelock detected (28 wait ticks). Seeking alternate route/nook...
+[11:07:22] [Tick 81] Alternate route found to goal (31 steps).
+[11:07:22] [Tick 81] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.1%, Waits=29
+[11:07:22] [Tick 82] Deadlock/livelock detected (29 wait ticks). Seeking alternate route/nook...
+[11:07:22] [Tick 82] Alternate route found to goal (31 steps).
+[11:07:22] [Tick 82] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=90.0%, Waits=30
+[11:07:23] [Tick 83] Deadlock/livelock detected (30 wait ticks). Seeking alternate route/nook...
+[11:07:23] [Tick 83] Alternate route found to goal (31 steps).
+[11:07:23] [Tick 83] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.9%, Waits=31
+[11:07:23] [Tick 84] Deadlock/livelock detected (31 wait ticks). Seeking alternate route/nook...
+[11:07:23] [Tick 84] Alternate route found to goal (14 steps).
+[11:07:23] [Tick 84] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.8%, Waits=32
+[11:07:24] [Tick 85] Deadlock/livelock detected (32 wait ticks). Seeking alternate route/nook...
+[11:07:24] [Tick 85] Alternate route found to goal (17 steps).
+[11:07:24] [Tick 85] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.7%, Waits=33
+[11:07:24] [Tick 86] Deadlock/livelock detected (33 wait ticks). Seeking alternate route/nook...
+[11:07:24] [Tick 86] Alternate route found to goal (15 steps).
+[11:07:24] [Tick 86] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.6%, Waits=34
+[11:07:25] [Tick 87] Deadlock/livelock detected (34 wait ticks). Seeking alternate route/nook...
+[11:07:25] [Tick 87] Alternate route found to goal (14 steps).
+[11:07:25] [Tick 87] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.5%, Waits=35
+[11:07:25] [Tick 88] Deadlock/livelock detected (35 wait ticks). Seeking alternate route/nook...
+[11:07:25] [Tick 88] Alternate route found to goal (17 steps).
+[11:07:25] [Tick 88] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.4%, Waits=36
+[11:07:26] [Tick 89] Deadlock/livelock detected (36 wait ticks). Seeking alternate route/nook...
+[11:07:26] [Tick 89] Alternate route found to goal (15 steps).
+[11:07:26] [Tick 89] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.3%, Waits=37
+[11:07:26] [Tick 90] Deadlock/livelock detected (37 wait ticks). Seeking alternate route/nook...
+[11:07:26] [Tick 90] Alternate route found to goal (14 steps).
+[11:07:26] [Tick 90] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.2%, Waits=38
+[11:07:27] [Tick 91] Deadlock/livelock detected (38 wait ticks). Seeking alternate route/nook...
+[11:07:27] [Tick 91] Alternate route found to goal (17 steps).
+[11:07:27] [Tick 91] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.1%, Waits=39
+[11:07:27] [Tick 92] Deadlock/livelock detected (39 wait ticks). Seeking alternate route/nook...
+[11:07:27] [Tick 92] Alternate route found to goal (15 steps).
+[11:07:27] [Tick 92] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=89.0%, Waits=40
+[11:07:28] [Tick 93] Deadlock/livelock detected (40 wait ticks). Seeking alternate route/nook...
+[11:07:28] [Tick 93] Alternate route found to goal (14 steps).
+[11:07:28] [Tick 93] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.9%, Waits=41
+[11:07:28] [Tick 94] Deadlock/livelock detected (41 wait ticks). Seeking alternate route/nook...
+[11:07:28] [Tick 94] Alternate route found to goal (17 steps).
+[11:07:28] [Tick 94] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.8%, Waits=42
+[11:07:29] [Tick 95] Deadlock/livelock detected (42 wait ticks). Seeking alternate route/nook...
+[11:07:29] [Tick 95] Alternate route found to goal (15 steps).
+[11:07:29] [Tick 95] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.7%, Waits=43
+[11:07:29] [Tick 96] Deadlock/livelock detected (43 wait ticks). Seeking alternate route/nook...
+[11:07:29] [Tick 96] Alternate route found to goal (14 steps).
+[11:07:29] [Tick 96] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.6%, Waits=44
+[11:07:30] [Tick 97] Deadlock/livelock detected (44 wait ticks). Seeking alternate route/nook...
+[11:07:30] [Tick 97] Alternate route found to goal (17 steps).
+[11:07:30] [Tick 97] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.5%, Waits=45
+[11:07:30] [Tick 98] Deadlock/livelock detected (45 wait ticks). Seeking alternate route/nook...
+[11:07:30] [Tick 98] Alternate route found to goal (15 steps).
+[11:07:30] [Tick 98] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.4%, Waits=46
+[11:07:31] [Tick 99] Deadlock/livelock detected (46 wait ticks). Seeking alternate route/nook...
+[11:07:31] [Tick 99] Alternate route found to goal (14 steps).
+[11:07:31] [Tick 99] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.3%, Waits=47
+[11:07:31] [Tick 100] Deadlock/livelock detected (47 wait ticks). Seeking alternate route/nook...
+[11:07:31] [Tick 100] Alternate route found to goal (17 steps).
+[11:07:31] [Tick 100] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.2%, Waits=48
+[11:07:32] [Tick 101] Deadlock/livelock detected (48 wait ticks). Seeking alternate route/nook...
+[11:07:32] [Tick 101] Alternate route found to goal (15 steps).
+[11:07:32] [Tick 101] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.1%, Waits=49
+[11:07:32] [Tick 102] Deadlock/livelock detected (49 wait ticks). Seeking alternate route/nook...
+[11:07:32] [Tick 102] Alternate route found to goal (14 steps).
+[11:07:32] [Tick 102] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=88.0%, Waits=50
+[11:07:33] [Tick 103] Deadlock/livelock detected (50 wait ticks). Seeking alternate route/nook...
+[11:07:33] [Tick 103] Alternate route found to goal (17 steps).
+[11:07:33] [Tick 103] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.9%, Waits=51
+[11:07:33] [Tick 104] Deadlock/livelock detected (51 wait ticks). Seeking alternate route/nook...
+[11:07:33] [Tick 104] Alternate route found to goal (15 steps).
+[11:07:33] [Tick 104] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.8%, Waits=52
+[11:07:34] [Tick 105] Deadlock/livelock detected (52 wait ticks). Seeking alternate route/nook...
+[11:07:34] [Tick 105] Alternate route found to goal (14 steps).
+[11:07:34] [Tick 105] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.7%, Waits=53
+[11:07:34] [Tick 106] Deadlock/livelock detected (53 wait ticks). Seeking alternate route/nook...
+[11:07:34] [Tick 106] Alternate route found to goal (17 steps).
+[11:07:34] [Tick 106] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.6%, Waits=54
+[11:07:35] [Tick 107] Deadlock/livelock detected (54 wait ticks). Seeking alternate route/nook...
+[11:07:35] [Tick 107] Alternate route found to goal (15 steps).
+[11:07:35] [Tick 107] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.5%, Waits=55
+[11:07:35] [Tick 108] Deadlock/livelock detected (55 wait ticks). Seeking alternate route/nook...
+[11:07:35] [Tick 108] Alternate route found to goal (31 steps).
+[11:07:35] [Tick 108] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.4%, Waits=56
+[11:07:36] [Tick 109] Deadlock/livelock detected (56 wait ticks). Seeking alternate route/nook...
+[11:07:36] [Tick 109] Alternate route found to goal (31 steps).
+[11:07:36] [Tick 109] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.3%, Waits=57
+[11:07:36] [Tick 110] Deadlock/livelock detected (57 wait ticks). Seeking alternate route/nook...
+[11:07:36] [Tick 110] Alternate route found to goal (31 steps).
+[11:07:36] [Tick 110] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.2%, Waits=58
+[11:07:37] [Tick 111] Deadlock/livelock detected (58 wait ticks). Seeking alternate route/nook...
+[11:07:37] [Tick 111] Alternate route found to goal (31 steps).
+[11:07:37] [Tick 111] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.1%, Waits=59
+[11:07:37] [Tick 112] Deadlock/livelock detected (59 wait ticks). Seeking alternate route/nook...
+[11:07:37] [Tick 112] Alternate route found to goal (31 steps).
+[11:07:37] [Tick 112] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=87.0%, Waits=60
+[11:07:38] [Tick 113] Deadlock/livelock detected (60 wait ticks). Seeking alternate route/nook...
+[11:07:38] [Tick 113] Alternate route found to goal (31 steps).
+[11:07:38] [Tick 113] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.9%, Waits=61
+[11:07:38] [Tick 114] Deadlock/livelock detected (61 wait ticks). Seeking alternate route/nook...
+[11:07:38] [Tick 114] Alternate route found to goal (31 steps).
+[11:07:38] [Tick 114] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.8%, Waits=62
+[11:07:39] [Tick 115] Deadlock/livelock detected (62 wait ticks). Seeking alternate route/nook...
+[11:07:39] [Tick 115] Alternate route found to goal (31 steps).
+[11:07:39] [Tick 115] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.7%, Waits=63
+[11:07:39] [Tick 116] Deadlock/livelock detected (63 wait ticks). Seeking alternate route/nook...
+[11:07:39] [Tick 116] Alternate route found to goal (31 steps).
+[11:07:39] [Tick 116] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.6%, Waits=64
+[11:07:40] [Tick 117] Deadlock/livelock detected (64 wait ticks). Seeking alternate route/nook...
+[11:07:40] [Tick 117] Alternate route found to goal (31 steps).
+[11:07:40] [Tick 117] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.5%, Waits=65
+[11:07:40] [Tick 118] Deadlock/livelock detected (65 wait ticks). Seeking alternate route/nook...
+[11:07:40] [Tick 118] Alternate route found to goal (31 steps).
+[11:07:40] [Tick 118] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.4%, Waits=66
+[11:07:41] [Tick 119] Deadlock/livelock detected (66 wait ticks). Seeking alternate route/nook...
+[11:07:41] [Tick 119] Alternate route found to goal (15 steps).
+[11:07:41] [Tick 119] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.3%, Waits=67
+[11:07:41] [Tick 120] Deadlock/livelock detected (67 wait ticks). Seeking alternate route/nook...
+[11:07:41] [Tick 120] Alternate route found to goal (14 steps).
+[11:07:41] [Tick 120] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.2%, Waits=68
+[11:07:42] [Tick 121] Deadlock/livelock detected (68 wait ticks). Seeking alternate route/nook...
+[11:07:42] [Tick 121] Alternate route found to goal (17 steps).
+[11:07:42] [Tick 121] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.1%, Waits=69
+[11:07:42] [Tick 122] Deadlock/livelock detected (69 wait ticks). Seeking alternate route/nook...
+[11:07:42] [Tick 122] Alternate route found to goal (15 steps).
+[11:07:42] [Tick 122] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=86.0%, Waits=70
+[11:07:43] [Tick 123] Deadlock/livelock detected (70 wait ticks). Seeking alternate route/nook...
+[11:07:43] [Tick 123] Alternate route found to goal (14 steps).
+[11:07:43] [Tick 123] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=85.9%, Waits=71
+[11:07:43] [Tick 124] Deadlock/livelock detected (71 wait ticks). Seeking alternate route/nook...
+[11:07:43] [Tick 124] Alternate route found to goal (17 steps).
+[11:07:43] [Tick 124] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=85.8%, Waits=72
+[11:07:44] [Tick 125] Deadlock/livelock detected (72 wait ticks). Seeking alternate route/nook...
+[11:07:44] [Tick 125] Alternate route found to goal (15 steps).
+[11:07:44] [Tick 125] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=85.7%, Waits=73
+[11:07:44] [Tick 126] Deadlock/livelock detected (73 wait ticks). Seeking alternate route/nook...
+[11:07:44] [Tick 126] Alternate route found to goal (14 steps).
+[11:07:44] [Tick 126] Pos=(5, 21), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=85.6%, Waits=74

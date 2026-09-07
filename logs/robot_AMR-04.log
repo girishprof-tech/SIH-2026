@@ -1,147 +1,185 @@
-[01:23:39] Autonomous Robot Node initialized. PID=26416, Start=(7, 28), Goal=(7, 28)
-[01:23:39] [Tick 0] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:39] [Tick 0] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:39] [Tick 1] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:40] [Tick 2] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:40] [Tick 3] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:41] [Tick 4] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:41] [Tick 5] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:41] [Tick 5] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:41] [Tick 5] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:42] [Tick 6] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:42] [Tick 7] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:43] [Tick 8] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:43] [Tick 9] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:44] [Tick 10] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:44] [Tick 10] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:44] [Tick 10] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:44] [Tick 11] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:45] [Tick 12] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:45] [Tick 13] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:46] [Tick 14] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:46] [Tick 15] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:46] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 7.50s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 7.46s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 7.46s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 7.46s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 7.44s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-03: Expired message timestamp: age 5.03s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 5.02s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 5.02s > window 5.00s
-[01:23:46] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 5.02s > window 5.00s
-[01:23:46] [Tick 15] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:46] [Tick 15] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:47] [Tick 16] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:47] [Tick 17] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:48] [Tick 18] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:48] [Tick 19] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:49] [Tick 20] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:49] [Tick 20] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:49] [Tick 20] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:49] [Tick 21] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:50] [Tick 22] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:50] [Tick 23] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:51] [Tick 24] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:51] [Tick 25] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:51] [Tick 25] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:51] [Tick 25] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:52] [Tick 26] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:52] [Tick 27] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:53] [Tick 28] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:53] [Tick 29] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:54] [Tick 30] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:54] [Tick 30] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:54] [Tick 30] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:54] [Tick 31] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:55] [Tick 32] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:55] [Tick 33] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:56] [Tick 34] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:56] [Tick 35] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:56] [Tick 35] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:56] [Tick 35] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:57] [Tick 36] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:23:57] [Tick 37] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:23:58] [Tick 38] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:23:58] [Tick 39] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:23:59] [Tick 40] Recovered from failsafe/emergency stop -> IDLE.
-[01:23:59] [Tick 40] REACHED DESTINATION (7, 28)! Mission COMPLETED.
-[01:23:59] [Tick 40] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
-[01:23:59] [Tick 41] In FAILSAFE_HOLD (1/5 ticks). Holding position.
-[01:24:00] [Tick 42] In FAILSAFE_HOLD (2/5 ticks). Holding position.
-[01:24:00] [Tick 43] In FAILSAFE_HOLD (3/5 ticks). Holding position.
-[01:24:01] [Tick 44] In FAILSAFE_HOLD (4/5 ticks). Holding position.
-[01:24:01] [Tick 45] Recovered from failsafe/emergency stop -> IDLE.
-[01:24:01] [Tick 45] Triggered background audit mission to (7, 12).
-[01:24:01] [Tick 45] Degraded network throttle: pausing movement on alternate tick.
-[01:24:01] [Tick 45] Pos=(7, 28), Heading=NORTH, State=AUDITING, Action=DEGRADED_SPEED_PAUSE, Priority=0.0, Battery=100.0%, Waits=0
-[01:24:02] [Tick 46] Pos=(7, 27), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=99.0%, Waits=0
-[01:24:02] [Tick 47] Pos=(7, 26), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=98.0%, Waits=0
-[01:24:03] [Tick 48] Pos=(7, 25), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=97.0%, Waits=0
-[01:24:03] [Tick 49] Pos=(7, 24), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=96.0%, Waits=0
-[01:24:04] [Tick 50] Pos=(7, 23), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=95.0%, Waits=0
-[01:24:04] [Tick 51] Pos=(7, 22), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=94.0%, Waits=0
-[01:24:05] [Tick 52] Pos=(7, 21), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=93.0%, Waits=0
-[01:24:05] [Tick 53] Pos=(7, 20), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=92.0%, Waits=0
-[01:24:06] [Tick 54] Pos=(7, 19), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=91.0%, Waits=0
-[01:24:06] [Tick 55] Pos=(7, 18), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=90.0%, Waits=0
-[01:24:07] [Tick 56] Pos=(7, 17), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=89.0%, Waits=0
-[01:24:07] [Tick 57] Pos=(7, 16), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=88.0%, Waits=0
-[01:24:08] [Tick 58] Pos=(7, 15), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=87.0%, Waits=0
-[01:24:08] [Tick 59] Pos=(7, 14), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=86.0%, Waits=0
-[01:24:09] [Tick 60] Pos=(7, 13), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=85.0%, Waits=0
-[01:24:09] [Tick 61] [AUDIT SIMULATED] Checkpoint (7, 12): Shelf items verified (count=115, audit_id=AUDIT-1054)
-[01:24:09] [Tick 61] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=COMPLETED, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:10] [Tick 62] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:10] [Tick 63] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:11] [Tick 64] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:11] [Tick 65] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:12] [Tick 66] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:12] [Tick 67] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:13] [Tick 68] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:13] [Tick 69] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:14] [Tick 70] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
-[01:24:14] [Tick 71] Triggered background audit mission to (6, 6).
-[01:24:14] [Tick 71] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=83.0%, Waits=0
-[01:24:15] [Tick 72] Pos=(7, 10), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=82.0%, Waits=0
-[01:24:15] [Tick 73] Pos=(7, 9), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=81.0%, Waits=0
-[01:24:16] [Tick 74] Pos=(7, 8), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=80.0%, Waits=0
-[01:24:16] [Tick 75] Pos=(7, 7), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=79.0%, Waits=0
-[01:24:17] [Tick 76] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=78.0%, Waits=0
-[01:24:17] [Tick 77] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.9%, Waits=1
-[01:24:18] [Tick 78] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.8%, Waits=2
-[01:24:18] [Tick 79] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.7%, Waits=3
-[01:24:19] [Tick 80] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
-[01:24:19] [Tick 80] Alternate route found to goal (2 steps).
-[01:24:19] [Tick 80] [AUDIT SIMULATED] Checkpoint (6, 6): Shelf items verified (count=30, audit_id=AUDIT-8013)
-[01:24:19] [Tick 80] Pos=(6, 6), Heading=WEST, State=IDLE, Action=COMPLETED, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:19] [Tick 81] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:20] [Tick 82] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:20] [Tick 83] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:21] [Tick 84] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:21] [Tick 85] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:22] [Tick 86] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:22] [Tick 87] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:23] [Tick 88] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:23] [Tick 89] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
-[01:24:24] [Tick 90] Triggered background audit mission to (7, 12).
-[01:24:24] [Tick 90] Pos=(6, 7), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=75.7%, Waits=0
-[01:24:24] [Tick 91] Pos=(6, 8), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=74.7%, Waits=0
-[01:24:25] [Tick 92] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=73.7%, Waits=0
-[01:24:25] [Tick 93] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.6%, Waits=1
-[01:24:26] [Tick 94] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.5%, Waits=2
-[01:24:26] [Tick 95] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.4%, Waits=3
-[01:24:27] [Tick 96] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
-[01:24:27] [Tick 96] Alternate route found to goal (7 steps).
-[01:24:27] [Tick 96] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.3%, Waits=4
-[01:24:27] [Tick 97] Deadlock/livelock detected (4 wait ticks). Seeking alternate route/nook...
-[01:24:27] [Tick 97] Alternate route found to goal (7 steps).
-[01:24:27] [Tick 97] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.2%, Waits=5
-[01:24:28] [Tick 98] Deadlock/livelock detected (5 wait ticks). Seeking alternate route/nook...
-[01:24:28] [Tick 98] Alternate route found to goal (7 steps).
-[01:24:28] [Tick 98] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.1%, Waits=6
-[01:24:28] [Tick 99] Deadlock/livelock detected (6 wait ticks). Seeking alternate route/nook...
-[01:24:28] [Tick 99] Alternate route found to goal (7 steps).
-[01:24:28] [Tick 99] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.0%, Waits=7
-[01:24:29] [Tick 100] Deadlock/livelock detected (7 wait ticks). Seeking alternate route/nook...
-[01:24:29] [Tick 100] Alternate route found to goal (7 steps).
-[01:24:29] [Tick 100] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=72.9%, Waits=8
+[11:06:41] Autonomous Robot Node initialized. PID=17720, Start=(7, 28), Goal=(7, 28)
+[11:06:41] [Tick 0] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:41] [Tick 0] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:42] [Tick 1] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:42] [Tick 2] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:43] [Tick 3] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:43] [Tick 4] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:44] [Tick 5] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:44] [Tick 5] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:44] [Tick 5] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:44] [Tick 6] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:45] [Tick 7] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:45] [Tick 8] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:46] [Tick 9] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:46] [Tick 10] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:46] [Tick 10] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:46] [Tick 10] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:47] [Tick 11] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:47] [Tick 12] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:48] [Tick 13] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:48] [Tick 14] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:49] [Tick 15] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:49] Security replay guard rejected packet from AMR-05: Expired message timestamp: age 7.47s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-06: Expired message timestamp: age 7.44s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-07: Expired message timestamp: age 7.40s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-08: Expired message timestamp: age 7.37s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-09: Expired message timestamp: age 7.34s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-10: Expired message timestamp: age 7.31s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-01: Expired message timestamp: age 5.13s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-02: Expired message timestamp: age 5.10s > window 5.00s
+[11:06:49] Security replay guard rejected packet from AMR-03: Expired message timestamp: age 5.06s > window 5.00s
+[11:06:49] [Tick 15] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:49] [Tick 15] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:49] [Tick 16] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:50] [Tick 17] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:50] [Tick 18] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:51] [Tick 19] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:51] [Tick 20] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:51] [Tick 20] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:51] [Tick 20] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:52] [Tick 21] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:52] [Tick 22] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:53] [Tick 23] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:53] [Tick 24] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:54] [Tick 25] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:54] [Tick 25] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:54] [Tick 25] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:54] [Tick 26] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:55] [Tick 27] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:55] [Tick 28] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:56] [Tick 29] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:56] [Tick 30] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:56] [Tick 30] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:56] [Tick 30] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:57] [Tick 31] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:06:57] [Tick 32] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:06:58] [Tick 33] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:06:58] [Tick 34] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:06:59] [Tick 35] Recovered from failsafe/emergency stop -> IDLE.
+[11:06:59] [Tick 35] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:06:59] [Tick 35] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:06:59] [Tick 36] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:07:00] [Tick 37] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:07:00] [Tick 38] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:07:01] [Tick 39] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:07:01] [Tick 40] Recovered from failsafe/emergency stop -> IDLE.
+[11:07:01] [Tick 40] REACHED DESTINATION (7, 28)! Mission COMPLETED.
+[11:07:01] [Tick 40] Pos=(7, 28), Heading=NORTH, State=FAILSAFE_HOLD, Action=COMPLETED, Priority=0.0, Battery=100.0%, Waits=0
+[11:07:02] [Tick 41] In FAILSAFE_HOLD (1/5 ticks). Holding position.
+[11:07:02] [Tick 42] In FAILSAFE_HOLD (2/5 ticks). Holding position.
+[11:07:03] [Tick 43] In FAILSAFE_HOLD (3/5 ticks). Holding position.
+[11:07:03] [Tick 44] In FAILSAFE_HOLD (4/5 ticks). Holding position.
+[11:07:04] [Tick 45] Recovered from failsafe/emergency stop -> IDLE.
+[11:07:04] [Tick 45] Triggered background audit mission to (7, 12).
+[11:07:04] [Tick 45] Degraded network throttle: pausing movement on alternate tick.
+[11:07:04] [Tick 45] Pos=(7, 28), Heading=NORTH, State=AUDITING, Action=DEGRADED_SPEED_PAUSE, Priority=0.0, Battery=100.0%, Waits=0
+[11:07:04] [Tick 46] Pos=(7, 27), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=99.0%, Waits=0
+[11:07:05] [Tick 47] Pos=(7, 26), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=98.0%, Waits=0
+[11:07:05] [Tick 48] Pos=(7, 25), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=97.0%, Waits=0
+[11:07:06] [Tick 49] Pos=(7, 24), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=96.0%, Waits=0
+[11:07:06] [Tick 50] Pos=(7, 23), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=95.0%, Waits=0
+[11:07:07] [Tick 51] Pos=(7, 22), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=94.0%, Waits=0
+[11:07:07] [Tick 52] Pos=(7, 21), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=93.0%, Waits=0
+[11:07:08] [Tick 53] Pos=(7, 20), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=92.0%, Waits=0
+[11:07:08] [Tick 54] Pos=(7, 19), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=91.0%, Waits=0
+[11:07:09] [Tick 55] Pos=(7, 18), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=90.0%, Waits=0
+[11:07:09] [Tick 56] Pos=(7, 17), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=89.0%, Waits=0
+[11:07:10] [Tick 57] Pos=(7, 16), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=88.0%, Waits=0
+[11:07:10] [Tick 58] Pos=(7, 15), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=87.0%, Waits=0
+[11:07:11] [Tick 59] Pos=(7, 14), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=86.0%, Waits=0
+[11:07:11] [Tick 60] Pos=(7, 13), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=85.0%, Waits=0
+[11:07:12] [Tick 61] [AUDIT SIMULATED] Checkpoint (7, 12): Shelf items verified (count=80, audit_id=AUDIT-8481)
+[11:07:12] [Tick 61] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=COMPLETED, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:12] [Tick 62] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:13] [Tick 63] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:13] [Tick 64] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:14] [Tick 65] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:14] [Tick 66] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:15] [Tick 67] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:15] [Tick 68] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:16] [Tick 69] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:16] [Tick 70] Pos=(7, 12), Heading=NORTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=84.0%, Waits=0
+[11:07:17] [Tick 71] Triggered background audit mission to (6, 6).
+[11:07:17] [Tick 71] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=83.0%, Waits=0
+[11:07:17] [Tick 72] Pos=(7, 10), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=82.0%, Waits=0
+[11:07:18] [Tick 73] Pos=(7, 9), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=81.0%, Waits=0
+[11:07:18] [Tick 74] Pos=(7, 8), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=80.0%, Waits=0
+[11:07:19] [Tick 75] Pos=(7, 7), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=79.0%, Waits=0
+[11:07:19] [Tick 76] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=78.0%, Waits=0
+[11:07:20] [Tick 77] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.9%, Waits=1
+[11:07:20] [Tick 78] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.8%, Waits=2
+[11:07:21] [Tick 79] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=77.7%, Waits=3
+[11:07:21] [Tick 80] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
+[11:07:21] [Tick 80] Alternate route found to goal (2 steps).
+[11:07:21] [Tick 80] [AUDIT SIMULATED] Checkpoint (6, 6): Shelf items verified (count=56, audit_id=AUDIT-6190)
+[11:07:21] [Tick 80] Pos=(6, 6), Heading=WEST, State=IDLE, Action=COMPLETED, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:22] [Tick 81] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:22] [Tick 82] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:23] [Tick 83] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:23] [Tick 84] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:24] [Tick 85] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:24] [Tick 86] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:25] [Tick 87] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:25] [Tick 88] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:26] [Tick 89] Pos=(6, 6), Heading=WEST, State=IDLE, Action=IDLE, Priority=0.0, Battery=76.7%, Waits=0
+[11:07:26] [Tick 90] Triggered background audit mission to (7, 12).
+[11:07:26] [Tick 90] Pos=(6, 7), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=75.7%, Waits=0
+[11:07:27] [Tick 91] Pos=(6, 8), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=74.7%, Waits=0
+[11:07:27] [Tick 92] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=73.7%, Waits=0
+[11:07:28] [Tick 93] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.6%, Waits=1
+[11:07:28] [Tick 94] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.5%, Waits=2
+[11:07:29] [Tick 95] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.4%, Waits=3
+[11:07:29] [Tick 96] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
+[11:07:29] [Tick 96] Alternate route found to goal (7 steps).
+[11:07:29] [Tick 96] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.3%, Waits=4
+[11:07:30] [Tick 97] Deadlock/livelock detected (4 wait ticks). Seeking alternate route/nook...
+[11:07:30] [Tick 97] Alternate route found to goal (7 steps).
+[11:07:30] [Tick 97] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.2%, Waits=5
+[11:07:30] [Tick 98] Deadlock/livelock detected (5 wait ticks). Seeking alternate route/nook...
+[11:07:30] [Tick 98] Alternate route found to goal (7 steps).
+[11:07:30] [Tick 98] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.1%, Waits=6
+[11:07:31] [Tick 99] Deadlock/livelock detected (6 wait ticks). Seeking alternate route/nook...
+[11:07:31] [Tick 99] Alternate route found to goal (7 steps).
+[11:07:31] [Tick 99] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=73.0%, Waits=7
+[11:07:31] [Tick 100] Deadlock/livelock detected (7 wait ticks). Seeking alternate route/nook...
+[11:07:31] [Tick 100] Alternate route found to goal (7 steps).
+[11:07:31] [Tick 100] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=72.9%, Waits=8
+[11:07:32] [Tick 101] Deadlock/livelock detected (8 wait ticks). Seeking alternate route/nook...
+[11:07:32] [Tick 101] Alternate route found to goal (7 steps).
+[11:07:32] [Tick 101] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=72.8%, Waits=9
+[11:07:32] [Tick 102] Deadlock/livelock detected (9 wait ticks). Seeking alternate route/nook...
+[11:07:32] [Tick 102] Alternate route found to goal (7 steps).
+[11:07:32] [Tick 102] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=72.7%, Waits=10
+[11:07:33] [Tick 103] Deadlock/livelock detected (10 wait ticks). Seeking alternate route/nook...
+[11:07:33] [Tick 103] Alternate route found to goal (7 steps).
+[11:07:33] [Tick 103] Pos=(6, 9), Heading=SOUTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=72.6%, Waits=11
+[11:07:33] [Tick 104] Deadlock/livelock detected (11 wait ticks). Seeking alternate route/nook...
+[11:07:33] [Tick 104] Stepping aside into free nook (7, 9) to let oncoming peer pass.
+[11:07:33] [Tick 104] Pos=(7, 9), Heading=EAST, State=AUDITING, Action=MOVED, Priority=0.0, Battery=71.6%, Waits=0
+[11:07:34] [Tick 105] Pos=(7, 10), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=70.6%, Waits=0
+[11:07:34] [Tick 106] Pos=(7, 11), Heading=SOUTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=69.6%, Waits=0
+[11:07:35] [Tick 107] [AUDIT SIMULATED] Checkpoint (7, 12): Shelf items verified (count=115, audit_id=AUDIT-8123)
+[11:07:35] [Tick 107] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=COMPLETED, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:35] [Tick 108] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:36] [Tick 109] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:36] [Tick 110] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:37] [Tick 111] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:37] [Tick 112] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:38] [Tick 113] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:38] [Tick 114] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:39] [Tick 115] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:39] [Tick 116] Pos=(7, 12), Heading=SOUTH, State=IDLE, Action=IDLE, Priority=0.0, Battery=68.6%, Waits=0
+[11:07:40] [Tick 117] Triggered background audit mission to (6, 6).
+[11:07:40] [Tick 117] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=67.6%, Waits=0
+[11:07:40] [Tick 118] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=67.5%, Waits=1
+[11:07:41] [Tick 119] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=67.4%, Waits=2
+[11:07:41] [Tick 120] Pos=(7, 11), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=67.3%, Waits=3
+[11:07:42] [Tick 121] Deadlock/livelock detected (3 wait ticks). Seeking alternate route/nook...
+[11:07:42] [Tick 121] Alternate route found to goal (8 steps).
+[11:07:42] [Tick 121] Pos=(7, 10), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=66.3%, Waits=0
+[11:07:42] [Tick 122] Pos=(7, 9), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=65.3%, Waits=0
+[11:07:43] [Tick 123] Pos=(7, 8), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=64.3%, Waits=0
+[11:07:43] [Tick 124] Pos=(7, 7), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=63.3%, Waits=0
+[11:07:44] [Tick 125] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=MOVED, Priority=0.0, Battery=62.3%, Waits=0
+[11:07:44] [Tick 126] Pos=(7, 6), Heading=NORTH, State=AUDITING, Action=WAITING, Priority=0.0, Battery=62.2%, Waits=1

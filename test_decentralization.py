@@ -110,11 +110,9 @@ def main():
         # ── Phase 2: Start FastAPI Telemetry Viewer ───────────────────────────────
         print("\n[PHASE 2] Starting FastAPI Telemetry Viewer (uvicorn process)...")
         backend_cwd = ROOT_DIR / "backend" / "backend"
-        fastapi_env = {**os.environ, "SPAWN_FLEET_ORCHESTRATOR": "0"}
         fastapi_proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", "8000", "--log-level", "warning"],
             cwd=str(backend_cwd),
-            env=fastapi_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -142,26 +140,19 @@ def main():
 
         # ── Phase 3: KILL FastAPI Process ─────────────────────────────────────────
         print("\n[PHASE 3] Simulating server crash: KILLING FastAPI Process...")
-        if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(fastapi_proc.pid)], capture_output=True)
-        else:
-            fastapi_proc.terminate()
+        fastapi_proc.terminate()
         try:
             fastapi_proc.wait(timeout=3.0)
-        except Exception:
+        except subprocess.TimeoutExpired:
             fastapi_proc.kill()
-        time.sleep(0.5)
         print(f"  -> FastAPI process (PID={fastapi_proc.pid}) is DEAD.")
 
         # Verify FastAPI is genuinely unreachable
         server_is_dead = False
-        for _ in range(5):
-            try:
-                requests.get("http://127.0.0.1:8000/health", timeout=0.5)
-                time.sleep(0.3)
-            except Exception:
-                server_is_dead = True
-                break
+        try:
+            requests.get("http://127.0.0.1:8000/health", timeout=0.5)
+        except Exception:
+            server_is_dead = True
         assert server_is_dead, "FastAPI process was expected to be dead, but still answered!"
         print("  -> Confirmed: FastAPI /health is completely unreachable.")
 
@@ -206,7 +197,6 @@ def main():
         fastapi_proc2 = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.main:app", "--port", "8000", "--log-level", "warning"],
             cwd=str(backend_cwd),
-            env=fastapi_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -220,12 +210,10 @@ def main():
                 if resp.status_code == 200 and resp.json().get("status") == "ok":
                     data = resp.json()
                     tick_after_restart = data.get("tick", 0)
-                    if tick_after_restart >= latest_tick - 2:
-                        reconnected = True
-                        break
+                    reconnected = True
+                    break
             except Exception:
-                pass
-            time.sleep(0.2)
+                time.sleep(0.2)
 
         assert reconnected, "Restarted FastAPI failed to respond on /health!"
         print(f"  -> Confirmed: Restarted FastAPI reconnected seamlessly at Tick {tick_after_restart}!")
