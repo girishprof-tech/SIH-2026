@@ -1,43 +1,43 @@
 import type { RobotState, RobotType } from './types'
 
 export const ROBOT_TYPE_COLORS: Record<RobotType, string> = {
-  GOODS_TO_PERSON: '#d48645',
-  SORTING: '#4f9b9a',
-  SCANNING_AUDIT: '#8b9fbd',
+  GOODS_TO_PERSON: '#ea580c',
+  SORTING: '#0284c7',
+  SCANNING_AUDIT: '#6366f1',
 }
 
 export const ROBOT_TYPE_LABELS: Record<RobotType, string> = {
-  GOODS_TO_PERSON: 'GOODS-TO-PERSON',
-  SORTING: 'SORTING',
-  SCANNING_AUDIT: 'SCANNING & AUDIT',
+  GOODS_TO_PERSON: 'Goods to person',
+  SORTING: 'Sorting',
+  SCANNING_AUDIT: 'Scanning & audit',
 }
 
 export const STATE_COLORS: Record<RobotState, string> = {
-  IDLE: '#78a987',
-  ASSIGNED: '#91a9b6',
-  EN_ROUTE_PICKUP: '#728c96',
-  PICKING: '#6d9b91',
-  EN_ROUTE_DROPOFF: '#668b9a',
-  DROPPING: '#b69a62',
-  CONFLICT_NEGOTIATING: '#bd8154',
-  AUDITING: '#8294a8',
-  CHARGING: '#688b93',
-  FAILSAFE_HOLD: '#b9784c',
-  EMERGENCY_STOP: '#b85f58',
+  IDLE: '#10b981',
+  ASSIGNED: '#3b82f6',
+  EN_ROUTE_PICKUP: '#0284c7',
+  PICKING: '#0d9488',
+  EN_ROUTE_DROPOFF: '#2563eb',
+  DROPPING: '#d97706',
+  CONFLICT_NEGOTIATING: '#ea580c',
+  AUDITING: '#6366f1',
+  CHARGING: '#8b5cf6',
+  FAILSAFE_HOLD: '#b45309',
+  EMERGENCY_STOP: '#dc2626',
 }
 
 export const STATE_LABELS: Record<RobotState, string> = {
-  IDLE: 'IDLE',
-  ASSIGNED: 'ASSIGNED',
-  EN_ROUTE_PICKUP: 'EN ROUTE',
-  PICKING: 'PICKING',
-  EN_ROUTE_DROPOFF: 'DROPOFF ROUTE',
-  DROPPING: 'DROPPING',
-  CONFLICT_NEGOTIATING: 'CONFLICT',
-  AUDITING: 'AUDIT',
-  CHARGING: 'CHARGING',
-  FAILSAFE_HOLD: 'FAILSAFE',
-  EMERGENCY_STOP: 'E-STOP',
+  IDLE: 'Idle',
+  ASSIGNED: 'Assigned',
+  EN_ROUTE_PICKUP: 'En route',
+  PICKING: 'Picking',
+  EN_ROUTE_DROPOFF: 'Dropoff route',
+  DROPPING: 'Dropping',
+  CONFLICT_NEGOTIATING: 'Conflict',
+  AUDITING: 'Audit',
+  CHARGING: 'Charging',
+  FAILSAFE_HOLD: 'Failsafe',
+  EMERGENCY_STOP: 'Emergency stop',
 }
 
 export const ALL_STATES: RobotState[] = [

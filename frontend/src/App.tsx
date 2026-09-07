@@ -8,18 +8,128 @@ import { FleetSidebar } from './components/FleetSidebar'
 import { TaskPanel } from './components/TaskPanel'
 import { ObstaclePanel } from './components/ObstaclePanel'
 import { MetricsPanel } from './components/MetricsPanel'
+import { STATE_LABELS } from './state-meta'
 import type { Metrics, Point, Robot, SimulationStatus, Task, TempObstacle, TickUpdate, World } from './types'
 
-const emptyWorld: World = { width: 30, height: 30, static_obstacles: [], charging_stations: [], pickup_stations: [], dropoff_stations: [] }
+const emptyWorld: World = {
+  width: 30,
+  height: 30,
+  static_obstacles: [],
+  charging_stations: [],
+  pickup_stations: [],
+  dropoff_stations: [],
+}
+
 export default function App() {
-  const [world, setWorld] = useState(emptyWorld); const [robots, setRobots] = useState<Robot[]>([]); const [tasks, setTasks] = useState<Task[]>([]); const [obstacles, setObstacles] = useState<TempObstacle[]>([]); const [metrics, setMetrics] = useState<Metrics | null>(null); const [status, setStatus] = useState<SimulationStatus>({ running: false, tick: 0, timestamp_ms: 0, fleet_size: 0, tick_ms: 500 }); const [conflicts, setConflicts] = useState<TickUpdate['active_conflicts']>([]); const [history, setHistory] = useState<Array<{ tick: number; process: number; planner: number; conflicts: number; replans: number }>>([]); const [selected, setSelected] = useState<string | null>(null); const [filter, setFilter] = useState('ALL'); const [chaos, setChaos] = useState(false); const [loss, setLoss] = useState(0); const [busy, setBusy] = useState(false); const [toast, setToast] = useState<string | null>(null)
-  const { status: socket, skippedTicks } = useFleetSocket(update => { setRobots(update.robots); setConflicts(update.active_conflicts); setObstacles(update.temporary_obstacles); setStatus(old => ({ ...old, tick: update.tick, timestamp_ms: update.timestamp_ms })); setHistory(old => [...old, { tick: update.tick, process: metrics?.last_tick_processing_ms ?? 0, planner: metrics?.planner_latency_ms ?? 0, conflicts: update.active_conflicts.length, replans: metrics?.replans ?? 0 }].slice(-50)) })
-  const run = async <T,>(action: () => Promise<T>, success?: string) => { setBusy(true); try { await action(); if (success) setToast(success) } catch (error) { setToast(error instanceof Error ? error.message : 'Request failed') } finally { setBusy(false) } }
-  useEffect(() => { void Promise.all([api.world().then(setWorld), api.robots().then(setRobots), api.tasks().then(setTasks), api.obstacles().then(setObstacles), api.status().then(setStatus), api.chaosStatus().then(snapshot => { setChaos(snapshot.enabled); setLoss(snapshot.packet_loss_pct) })]).catch(error => setToast(error instanceof Error ? error.message : 'Backend unavailable')); const timer = window.setInterval(() => { api.metrics().then(setMetrics).catch(() => undefined); api.status().then(setStatus).catch(() => undefined); api.tasks().then(setTasks).catch(() => undefined); api.chaosStatus().then(snapshot => { setChaos(snapshot.enabled); setLoss(snapshot.packet_loss_pct) }).catch(() => undefined) }, 1500); return () => window.clearInterval(timer) }, [])
-  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(null), 5000); return () => window.clearTimeout(timer) }, [toast])
-  const chosen = robots.find(robot => robot.robot_id === selected)
-  const selectCell = (point: Point) => { if (!busy) setToast(`Map coordinate selected: (${point.x}, ${point.y})`) }
-  const pause = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms))
+  const [world, setWorld] = useState(emptyWorld)
+  const [robots, setRobots] = useState<Robot[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [obstacles, setObstacles] = useState<TempObstacle[]>([])
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [status, setStatus] = useState<SimulationStatus>({
+    running: false,
+    tick: 0,
+    timestamp_ms: 0,
+    fleet_size: 0,
+    tick_ms: 500,
+  })
+  const [conflicts, setConflicts] = useState<TickUpdate['active_conflicts']>([])
+  const [history, setHistory] = useState<
+    Array<{ tick: number; process: number; planner: number; conflicts: number; replans: number }>
+  >([])
+  const [selected, setSelected] = useState<string | null>(null)
+  const [filter, setFilter] = useState('ALL')
+  const [chaos, setChaos] = useState(false)
+  const [loss, setLoss] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark'
+    }
+    return 'light'
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+  }
+
+  const { status: socket, skippedTicks } = useFleetSocket((update) => {
+    setRobots(update.robots)
+    setConflicts(update.active_conflicts)
+    setObstacles(update.temporary_obstacles)
+    setStatus((old) => ({ ...old, tick: update.tick, timestamp_ms: update.timestamp_ms }))
+    setHistory((old) =>
+      [
+        ...old,
+        {
+          tick: update.tick,
+          process: metrics?.last_tick_processing_ms ?? 0,
+          planner: metrics?.planner_latency_ms ?? 0,
+          conflicts: update.active_conflicts.length,
+          replans: metrics?.replans ?? 0,
+        },
+      ].slice(-50)
+    )
+  })
+
+  const run = async <T,>(action: () => Promise<T>, success?: string) => {
+    setBusy(true)
+    try {
+      await action()
+      if (success) setToast(success)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Request failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    void Promise.all([
+      api.world().then(setWorld),
+      api.robots().then(setRobots),
+      api.tasks().then(setTasks),
+      api.obstacles().then(setObstacles),
+      api.status().then(setStatus),
+      api.chaosStatus().then((snapshot) => {
+        setChaos(snapshot.enabled)
+        setLoss(snapshot.packet_loss_pct)
+      }),
+    ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
+
+    const timer = window.setInterval(() => {
+      api.metrics().then(setMetrics).catch(() => undefined)
+      api.status().then(setStatus).catch(() => undefined)
+      api.tasks().then(setTasks).catch(() => undefined)
+      api.chaosStatus()
+        .then((snapshot) => {
+          setChaos(snapshot.enabled)
+          setLoss(snapshot.packet_loss_pct)
+        })
+        .catch(() => undefined)
+    }, 1500)
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  const chosen = robots.find((robot) => robot.robot_id === selected)
+  const selectCell = (point: Point) => {
+    if (!busy) setToast(`Map coordinate selected: (${point.x}, ${point.y})`)
+  }
+  const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
   const runDemo = async () => {
     setBusy(true)
     setToast('Demo scenario started: fleet coordination sequence running')
@@ -41,9 +151,17 @@ export default function App() {
         try {
           await api.submitJob(job)
         } catch (error) {
-          setToast(error instanceof Error ? `Demo job ${index + 1} skipped: ${error.message}` : `Demo job ${index + 1} skipped`)
+          setToast(
+            error instanceof Error ? `Demo job ${index + 1} skipped: ${error.message}` : `Demo job ${index + 1} skipped`
+          )
         }
-        if (index === 1) await api.addObstacle({ obstacle_id: `DEMO-OBSTACLE-${Date.now()}`, x: 1, y: 10, duration_ticks: 40 })
+        if (index === 1)
+          await api.addObstacle({
+            obstacle_id: `DEMO-OBSTACLE-${Date.now()}`,
+            x: 1,
+            y: 10,
+            duration_ticks: 40,
+          })
         if (index === 3) await api.chaos(15)
       }
       setToast('Demo scenario complete: jobs, obstacle, and resilience event deployed')
@@ -53,5 +171,153 @@ export default function App() {
       setBusy(false)
     }
   }
-  return <div className="app-shell"><ControlBar running={status.running} tick={status.tick} timestamp={status.timestamp_ms} socket={socket} skipped={skippedTicks} chaos={chaos} loss={loss} busy={busy} onAction={action => run(() => api.simulation(action), `${action.toUpperCase()} command accepted`).then(() => api.status().then(setStatus))} onChaos={(enabled, value) => { setChaos(enabled); setLoss(value); void run(() => api.chaos(enabled ? value : 0), enabled ? `Chaos mode enabled at ${value}%` : 'Chaos mode disabled') }} onDemo={() => void runDemo()} /><main className="dashboard"><section className="map-column"><GridCanvas world={world} robots={robots} conflicts={conflicts} obstacles={obstacles} tick={status.tick} selected={selected} onRobot={setSelected ? robot => setSelected(robot.robot_id) : () => undefined} onCell={selectCell} /><div className="map-footer"><span><i className="legend-dot idle" /> IDLE</span><span><i className="legend-dot route" /> EN ROUTE</span><span><i className="legend-dot conflict" /> NEGOTIATING</span><span><i className="legend-dot charge" /> CHARGING</span><span className="map-hint">CLICK ROBOT TO INSPECT · CLICK CELL TO TARGET · SCROLL TO ZOOM</span></div><MetricsPanel metrics={metrics} history={history} robots={robots} /></section><section className="side-column"><FleetSidebar robots={robots} selected={selected} filter={filter} onFilter={setFilter} onSelect={robot => setSelected(robot.robot_id)} /><TaskPanel tasks={tasks} busy={busy} onInject={body => run(() => api.injectTask(body), 'Mission queued').then(() => api.tasks().then(setTasks))} /><ObstaclePanel obstacles={obstacles} tick={status.tick} busy={busy} onAdd={body => run(() => api.addObstacle(body), 'Temporary obstacle deployed').then(() => api.obstacles().then(setObstacles))} onRemove={id => run(() => api.removeObstacle(id), 'Obstacle removed').then(() => api.obstacles().then(setObstacles))} /></section></main>{chosen && <aside className="robot-detail panel"><button className="close-detail" onClick={() => setSelected(null)} aria-label="Close robot details"><X size={15} /></button><span className="eyebrow">UNIT DETAIL</span><h2><Bot size={19} /> {chosen.robot_id}</h2><span className={`state-badge ${chosen.state.toLowerCase()}`}>{chosen.state.replace(/_/g, ' ')}</span><div className="detail-battery"><span><Battery size={14} /> BATTERY</span><strong className={chosen.battery_pct < 20 ? 'battery-low' : ''}>{chosen.battery_pct.toFixed(1)}%</strong><div><i style={{ width: `${chosen.battery_pct}%` }} /></div></div><dl><dt>POSITION</dt><dd>({chosen.position.x}, {chosen.position.y}) · {chosen.heading}</dd><dt>CURRENT TASK</dt><dd>{chosen.current_task_id ?? 'UNASSIGNED'}</dd><dt>PRIORITY SCORE</dt><dd>{chosen.priority_score.toFixed(2)}</dd><dt>PATH NODES</dt><dd>{chosen.path.length} RESERVED</dd></dl></aside>}{toast && <div className="toast"><AlertCircle size={16} /><span>{toast}</span><button onClick={() => setToast(null)}><X size={14} /></button></div>}<footer className="system-footer"><span>SIH26123 / DISTRIBUTED FLEET COORDINATION</span><span>API {socket === 'connected' ? 'SYNCED' : 'AWAITING LINK'} · TICK INTERVAL {status.tick_ms}MS</span></footer></div>
+
+  return (
+    <div className="app-shell" data-theme={theme}>
+      <ControlBar
+        running={status.running}
+        tick={status.tick}
+        timestamp={status.timestamp_ms}
+        socket={socket}
+        skipped={skippedTicks}
+        chaos={chaos}
+        loss={loss}
+        busy={busy}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onAction={(action) =>
+          run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
+            () => api.status().then(setStatus)
+          )
+        }
+        onChaos={(enabled, value) => {
+          setChaos(enabled)
+          setLoss(value)
+          void run(
+            () => api.chaos(enabled ? value : 0),
+            enabled ? `Chaos mode enabled at ${value}%` : 'Chaos mode disabled'
+          )
+        }}
+        onDemo={() => void runDemo()}
+      />
+
+      <main className="dashboard">
+        <section className="map-column">
+          <GridCanvas
+            world={world}
+            robots={robots}
+            conflicts={conflicts}
+            obstacles={obstacles}
+            tick={status.tick}
+            selected={selected}
+            theme={theme}
+            onRobot={setSelected ? (robot) => setSelected(robot.robot_id) : () => undefined}
+            onCell={selectCell}
+          />
+          <div className="map-footer">
+            <span>
+              <i className="legend-dot idle" /> Idle
+            </span>
+            <span>
+              <i className="legend-dot route" /> En route
+            </span>
+            <span>
+              <i className="legend-dot conflict" /> Negotiating
+            </span>
+            <span>
+              <i className="legend-dot charge" /> Charging
+            </span>
+            <span className="map-hint">Click robot to inspect, click cell to target, scroll to zoom</span>
+          </div>
+          <MetricsPanel metrics={metrics} history={history} robots={robots} theme={theme} />
+        </section>
+
+        <section className="side-column">
+          <FleetSidebar
+            robots={robots}
+            selected={selected}
+            filter={filter}
+            onFilter={setFilter}
+            onSelect={(robot) => setSelected(robot.robot_id)}
+          />
+          <TaskPanel
+            tasks={tasks}
+            busy={busy}
+            onInject={(body) =>
+              run(() => api.injectTask(body), 'Mission queued').then(() => api.tasks().then(setTasks))
+            }
+          />
+          <ObstaclePanel
+            obstacles={obstacles}
+            tick={status.tick}
+            busy={busy}
+            onAdd={(body) =>
+              run(() => api.addObstacle(body), 'Temporary obstacle deployed').then(() =>
+                api.obstacles().then(setObstacles)
+              )
+            }
+            onRemove={(id) =>
+              run(() => api.removeObstacle(id), 'Obstacle removed').then(() =>
+                api.obstacles().then(setObstacles)
+              )
+            }
+          />
+        </section>
+      </main>
+
+      {chosen && (
+        <aside className="robot-detail panel">
+          <button className="close-detail" onClick={() => setSelected(null)} aria-label="Close robot details">
+            <X size={15} />
+          </button>
+          <h2>
+            <Bot size={18} /> {chosen.robot_id}
+          </h2>
+          <div>
+            <span className={`state-badge ${chosen.state.toLowerCase()}`}>
+              {STATE_LABELS[chosen.state] ?? chosen.state.replace(/_/g, ' ')}
+            </span>
+          </div>
+          <div className="detail-battery">
+            <span>
+              <Battery size={14} /> Battery
+            </span>
+            <strong className={chosen.battery_pct < 20 ? 'battery-low' : ''}>
+              {chosen.battery_pct.toFixed(1)}%
+            </strong>
+            <div>
+              <i style={{ width: `${chosen.battery_pct}%` }} />
+            </div>
+          </div>
+          <dl>
+            <dt>Position</dt>
+            <dd>
+              ({chosen.position.x}, {chosen.position.y}), {chosen.heading.toLowerCase()}
+            </dd>
+            <dt>Current task</dt>
+            <dd>{chosen.current_task_id ?? 'Unassigned'}</dd>
+            <dt>Priority score</dt>
+            <dd>{chosen.priority_score.toFixed(2)}</dd>
+            <dt>Path nodes</dt>
+            <dd>{chosen.path.length} reserved</dd>
+          </dl>
+        </aside>
+      )}
+
+      {toast && (
+        <div className="toast" role="status">
+          <AlertCircle size={16} />
+          <span>{toast}</span>
+          <button onClick={() => setToast(null)} aria-label="Dismiss notification">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <footer className="system-footer">
+        <span>{socket === 'connected' ? 'Connected to fleet coordinator' : 'Awaiting fleet link'}</span>
+        <span>Tick interval {status.tick_ms} ms</span>
+      </footer>
+    </div>
+  )
 }
