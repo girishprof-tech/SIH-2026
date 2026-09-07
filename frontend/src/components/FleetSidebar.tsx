@@ -50,34 +50,42 @@ export function FleetSidebar({
       </div>
 
       <div className="filter-section">
-        <div className="filter-label">Robot type</div>
-        <div className="filter-row type-filters">
+        <div className="segmented-control type-filters" role="tablist" aria-label="Filter by robot type">
           {robotTypes.map((type) => (
             <button
               key={type}
-              className={typeFilter === type ? 'active' : ''}
-              onClick={() => onFilter(type === 'ALL' ? stateFilter : `TYPE:${type}`)}
+              role="tab"
+              aria-selected={typeFilter === type}
+              className={`segment-btn ${typeFilter === type ? 'active' : ''}`}
+              onClick={() => onFilter(type === 'ALL' ? 'ALL' : `TYPE:${type}`)}
             >
-              {type === 'ALL' ? 'All' : ROBOT_TYPE_LABELS[type]}
+              {type === 'ALL' ? 'All' : type === 'GOODS_TO_PERSON' ? 'Goods' : type === 'SORTING' ? 'Sorting' : 'Audit'}
             </button>
           ))}
         </div>
 
-        <div className="filter-label" style={{ marginTop: 10 }}>
-          State
-        </div>
-        <div className="filter-row">
-          {states.map((state) => (
-            <button
-              key={state}
-              className={stateFilter === state ? 'active' : ''}
-              onClick={() =>
-                onFilter(state === 'ALL' ? (typeFilter === 'ALL' ? 'ALL' : `TYPE:${typeFilter}`) : `STATE:${state}`)
-              }
-            >
-              {state === 'ALL' ? 'All' : STATE_LABELS[state]}
-            </button>
-          ))}
+        <div className="state-filter-row">
+          <label htmlFor="fleet-state-select" className="filter-label-compact">Status:</label>
+          <select
+            id="fleet-state-select"
+            className="filter-select"
+            value={stateFilter}
+            onChange={(e) => {
+              const val = e.target.value
+              onFilter(val === 'ALL' ? (typeFilter === 'ALL' ? 'ALL' : `TYPE:${typeFilter}`) : `STATE:${val}`)
+            }}
+          >
+            <option value="ALL">All States ({displayedRobots.length})</option>
+            {ALL_STATES.map((st) => {
+              const count = displayedRobots.filter((r) => r.state === st).length
+              if (count === 0 && stateFilter !== st) return null
+              return (
+                <option key={st} value={st}>
+                  {STATE_LABELS[st] ?? st.replace(/_/g, ' ')} ({count})
+                </option>
+              )
+            })}
+          </select>
         </div>
       </div>
 

@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend" / "app" / "services"))
+sys.path.insert(0, str(ROOT_DIR / "archive" / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
 sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 

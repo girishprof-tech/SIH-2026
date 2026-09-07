@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend" / "app" / "services"))
+sys.path.insert(0, str(ROOT_DIR / "archive" / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
 sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 sys.path.insert(0, str(ROOT_DIR / "testing"))

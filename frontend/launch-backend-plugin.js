@@ -16,12 +16,17 @@ export function launchBackendPlugin() {
     var backendDir = path.resolve(__dirname, '../backend/backend');
     function resolvePython() {
         var isWin = process.platform === 'win32';
-        var venvPython = isWin
+        var rootVenv = isWin
+            ? path.resolve(__dirname, '../venv/Scripts/python.exe')
+            : path.resolve(__dirname, '../venv/bin/python');
+        if (existsSync(rootVenv))
+            return rootVenv;
+        var backendVenv = isWin
             ? path.resolve(__dirname, '../backend/venv/Scripts/python.exe')
             : path.resolve(__dirname, '../backend/venv/bin/python');
-        if (existsSync(venvPython))
-            return venvPython;
-        console.warn('[launch-backend] No venv found at backend/venv — falling back to system Python. ' +
+        if (existsSync(backendVenv))
+            return backendVenv;
+        console.warn('[launch-backend] No venv found at venv or backend/venv — falling back to system Python. ' +
             'Run the one-time backend setup in README.md if this fails.');
         return isWin ? 'python' : 'python3';
     }

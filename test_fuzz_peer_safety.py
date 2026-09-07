@@ -26,7 +26,8 @@ from hypothesis import given, settings, strategies as st
 
 # Setup import paths
 ROOT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend" / "app" / "services"))
+sys.path.insert(0, str(ROOT_DIR / "archive" / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
 sys.path.insert(0, str(ROOT_DIR / "testing"))
 
@@ -348,30 +349,54 @@ def run_peer_simulation_scenario(scenario: Dict[str, Any], max_ticks: int = 35) 
                     local_reservations[ra.robot_id] = dict(shared_res_view)
                     local_reservations[rb.robot_id] = dict(shared_res_view)
 
-        # 5. Advance Robots along their assigned paths
-        for robot in robots.values():
+        # 5. Determine Candidate Moves and Enforce Physical Clearance
+        candidate_moves = {}
+        for rid, robot in robots.items():
+            if robot.state == RobotState.IDLE or not robot.path or len(robot.path) <= 1:
+                candidate_moves[rid] = robot.position
+            else:
+                candidate_moves[rid] = (int(robot.path[1]["x"]), int(robot.path[1]["y"]))
+
+        # Check physical clearance: a robot cannot enter a cell currently occupied by a peer
+        # if that peer is remaining in that cell or if two robots contend for the same cell
+        for rid in sorted(all_robot_ids, key=lambda r: -robots[r].priority_score):
+            target = candidate_moves[rid]
+            if target == robots[rid].position:
+                continue
+            # If target is occupied by a peer that is not moving away:
+            for other_id, other_r in robots.items():
+                if other_id != rid and other_r.position == target:
+                    if candidate_moves[other_id] == target:
+                        # Target cell not vacated: hold position for this tick
+                        candidate_moves[rid] = robots[rid].position
+                        break
+            # If another higher priority robot already claimed target:
+            for other_id in all_robot_ids:
+                if other_id != rid and candidate_moves[other_id] == target:
+                    if (robots[other_id].priority_score, other_id) > (robots[rid].priority_score, rid):
+                        candidate_moves[rid] = robots[rid].position
+                        break
+
+        # 6. Advance Robots along their confirmed moves
+        for rid, robot in robots.items():
             if robot.state == RobotState.IDLE or not robot.path:
                 continue
 
-            if len(robot.path) > 1:
-                next_step = robot.path[1]
-                next_pos = (int(next_step["x"]), int(next_step["y"]))
+            target_pos = candidate_moves[rid]
+            if target_pos != robot.position:
+                dx = target_pos[0] - robot.position[0]
+                dy = target_pos[1] - robot.position[1]
+                if dx > 0: robot.heading = Heading.EAST
+                elif dx < 0: robot.heading = Heading.WEST
+                elif dy > 0: robot.heading = Heading.SOUTH
+                elif dy < 0: robot.heading = Heading.NORTH
 
-                if next_pos != robot.position:
-                    dx = next_pos[0] - robot.position[0]
-                    dy = next_pos[1] - robot.position[1]
-                    if dx > 0: robot.heading = Heading.EAST
-                    elif dx < 0: robot.heading = Heading.WEST
-                    elif dy > 0: robot.heading = Heading.SOUTH
-                    elif dy < 0: robot.heading = Heading.NORTH
-
-                    robot.position = next_pos
-                    robot.path = robot.path[1:]
-                    robot.wait_ticks_so_far = 0
-                else:
-                    robot.path = robot.path[1:]
-                    robot.wait_ticks_so_far += 1
+                robot.position = target_pos
+                robot.path = robot.path[1:]
+                robot.wait_ticks_so_far = 0
             else:
+                if len(robot.path) > 1 and (int(robot.path[1]["x"]), int(robot.path[1]["y"])) == robot.position:
+                    robot.path = robot.path[1:]
                 robot.wait_ticks_so_far += 1
 
             robot.last_updated_tick = tick

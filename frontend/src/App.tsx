@@ -46,16 +46,24 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [showMeshLinks, setShowMeshLinks] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [fleetMode, setFleetMode] = useState<string>('Autonomous (10 AMRs)')
+  const [lastSyncedTick, setLastSyncedTick] = useState<number>(0)
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sih_theme')
+      if (saved === 'light' || saved === 'dark') return saved
     }
-    return 'light'
+    return 'dark'
   })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('sih_theme', theme)
+    } catch {
+      // ignore
+    }
   }, [theme])
 
   const toggleTheme = () => {
@@ -66,16 +74,29 @@ export default function App() {
     setRobots(update.robots)
     setConflicts(update.active_conflicts)
     setObstacles(update.temporary_obstacles)
+    setLastSyncedTick(update.tick)
     setStatus((old) => ({ ...old, tick: update.tick, timestamp_ms: update.timestamp_ms }))
+    if (update.tasks) setTasks(update.tasks)
+    if (update.metrics) setMetrics(update.metrics)
+    if (update.fleet_status) {
+      setStatus((old) => ({
+        ...old,
+        running: update.fleet_status!.running,
+        tick: update.tick,
+      }))
+      if (update.fleet_status.mode) {
+        setFleetMode(update.fleet_status.mode)
+      }
+    }
     setHistory((old) =>
       [
         ...old,
         {
           tick: update.tick,
-          process: metrics?.last_tick_processing_ms ?? 0,
-          planner: metrics?.planner_latency_ms ?? 0,
+          process: update.metrics?.last_tick_processing_ms ?? metrics?.last_tick_processing_ms ?? 0,
+          planner: update.metrics?.planner_latency_ms ?? metrics?.planner_latency_ms ?? 0,
           conflicts: update.active_conflicts.length,
-          replans: metrics?.replans ?? 0,
+          replans: update.metrics?.replans ?? metrics?.replans ?? 0,
         },
       ].slice(-50)
     )
@@ -110,23 +131,30 @@ export default function App() {
       api.tasks().then(setTasks),
       api.obstacles().then(setObstacles),
       api.status().then(setStatus),
+      api.health().then((h) => {
+        if (h.fleet_mode) setFleetMode(h.fleet_mode)
+      }),
       api.chaosStatus().then((snapshot) => {
         setChaos(snapshot.enabled)
         setLoss(snapshot.packet_loss_pct)
       }),
     ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
 
+    // Polling restricted to external human toggles (chaos mode) and backend health/mode detection.
+    // All active simulation telemetry (robots, tasks, obstacles, metrics, status) is delivered synchronously per tick over WebSocket.
     const timer = window.setInterval(() => {
-      api.metrics().then(setMetrics).catch(() => undefined)
-      api.status().then(setStatus).catch(() => undefined)
-      api.tasks().then(setTasks).catch(() => undefined)
       api.chaosStatus()
         .then((snapshot) => {
           setChaos(snapshot.enabled)
           setLoss(snapshot.packet_loss_pct)
         })
         .catch(() => undefined)
-    }, 1500)
+      api.health()
+        .then((h) => {
+          if (h.fleet_mode) setFleetMode(h.fleet_mode)
+        })
+        .catch(() => undefined)
+    }, 5000)
 
     return () => {
       window.clearTimeout(minLoadTimer)
@@ -197,6 +225,8 @@ export default function App() {
       <ControlBar
         running={status.running}
         tick={status.tick}
+        lastSyncedTick={lastSyncedTick}
+        fleetMode={fleetMode}
         timestamp={status.timestamp_ms}
         socket={socket}
         skipped={skippedTicks}
@@ -222,6 +252,18 @@ export default function App() {
         }}
         onDemo={() => void runDemo()}
       />
+
+      {socket !== 'connected' && (
+        <div className={`connection-alert-banner ${socket}`} role="alert">
+          <AlertCircle size={16} />
+          <span>
+            {socket === 'reconnecting'
+              ? 'Mesh telemetry stream interrupted — reconnecting to local peer UDP orchestrator...'
+              : 'Mesh telemetry offline — backend disconnected. AMR nodes continuing autonomous decentralized execution.'}
+          </span>
+          <span className="reconnect-hint">Last authoritative sync: Tick #{lastSyncedTick}</span>
+        </div>
+      )}
 
       <main className="dashboard">
         <section className="map-column">

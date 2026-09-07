@@ -132,8 +132,9 @@ def test_integration_with_real_member_2_pathfinder():
     Proves end-to-end compatibility between Member 2 and Member 3.
     """
     # Import Member 2's real pathfinder
-    pathfinding_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "pathfinding")
-    sys.path.insert(0, pathfinding_dir)
+    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.join(root_dir, "backend", "backend", "app", "services"))
+    sys.path.insert(0, os.path.join(root_dir, "archive", "pathfinding"))
 
     try:
         from pathfinder import find_path as real_find_path

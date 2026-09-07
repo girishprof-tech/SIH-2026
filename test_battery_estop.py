@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend" / "app" / "services"))
+sys.path.insert(0, str(ROOT_DIR / "archive" / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
 sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 
@@ -28,6 +29,7 @@ def test_battery_low_trigger():
         start_pos=(1, 6),
         goal_pos=None,
         transport=transport,
+        charging_stations={(1, 6)},
     )
     # Set battery percentage below BATTERY_LOW_THRESHOLD (20.0)
     node.robot.battery_pct = 18.5

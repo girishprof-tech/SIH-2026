@@ -16,6 +16,8 @@ import type { SocketStatus } from '../hooks/useFleetSocket'
 type Props = {
   running: boolean
   tick: number
+  lastSyncedTick: number
+  fleetMode?: string
   timestamp: number
   socket: SocketStatus
   skipped: number
@@ -34,6 +36,8 @@ type Props = {
 export function ControlBar({
   running,
   tick,
+  lastSyncedTick,
+  fleetMode = 'Autonomous (10 AMRs)',
   timestamp,
   socket,
   skipped,
@@ -51,6 +55,13 @@ export function ControlBar({
   const connectionLabel =
     socket === 'connected' ? 'P2P Mesh Active' : socket === 'reconnecting' ? 'Reconnecting' : 'Offline'
 
+  const formattedMode =
+    fleetMode === 'spawned_new_fleet'
+      ? 'Autonomous (10 AMRs)'
+      : fleetMode === 'attached_to_existing_fleet'
+      ? 'Attached Fleet'
+      : fleetMode.replace(/_/g, ' ')
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -61,6 +72,9 @@ export function ControlBar({
         <div className="p2p-badge" title="Fully autonomous peer-to-peer decentralized architecture">
           <Radio size={12} className="pulse-icon" />
           <span>P2P MESH: 10 NODES (ZERO CENTRAL DEPENDENCY)</span>
+        </div>
+        <div className="fleet-mode-badge" title={`Fleet Operational Mode: ${formattedMode}`}>
+          <span>MODE: {formattedMode.toUpperCase()}</span>
         </div>
       </div>
 
@@ -122,6 +136,11 @@ export function ControlBar({
               ? new Date(timestamp).toLocaleTimeString([], { hour12: false })
               : '--:--:--'}
           </strong>
+        </div>
+
+        <div className="readout sync-indicator" title="Authoritative tick received via WebSocket">
+          <span className="label">Sync</span>
+          <strong>#{String(lastSyncedTick).padStart(5, '0')}</strong>
         </div>
 
         <div className={`link-status ${socket}`} title="Decentralized UDP Peer Telemetry Stream">

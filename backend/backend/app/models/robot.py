@@ -15,9 +15,16 @@ from typing import List, Optional, Tuple
 class RobotState(str, enum.Enum):
     """SCHEMA.md §4 — Robot States."""
     IDLE = "IDLE"
+    ASSIGNED = "ASSIGNED"
     EN_ROUTE = "EN_ROUTE"
+    EN_ROUTE_PICKUP = "EN_ROUTE_PICKUP"
+    PICKING = "PICKING"
+    EN_ROUTE_DROPOFF = "EN_ROUTE_DROPOFF"
+    DROPPING = "DROPPING"
     CONFLICT_NEGOTIATING = "CONFLICT_NEGOTIATING"
+    AUDITING = "AUDITING"
     CHARGING = "CHARGING"
+    FAILSAFE_HOLD = "FAILSAFE_HOLD"
     EMERGENCY_STOP = "EMERGENCY_STOP"
 
 

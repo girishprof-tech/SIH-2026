@@ -23,7 +23,8 @@ from hypothesis import given, settings, strategies as st
 
 # Setup import paths to point to actual project code
 ROOT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend" / "app" / "services"))
+sys.path.insert(0, str(ROOT_DIR / "archive" / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
 sys.path.insert(0, str(ROOT_DIR / "testing"))
 
@@ -172,7 +173,7 @@ def run_real_simulation_scenario(
     tasks: Dict[str, Task] = {}
     reservation_table: Dict[Tuple[int, int, int], str] = {}
 
-    HOLD = 30
+    HOLD = 100
 
     # 1. Instantiate real Task and Robot data structures
     for spec in scenario["robots"]:
@@ -253,9 +254,16 @@ def run_real_simulation_scenario(
                 for dt in range(HOLD):
                     reservation_table[(robot.position[0], robot.position[1], tick + dt)] = robot.robot_id
 
-        # B. Retry route planning for any EN_ROUTE robot waiting or needing a path
+        # B. Retry route planning for any EN_ROUTE robot waiting or needing a path in priority order
         for robot in robots.values():
-            if robot.state == RobotState.EN_ROUTE and (not robot.path or len(robot.path) <= 1 or robot.wait_ticks_so_far > 0):
+            if robot.state in (RobotState.EN_ROUTE, RobotState.CONFLICT_NEGOTIATING):
+                task = tasks.get(robot.current_task_id)
+                dist = robot.distance_to_goal() if hasattr(robot, "distance_to_goal") else 0
+                robot.priority_score = calculate_priority_score(robot, task, dist)
+
+        for robot in sorted(robots.values(), key=lambda r: (-r.priority_score, r.robot_id)):
+            if robot.state in (RobotState.EN_ROUTE, RobotState.CONFLICT_NEGOTIATING) and (not robot.path or len(robot.path) <= 1):
+                robot.state = RobotState.EN_ROUTE
                 task = tasks[robot.current_task_id]
                 target = task.pickup if task.status == "ASSIGNED" else task.dropoff
                 release_reservations(robot.robot_id, reservation_table)
@@ -264,8 +272,24 @@ def run_real_simulation_scenario(
                     robot.path = re_path
                     reserve_path(re_path, robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
                 else:
-                    robot.path = [{"x": robot.position[0], "y": robot.position[1], "t": tick}]
-                    reserve_path(robot.path, robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
+                    # Direct path hemmed in: step aside into adjacent free nook (matching robot_node.py)
+                    rx, ry = robot.position
+                    candidate_nooks = [(rx, ry - 1), (rx, ry + 1), (rx + 1, ry), (rx - 1, ry)]
+                    other_positions = {r.position for rid, r in robots.items() if rid != robot.robot_id}
+                    nook_path = None
+                    for cand in candidate_nooks:
+                        if 0 <= cand[0] < grid.width and 0 <= cand[1] < grid.height:
+                            if grid.is_free(cand) and cand not in other_positions:
+                                n_path = find_path(robot.position, cand, tick, reservation_table, robot_id=robot.robot_id, grid=grid)
+                                if n_path and len(n_path) > 1:
+                                    nook_path = n_path
+                                    break
+                    if nook_path:
+                        robot.path = nook_path
+                        reserve_path(nook_path, robot.robot_id, reservation_table, hold_ticks_at_goal=HOLD)
+                    else:
+                        robot.path = [{"x": robot.position[0], "y": robot.position[1], "t": tick}]
+                        reserve_path(robot.path, robot.robot_id, reservation_table, hold_ticks_at_goal=2)
 
         # C. Run Conflict Engine (Member 3)
         conflict_res = run_conflict_engine_tick(
@@ -292,17 +316,22 @@ def run_real_simulation_scenario(
                 next_step = robot.path[1]
                 next_pos = (next_step["x"], next_step["y"])
 
-                # Update heading
-                dx = next_pos[0] - robot.position[0]
-                dy = next_pos[1] - robot.position[1]
-                if dx > 0: robot.heading = Heading.EAST
-                elif dx < 0: robot.heading = Heading.WEST
-                elif dy > 0: robot.heading = Heading.SOUTH
-                elif dy < 0: robot.heading = Heading.NORTH
+                if next_pos != robot.position:
+                    # Update heading
+                    dx = next_pos[0] - robot.position[0]
+                    dy = next_pos[1] - robot.position[1]
+                    if dx > 0: robot.heading = Heading.EAST
+                    elif dx < 0: robot.heading = Heading.WEST
+                    elif dy > 0: robot.heading = Heading.SOUTH
+                    elif dy < 0: robot.heading = Heading.NORTH
 
-                robot.position = next_pos
-                robot.path = robot.path[1:]
-                robot.wait_ticks_so_far = 0
+                    robot.position = next_pos
+                    robot.path = robot.path[1:]
+                    robot.wait_ticks_so_far = 0
+                else:
+                    # Robot stayed in place (holding/yielding)
+                    robot.path = robot.path[1:]
+                    robot.wait_ticks_so_far += 1
             else:
                 robot.wait_ticks_so_far += 1
 

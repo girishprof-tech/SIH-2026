@@ -1,6 +1,16 @@
 # SIH-2026
 Project for Smart India Hackathon 2026: Decentralized Edge-AI Multi-Robot Warehouse Coordination.
 
+> **System Design & Architecture Documentation:**
+> - [01. Architecture Overview (C4 Diagrams & Decentralization Boundary)](docs/system-design/01-architecture-overview.md)
+> - [02. Job Lifecycle Sequence Diagram](docs/system-design/02-sequence-job-lifecycle.md)
+> - [03. Conflict Resolution & Swap-Collision Fix (Before vs. After)](docs/system-design/03-sequence-conflict-resolution.md)
+> - [04. Telemetry Data Flow & Push-vs-Poll Architecture](docs/system-design/04-data-flow.md)
+> - [05. Architecture Decision Records (ADR Log)](docs/system-design/05-adr-log.md)
+> - [Engineering Verification & Regression Reports (FIXES_APPLIED.md)](FIXES_APPLIED.md)
+
+---
+
 ## Warehouse Demo Model
 
 The live demo uses a heterogeneous fleet of three AMR classes:

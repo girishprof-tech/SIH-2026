@@ -32,7 +32,7 @@ from app.api import chaos, robots, simulation, tasks, websocket
 from app.api.chaos_and_world import router as world_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
-from app.models.robot import Heading, Robot
+from app.models.robot import AMRType, Heading, Robot, RobotState
 from app.services.conflict_manager import ConflictManager
 from app.services.fleet_orchestrator import FleetOrchestrator
 from app.services.fleet_state import FleetState
@@ -103,20 +103,44 @@ def process_telemetry_frame(
         except Exception:
             h_enum = Heading.NORTH
 
+        st_str = r_dict.get("state", "IDLE")
+        if isinstance(st_str, str) and "." in st_str:
+            st_str = st_str.split(".")[-1]
+        try:
+            st_enum = RobotState(st_str)
+        except Exception:
+            st_enum = RobotState.IDLE
+
+        rt_str = r_dict.get("robot_type", "GOODS_TO_PERSON")
+        try:
+            rt_enum = AMRType(rt_str)
+        except Exception:
+            rt_enum = AMRType.GOODS_TO_PERSON
+
         if rid not in fleet_state.robots:
             fleet_state.robots[rid] = Robot(
                 robot_id=rid,
-                position=pos,
+                x=pos[0],
+                y=pos[1],
                 heading=h_enum,
+                state=st_enum,
                 battery_pct=r_dict.get("battery", 100.0),
+                current_task_id=r_dict.get("current_task_id"),
+                priority_score=r_dict.get("priority_score", 0),
+                last_updated_tick=tick,
+                robot_type=rt_enum,
             )
         else:
             rob = fleet_state.robots[rid]
             rob.position = pos
             rob.heading = h_enum
+            rob.state = st_enum
+            rob.robot_type = rt_enum
             rob.battery_pct = r_dict.get("battery", rob.battery_pct)
             rob.priority_score = r_dict.get("priority_score", rob.priority_score)
             rob.wait_ticks_so_far = r_dict.get("wait_ticks_so_far", rob.wait_ticks_so_far)
+            rob.current_task_id = r_dict.get("current_task_id", rob.current_task_id)
+            rob.last_updated_tick = tick
 
     if planner_latencies:
         avg_planner = sum(planner_latencies) / len(planner_latencies)
@@ -183,13 +207,25 @@ async def lifespan(app: FastAPI):
     spawn_enabled = os.environ.get("SPAWN_FLEET_ORCHESTRATOR", "1") == "1"
 
     if fleet_already_running:
-        log.info("Autonomous AMR Fleet detected on UDP port 9001. Acting as pure Telemetry Viewer.")
+        fleet_mode = "attached_to_existing_fleet"
+        log.info(
+            "[FLEET STARTUP] Mode: ATTACHED TO EXISTING FLEET (UDP port 9001 bound by existing process). "
+            "Operating as pure Telemetry Viewer."
+        )
     elif spawn_enabled:
-        log.info("Spawning autonomous decentralized robot processes for AMR fleet...")
+        fleet_mode = "spawned_new_fleet"
+        log.info(
+            "[FLEET STARTUP] Mode: SPAWNED NEW FLEET (Spawning %d autonomous AMR OS processes on ports 9001+)...",
+            cfg.FLEET_SIZE,
+        )
         orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0, max_ticks=0)
         orchestrator.start()
     else:
-        log.info("SPAWN_FLEET_ORCHESTRATOR=0: Operating as pure Telemetry Viewer.")
+        fleet_mode = "no_fleet_detected_robots_not_running"
+        log.warning(
+            "[FLEET STARTUP] Mode: NO FLEET DETECTED (UDP port 9001 free and SPAWN_FLEET_ORCHESTRATOR=0). "
+            "Robots are NOT running."
+        )
 
     # ── Store in app.state for route handlers ─────────────────────────────────
     app.state.fleet_state = fleet_state
@@ -201,6 +237,7 @@ async def lifespan(app: FastAPI):
     app.state.engine = engine
     app.state.orchestrator = orchestrator
     app.state.telemetry_streaming_paused = False
+    app.state.fleet_mode = fleet_mode
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
@@ -239,7 +276,37 @@ async def lifespan(app: FastAPI):
                         proc_ms = (time.perf_counter() - t_start) * 1000.0
                         process_telemetry_frame(data, fleet_state, telemetry, loop_duration_ms=proc_ms)
 
-                        # Forward TICK_UPDATE payload to WebSocket clients
+                        # Synchronize task state, active obstacles, metrics, and fleet status onto the TICK_UPDATE frame
+                        data["tasks"] = [
+                            {
+                                "task_id": t.task_id,
+                                "pickup": {"x": t.pickup_x, "y": t.pickup_y},
+                                "dropoff": {"x": t.dropoff_x, "y": t.dropoff_y},
+                                "urgency": t.urgency,
+                                "status": t.status.value,
+                                "assigned_robot_id": t.assigned_robot_id,
+                                "created_tick": t.created_tick,
+                            }
+                            for t in task_manager.all_tasks().values()
+                        ]
+                        data["temporary_obstacles"] = [
+                            {
+                                "obstacle_id": obs.obstacle_id,
+                                "position": {"x": obs.x, "y": obs.y},
+                                "created_tick": obs.created_tick,
+                                "expires_at_tick": obs.expires_at_tick,
+                            }
+                            for obs in fleet_state.temp_obstacles.values()
+                            if obs.is_active(fleet_state.tick)
+                        ]
+                        data["metrics"] = telemetry.snapshot()
+                        data["fleet_status"] = {
+                            "running": fleet_state.is_running,
+                            "mode": getattr(app.state, "fleet_mode", "spawned_new_fleet"),
+                            "tick": fleet_state.tick,
+                        }
+
+                        # Forward synchronized TICK_UPDATE payload to WebSocket clients
                         if clients > 0:
                             await connection_manager.broadcast_json(data)
             except Exception as e:
@@ -335,30 +402,30 @@ app.include_router(world_router)
 @app.get("/health", tags=["Health"])
 async def health() -> dict:
     fleet = app.state.fleet_state
+    fleet_mode = getattr(app.state, "fleet_mode", "unknown")
+    orchestrator = getattr(app.state, "orchestrator", None)
+    is_paused = orchestrator.is_paused() if orchestrator else False
+    mode_descriptions = {
+        "spawned_new_fleet": "Spawned new fleet (autonomous AMR processes active)",
+        "attached_to_existing_fleet": "Attached to existing fleet (UDP telemetry stream active)",
+        "no_fleet_detected_robots_not_running": "No fleet detected, robots not running",
+    }
     return {
         "status": "ok",
         "tick": fleet.tick,
         "running": fleet.is_running,
+        "is_paused": is_paused,
         "robots": len(fleet.robots),
+        "fleet_mode": fleet_mode,
+        "fleet_mode_description": mode_descriptions.get(fleet_mode, fleet_mode),
     }
 
 
-# ── Frontend Visualizer & Asset Integration ───────────────────────────────────
-from fastapi.responses import FileResponse
-from pathlib import Path
-
-_ROOT_DIR = Path(__file__).resolve().parents[3]
-_HTML_FILE = _ROOT_DIR / "unified_warehouse_simulator.html"
-_JS_DATA_FILE = _ROOT_DIR / "scenarios_data.js"
-_JSON_DATA_FILE = _ROOT_DIR / "scenarios_data.json"
-
-
+# ── Frontend Visualizer & Health Landing Page ───────────────────────────────────
 @app.get("/", include_in_schema=False)
 @app.get("/simulator", include_in_schema=False)
 async def serve_simulator() -> Response:
-    """Serve the primary fleet visualizer frontend directly from backend."""
-    if _HTML_FILE.is_file():
-        return FileResponse(_HTML_FILE, media_type="text/html")
+    """Serve the primary fleet visualizer status landing page directly from backend."""
     index_file = Path(__file__).resolve().parent / "index.html"
     if index_file.is_file():
         return FileResponse(index_file, media_type="text/html")
@@ -390,7 +457,7 @@ async def serve_simulator() -> Response:
                 <ul>
                     <li>📄 <strong>Interactive API Docs:</strong> <a href="/docs">/docs</a></li>
                     <li>🩺 <strong>System Health:</strong> <a href="/health">/health</a></li>
-                    <li>📡 <strong>Live Telemetry Stream:</strong> <code>ws://localhost:8000/ws/telemetry</code></li>
+                    <li>📡 <strong>Live Telemetry Stream:</strong> <code>ws://localhost:8000/ws/fleet</code></li>
                 </ul>
             </div>
         </body>
@@ -398,17 +465,4 @@ async def serve_simulator() -> Response:
         """
     )
 
-
-@app.get("/scenarios_data.js", include_in_schema=False)
-async def serve_scenarios_js() -> FileResponse:
-    """Serve the pre-computed scenario definitions."""
-    if _JS_DATA_FILE.is_file():
-        return FileResponse(_JS_DATA_FILE, media_type="application/javascript")
-    return FileResponse(_ROOT_DIR / "scenarios_data.js", media_type="application/javascript")
-
-
-@app.get("/scenarios_data.json", include_in_schema=False)
-async def serve_scenarios_json() -> FileResponse:
-    """Serve the scenario JSON export."""
-    return FileResponse(_JSON_DATA_FILE, media_type="application/json")
 

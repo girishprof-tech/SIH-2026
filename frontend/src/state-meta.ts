@@ -1,9 +1,9 @@
 import type { RobotState, RobotType } from './types'
 
 export const ROBOT_TYPE_COLORS: Record<RobotType, string> = {
-  GOODS_TO_PERSON: '#ea580c',
-  SORTING: '#d97706',
-  SCANNING_AUDIT: '#71717a',
+  GOODS_TO_PERSON: '#0284c7',
+  SORTING: '#f59e0b',
+  SCANNING_AUDIT: '#818cf8',
 }
 
 export const ROBOT_TYPE_LABELS: Record<RobotType, string> = {

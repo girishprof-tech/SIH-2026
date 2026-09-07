@@ -1,4 +1,4 @@
-import type { JobRequest, JobResponse, Metrics, Robot, SimulationStatus, Task, TempObstacle, World } from './types'
+import type { HealthStatus, JobRequest, JobResponse, Metrics, Robot, SimulationStatus, Task, TempObstacle, World } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
@@ -17,6 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => request<HealthStatus>('/health'),
   world: () => request<World>('/api/world'),
   robots: () => request<Robot[]>('/api/robots/'),
   tasks: () => request<Task[]>('/api/task/all'),

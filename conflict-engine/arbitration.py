@@ -166,11 +166,41 @@ def resolve_conflict(
         new_path = find_path_fn(start_pos, goal_pos, current_tick, reservation_table)
 
     if not new_path:
-        # Loser cannot advance immediately: hold position for current and next tick
-        new_path = [
-            {"x": start_pos[0], "y": start_pos[1], "t": current_tick},
-            {"x": start_pos[0], "y": start_pos[1], "t": current_tick + 1},
+        # Direct path to ultimate goal is currently blocked (e.g. winner occupies corridor/goal cell).
+        # To yield effectively and let oncoming winner pass, check adjacent evasion cells (nooks):
+        candidate_evasions = [
+            (start_pos[0] + 1, start_pos[1]),
+            (start_pos[0] - 1, start_pos[1]),
+            (start_pos[0], start_pos[1] + 1),
+            (start_pos[0], start_pos[1] - 1),
         ]
+        w_cur = _extract_pos(winner)
+        evade_path = None
+        for cand in candidate_evasions:
+            if cand == w_cur:
+                continue
+            if reservation_table.get((cand[0], cand[1], current_tick + 1)) is not None:
+                continue
+            try:
+                sig = inspect.signature(find_path_fn)
+                if "robot_id" in sig.parameters:
+                    p = find_path_fn(start_pos, cand, current_tick, reservation_table, robot_id=loser.robot_id)
+                else:
+                    p = find_path_fn(start_pos, cand, current_tick, reservation_table)
+            except Exception:
+                p = find_path_fn(start_pos, cand, current_tick, reservation_table)
+            if p and len(p) > 1:
+                evade_path = p
+                break
+
+        if evade_path:
+            new_path = evade_path
+        else:
+            # Loser cannot advance or evade immediately: hold position for current and next tick
+            new_path = [
+                {"x": start_pos[0], "y": start_pos[1], "t": current_tick},
+                {"x": start_pos[0], "y": start_pos[1], "t": current_tick + 1},
+            ]
     elif len(new_path) == 1 and new_path[0]["t"] == current_tick:
         new_path.append({"x": new_path[0]["x"], "y": new_path[0]["y"], "t": current_tick + 1})
 
