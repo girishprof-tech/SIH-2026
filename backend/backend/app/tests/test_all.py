@@ -141,7 +141,7 @@ class TestWorld:
 
     def test_default_world_has_multi_cell_docks_and_perimeter_chargers(self):
         w = build_default_world()
-        assert 4 <= len(w.charging_stations) <= 6
+        assert 4 <= len(w.charging_stations) <= 8
         assert len(w.pickup_stations) > 1
         assert len(w.dropoff_stations) > 1
         assert w.zone_for(1, 10) == "IMPORT_DOCK"

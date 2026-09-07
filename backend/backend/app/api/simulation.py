@@ -31,6 +31,9 @@ async def start_simulation(request: Request) -> dict:
     fleet = request.app.state.fleet_state
     request.app.state.telemetry_streaming_paused = False
     fleet.is_running = True
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None:
+        orchestrator.resume()
     log.info(
         "SIMULATION_START: Decentralized fleet telemetry streaming active. "
         "Authoritative SimulationEngine tick loop remains disabled."
@@ -43,7 +46,10 @@ async def pause_simulation(request: Request) -> dict:
     fleet = request.app.state.fleet_state
     request.app.state.telemetry_streaming_paused = True
     fleet.is_running = False
-    log.info("SIMULATION_PAUSED: Telemetry streaming to dashboard paused.")
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None:
+        orchestrator.pause()
+    log.info("SIMULATION_PAUSED: Telemetry streaming and robot processes paused.")
     return {"status": "paused", "tick": fleet.tick, "mode": "decentralized_telemetry"}
 
 
@@ -52,7 +58,20 @@ async def reset_simulation(request: Request) -> dict:
     fleet = request.app.state.fleet_state
     fleet.reset()
     request.app.state.telemetry_streaming_paused = False
-    log.info("SIMULATION_RESET: Telemetry viewer state reset.")
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None:
+        orchestrator.reset_logs()
+    else:
+        # Direct reset of logs folder
+        from pathlib import Path
+        log_dir = Path(__file__).resolve().parents[4] / "logs"
+        for log_file in log_dir.glob("robot_*.log"):
+            try:
+                with open(log_file, "w", encoding="utf-8") as f:
+                    pass
+            except Exception:
+                pass
+    log.info("SIMULATION_RESET: Telemetry viewer state and robot logs reset.")
     return {"status": "reset", "tick": 0, "mode": "decentralized_telemetry"}
 
 
@@ -86,7 +105,7 @@ async def generate_fuzz_scenario(payload: FuzzScenarioRequest = FuzzScenarioRequ
     sys.path.insert(0, str(root_dir / "conflict-engine"))
     sys.path.insert(0, str(root_dir / "testing"))
 
-    from full_integration_test import get_static_shelves
+    from app.models.world import build_default_world
     from grid import WarehouseGrid
     from pathfinder import find_path
     from models import Robot, Task, RobotState, Heading
@@ -99,7 +118,7 @@ async def generate_fuzz_scenario(payload: FuzzScenarioRequest = FuzzScenarioRequ
     max_ticks = max(20, min(payload.max_ticks, 60))
 
     rng = random.Random(seed)
-    obstacles = get_static_shelves()
+    obstacles = sorted(list(build_default_world().static_obstacles))
     grid = WarehouseGrid(obstacles=obstacles, width=30, height=30)
     free_cells = [(x, y) for x in range(30) for y in range(30) if grid.is_free((x, y))]
     rng.shuffle(free_cells)

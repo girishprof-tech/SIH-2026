@@ -209,19 +209,39 @@ async def lifespan(app: FastAPI):
     async def _telemetry_forwarder():
         """Reads updates from the independent robot processes and broadcasts them."""
         last_tick = -1
+        disconnect_time: Optional[float] = None
+        auto_pause = os.environ.get("AUTO_PAUSE_ON_DISCONNECT", "1") == "1"
+
         while True:
             try:
-                if not getattr(app.state, "telemetry_streaming_paused", False):
+                clients = len(connection_manager._connections)
+                telemetry.connected_clients = clients
+
+                # Auto-pause simulation processes when no browser tabs are open
+                if auto_pause and orchestrator is not None:
+                    if clients == 0:
+                        if disconnect_time is None:
+                            disconnect_time = time.time()
+                        elif time.time() - disconnect_time > 3.0 and not orchestrator.is_paused():
+                            log.info("Zero active dashboard clients for 3s. Auto-pausing fleet processes...")
+                            orchestrator.pause()
+                    else:
+                        disconnect_time = None
+                        if orchestrator.is_paused() and not getattr(app.state, "telemetry_streaming_paused", False):
+                            log.info("Dashboard client connected. Auto-resuming fleet processes...")
+                            orchestrator.resume()
+
+                if not getattr(app.state, "telemetry_streaming_paused", False) and not (orchestrator and orchestrator.is_paused()):
                     t_start = time.perf_counter()
                     data = read_latest_telemetry()
                     if data and data.get("tick", -1) != last_tick:
                         last_tick = data["tick"]
                         proc_ms = (time.perf_counter() - t_start) * 1000.0
                         process_telemetry_frame(data, fleet_state, telemetry, loop_duration_ms=proc_ms)
-                        telemetry.connected_clients = len(connection_manager._connections)
 
                         # Forward TICK_UPDATE payload to WebSocket clients
-                        await connection_manager.broadcast_json(data)
+                        if clients > 0:
+                            await connection_manager.broadcast_json(data)
             except Exception as e:
                 log.debug("Telemetry forwarder error: %s", e)
             await asyncio.sleep(0.04)

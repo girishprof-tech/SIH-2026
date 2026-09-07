@@ -20,13 +20,18 @@ export function launchBackendPlugin(): Plugin {
 
   function resolvePython(): string {
     const isWin = process.platform === 'win32'
-    const venvPython = isWin
+    const rootVenv = isWin
+      ? path.resolve(__dirname, '../venv/Scripts/python.exe')
+      : path.resolve(__dirname, '../venv/bin/python')
+    if (existsSync(rootVenv)) return rootVenv
+
+    const backendVenv = isWin
       ? path.resolve(__dirname, '../backend/venv/Scripts/python.exe')
       : path.resolve(__dirname, '../backend/venv/bin/python')
+    if (existsSync(backendVenv)) return backendVenv
 
-    if (existsSync(venvPython)) return venvPython
     console.warn(
-      '[launch-backend] No venv found at backend/venv — falling back to system Python. ' +
+      '[launch-backend] No venv found at venv or backend/venv — falling back to system Python. ' +
         'Run the one-time backend setup in README.md if this fails.',
     )
     return isWin ? 'python' : 'python3'
@@ -37,7 +42,15 @@ export function launchBackendPlugin(): Plugin {
     shuttingDown = true
     console.log('\n[launch-backend] Shutting down backend + robot fleet...')
     if (process.platform === 'win32') {
-      backendProcess.kill()
+      if (backendProcess.pid) {
+        try {
+          spawn('taskkill', ['/pid', backendProcess.pid.toString(), '/T', '/F'], { stdio: 'ignore' })
+        } catch {
+          backendProcess.kill()
+        }
+      } else {
+        backendProcess.kill()
+      }
     } else {
       // uvicorn --reload spawns a child reloader process; killing the
       // whole process group (negative pid) ensures both die together.
@@ -67,7 +80,7 @@ export function launchBackendPlugin(): Plugin {
 
       backendProcess = spawn(
         pythonBin,
-        ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8000'],
+        ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'],
         {
           cwd: backendDir,
           stdio: 'inherit',

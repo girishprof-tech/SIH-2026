@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Battery, Bot, X } from 'lucide-react'
 import { api } from './api'
 import { useFleetSocket } from './hooks/useFleetSocket'
@@ -8,6 +8,7 @@ import { FleetSidebar } from './components/FleetSidebar'
 import { TaskPanel } from './components/TaskPanel'
 import { ObstaclePanel } from './components/ObstaclePanel'
 import { MetricsPanel } from './components/MetricsPanel'
+import { LoadingScreen } from './components/LoadingScreen'
 import { STATE_LABELS } from './state-meta'
 import type { Metrics, Point, Robot, SimulationStatus, Task, TempObstacle, TickUpdate, World } from './types'
 
@@ -21,6 +22,7 @@ const emptyWorld: World = {
 }
 
 export default function App() {
+  const [loading, setLoading] = useState(true)
   const [world, setWorld] = useState(emptyWorld)
   const [robots, setRobots] = useState<Robot[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -42,6 +44,7 @@ export default function App() {
   const [chaos, setChaos] = useState(false)
   const [loss, setLoss] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [showMeshLinks, setShowMeshLinks] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -78,19 +81,29 @@ export default function App() {
     )
   })
 
-  const run = async <T,>(action: () => Promise<T>, success?: string) => {
+  const run = async <T,>(action: () => Promise<T>, success?: string): Promise<T> => {
     setBusy(true)
     try {
-      await action()
+      const result = await action()
       if (success) setToast(success)
+      return result
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Request failed')
+      throw error
     } finally {
       setBusy(false)
     }
   }
 
+  const handleLoadingComplete = useCallback(() => {
+    setLoading(false)
+  }, [])
+
   useEffect(() => {
+    const minLoadTimer = window.setTimeout(() => {
+      setLoading(false)
+    }, 5200)
+
     void Promise.all([
       api.world().then(setWorld),
       api.robots().then(setRobots),
@@ -115,7 +128,10 @@ export default function App() {
         .catch(() => undefined)
     }, 1500)
 
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearTimeout(minLoadTimer)
+      window.clearInterval(timer)
+    }
   }, [])
 
   useEffect(() => {
@@ -172,6 +188,10 @@ export default function App() {
     }
   }
 
+  if (loading) {
+    return <LoadingScreen theme={theme} durationMs={5000} onComplete={handleLoadingComplete} />
+  }
+
   return (
     <div className="app-shell" data-theme={theme}>
       <ControlBar
@@ -183,6 +203,8 @@ export default function App() {
         chaos={chaos}
         loss={loss}
         busy={busy}
+        showMeshLinks={showMeshLinks}
+        onToggleMeshLinks={() => setShowMeshLinks((prev) => !prev)}
         theme={theme}
         onToggleTheme={toggleTheme}
         onAction={(action) =>
@@ -206,10 +228,12 @@ export default function App() {
           <GridCanvas
             world={world}
             robots={robots}
+            tasks={tasks}
             conflicts={conflicts}
             obstacles={obstacles}
             tick={status.tick}
             selected={selected}
+            showMeshLinks={showMeshLinks}
             theme={theme}
             onRobot={setSelected ? (robot) => setSelected(robot.robot_id) : () => undefined}
             onCell={selectCell}
@@ -227,6 +251,9 @@ export default function App() {
             <span>
               <i className="legend-dot charge" /> Charging
             </span>
+            <span>
+              <i className="legend-dot mesh" /> P2P Mesh Links
+            </span>
             <span className="map-hint">Click robot to inspect, click cell to target, scroll to zoom</span>
           </div>
           <MetricsPanel metrics={metrics} history={history} robots={robots} theme={theme} />
@@ -243,8 +270,11 @@ export default function App() {
           <TaskPanel
             tasks={tasks}
             busy={busy}
-            onInject={(body) =>
-              run(() => api.injectTask(body), 'Mission queued').then(() => api.tasks().then(setTasks))
+            onJob={(body) =>
+              run(() => api.submitJob(body), 'Mission queued').then((res) => {
+                void api.tasks().then(setTasks)
+                return res
+              })
             }
           />
           <ObstaclePanel

@@ -31,7 +31,17 @@ export function launchBackendPlugin() {
         shuttingDown = true;
         console.log('\n[launch-backend] Shutting down backend + robot fleet...');
         if (process.platform === 'win32') {
-            backendProcess.kill();
+            if (backendProcess.pid) {
+                try {
+                    spawn('taskkill', ['/pid', backendProcess.pid.toString(), '/T', '/F'], { stdio: 'ignore' });
+                }
+                catch (_a) {
+                    backendProcess.kill();
+                }
+            }
+            else {
+                backendProcess.kill();
+            }
         }
         else {
             // uvicorn --reload spawns a child reloader process; killing the
@@ -39,7 +49,7 @@ export function launchBackendPlugin() {
             try {
                 process.kill(-backendProcess.pid, 'SIGTERM');
             }
-            catch (_a) {
+            catch (_b) {
                 backendProcess.kill('SIGTERM');
             }
         }
@@ -58,7 +68,7 @@ export function launchBackendPlugin() {
             }
             var pythonBin = resolvePython();
             console.log("[launch-backend] Starting FastAPI backend + robot fleet (".concat(pythonBin, ")..."));
-            backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8000'], {
+            backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'], {
                 cwd: backendDir,
                 stdio: 'inherit',
                 env: process.env,

@@ -1,7 +1,7 @@
 import { PackageCheck, Send } from 'lucide-react'
 import { useState } from 'react'
-import { api, ApiError } from '../api'
-import type { JobRequest, JobResponse, JobType, Point, Task } from '../types'
+import { ApiError } from '../api'
+import type { JobRequest, JobResponse, JobType, Task } from '../types'
 
 const jobOptions: Array<{ value: JobType; label: string; type: string }> = [
   { value: 'fetch_item', label: 'Fetch item', type: 'Goods to person' },
@@ -15,9 +15,8 @@ export function TaskPanel({
   busy,
 }: {
   tasks: Task[]
-  onJob?: (body: JobRequest) => Promise<JobResponse>
+  onJob: (body: JobRequest) => Promise<JobResponse>
   busy: boolean
-  onInject?: (body: { pickup: Point; dropoff: Point; urgency: number }) => void
 }) {
   const [jobType, setJobType] = useState<JobType>('fetch_item')
   const [itemId, setItemId] = useState('')
@@ -32,7 +31,7 @@ export function TaskPanel({
     if (jobType !== 'audit_checkpoint' && zone.trim()) body.zone = zone.trim()
     try {
       setError(null)
-      const result = await (onJob ?? api.submitJob)(body)
+      const result = await onJob(body)
       setJobs((previous) => [result, ...previous].slice(0, 8))
     } catch (reason) {
       setError(

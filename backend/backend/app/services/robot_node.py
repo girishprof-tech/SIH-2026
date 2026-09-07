@@ -80,6 +80,7 @@ class PeerSnapshot:
     wait_ticks_so_far: int
     path: List[Dict[str, Any]]
     last_seen_tick: int
+    charger_target: Optional[Tuple[int, int]] = None
 
 
 class RobotNode:
@@ -188,8 +189,9 @@ class RobotNode:
         # 9. Degraded Network Detector
         self.degraded_detector = DegradedModeDetector(threshold_missing_ticks=3)
 
-        # 10. Task Realism Load Step Counter
+        # 10. Task Realism Load Step Counter & Calibrated Battery Counter
         self.load_move_steps = 0
+        self.battery_move_steps = 0
 
         # Perceived peer states
         self.peers: Dict[str, PeerSnapshot] = {}
@@ -318,35 +320,38 @@ class RobotNode:
 
         # Check battery threshold & charging
         if self.fsm.state == RobotState.CHARGING:
-            self.robot.battery_pct = min(100.0, self.robot.battery_pct + 5.0)
+            self.robot.battery_pct = min(100.0, self.robot.battery_pct + 4.0)
             if self.robot.battery_pct >= 95.0:
                 self.fsm.transition(RobotEvent.CHARGE_COMPLETE)
                 self.robot.state = self.fsm.state
                 self.charger_target = None
+                self.goal_pos = None
+                self.robot.path = []
                 self.log(f"[Tick {tick}] Charging complete ({self.robot.battery_pct:.1f}%). Returning to IDLE.")
             return self._build_telemetry_frame(tick, "CHARGING", None)
 
-        if self.robot.battery_pct <= cfg.BATTERY_LOW_THRESHOLD and self.fsm.state != RobotState.CHARGING:
+        if self.robot.battery_pct <= 25.0 and self.fsm.state != RobotState.CHARGING:
             if self.charger_target is None:
                 self.charger_target = self._nearest_available_charger()
+                if self.charger_target is not None:
+                    self.goal_pos = self.charger_target
+                    self.fsm.state = RobotState.EN_ROUTE_PICKUP
+                    self.robot.state = self.fsm.state
+                    charging_path = self._timed_find_path(
+                        start=self.robot.position,
+                        goal=self.charger_target,
+                        current_tick=tick,
+                        reservation_table=self.local_reservations,
+                        robot_id=self.robot.robot_id,
+                        grid=self.grid,
+                    )
+                    if charging_path and len(charging_path) > 1:
+                        self.robot.path = charging_path
+                        reserve_path(charging_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                    self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
             if self.charger_target is None:
                 self.log(f"[Tick {tick}] All charging stations occupied; holding at {self.robot.position}.")
                 return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
-            self.goal_pos = self.charger_target
-            self.fsm.state = RobotState.EN_ROUTE_PICKUP
-            self.robot.state = self.fsm.state
-            charging_path = self._timed_find_path(
-                start=self.robot.position,
-                goal=self.charger_target,
-                current_tick=tick,
-                reservation_table=self.local_reservations,
-                robot_id=self.robot.robot_id,
-                grid=self.grid,
-            )
-            if charging_path and len(charging_path) > 1:
-                self.robot.path = charging_path
-                reserve_path(charging_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-            self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
 
         # Check idle background audit patrol trigger
         if self.enable_idle_audit and self.fsm.state == RobotState.IDLE and not self.task:
@@ -500,6 +505,7 @@ class RobotNode:
             "state": self.fsm.state.value,
             "wait_ticks": self.robot.wait_ticks_so_far,
             "path": list(self.robot.path[:8]),
+            "charger_target": list(self.charger_target) if self.charger_target else None,
         }
         envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
         for peer_id in self.peer_ports.keys():
@@ -656,7 +662,7 @@ class RobotNode:
             if action_taken not in ("YIELDED / BRAKED", "LOAD_WEIGHT_PAUSE", "DEGRADED_SPEED_PAUSE"):
                 self.robot.wait_ticks_so_far += 1
                 action_taken = "WAITING"
-                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
+                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.0)
         else:
             self.consecutive_wait_ticks = 0
             self.load_move_steps += 1
@@ -669,10 +675,11 @@ class RobotNode:
 
             if prev_heading != self.robot.heading and prev_pos == intended_pos:
                 action_taken = "TURNED"
-                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.5)
+                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
             else:
                 action_taken = "MOVED"
-                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 1.0)
+                self.battery_move_steps += 1
+                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.2)
 
             self.robot.position = intended_pos
             self.robot.path = self.robot.path[1:]
@@ -714,6 +721,7 @@ class RobotNode:
         elif self.charger_target and self.robot.position == self.charger_target:
             self.fsm.state = RobotState.CHARGING
             self.robot.state = self.fsm.state
+            self.robot.path = []
             self.log(f"[Tick {tick}] Arrived at charger {self.charger_target}; charging.")
         elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
             if self.robot.position == self.active_audit_mission.checkpoint:
@@ -761,6 +769,15 @@ class RobotNode:
         } | {
             peer.intended_pos for peer in self.peers.values()
             if peer.intended_pos in self.charging_stations
+        } | {
+            (p["x"], p["y"])
+            for peer in self.peers.values()
+            for p in (peer.path or [])
+            if (p["x"], p["y"]) in self.charging_stations
+        } | {
+            peer.charger_target
+            for peer in self.peers.values()
+            if getattr(peer, "charger_target", None) is not None
         }
         candidates = [station for station in self.charging_stations if station not in occupied]
         if not candidates:
@@ -835,6 +852,9 @@ class RobotNode:
                 msg_tick = int(actual_msg["tick"])
                 self.degraded_detector.record_peer_tick(sender_id, msg_tick)
 
+                c_target = actual_msg.get("charger_target")
+                charger_target_tuple = (int(c_target[0]), int(c_target[1])) if c_target else None
+
                 snap = PeerSnapshot(
                     robot_id=sender_id,
                     position=(int(p_pos[0]), int(p_pos[1])),
@@ -845,6 +865,7 @@ class RobotNode:
                     wait_ticks_so_far=int(actual_msg["wait_ticks"]),
                     path=actual_msg["path"],
                     last_seen_tick=msg_tick,
+                    charger_target=charger_target_tuple,
                 )
                 self.peers[sender_id] = snap
 
@@ -898,6 +919,7 @@ def run_robot_process(
     charging_stations: Optional[Set[Tuple[int, int]]] = None,
     robot_type: str = "GOODS_TO_PERSON",
     enable_idle_audit: bool = True,
+    pause_event: Optional[mp.Event] = None,
 ) -> None:
     """
     Process target function for an autonomous robot.
@@ -923,6 +945,9 @@ def run_robot_process(
     tick = 0
     try:
         while not stop_event.is_set() and (max_ticks <= 0 or tick < max_ticks):
+            if pause_event is not None and pause_event.is_set():
+                time.sleep(0.2)
+                continue
             t0 = time.time()
             node.step(tick)
             tick += 1

@@ -2,14 +2,14 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Wifi,
-  WifiOff,
   Radio,
+  Share2,
   AlertTriangle,
   Sparkles,
   Sun,
   Moon,
   Layers,
+  Network,
 } from 'lucide-react'
 import type { SocketStatus } from '../hooks/useFleetSocket'
 
@@ -22,6 +22,8 @@ type Props = {
   chaos: boolean
   loss: number
   busy: boolean
+  showMeshLinks: boolean
+  onToggleMeshLinks: () => void
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   onAction: (action: 'start' | 'pause' | 'reset') => void
@@ -38,6 +40,8 @@ export function ControlBar({
   chaos,
   loss,
   busy,
+  showMeshLinks,
+  onToggleMeshLinks,
   theme,
   onToggleTheme,
   onAction,
@@ -45,7 +49,7 @@ export function ControlBar({
   onDemo,
 }: Props) {
   const connectionLabel =
-    socket === 'connected' ? 'Connected' : socket === 'reconnecting' ? 'Reconnecting' : 'Offline'
+    socket === 'connected' ? 'P2P Mesh Active' : socket === 'reconnecting' ? 'Reconnecting' : 'Offline'
 
   return (
     <header className="topbar">
@@ -54,6 +58,10 @@ export function ControlBar({
           <Layers size={18} strokeWidth={2.2} />
         </div>
         <span className="brand-name">Kinetix</span>
+        <div className="p2p-badge" title="Fully autonomous peer-to-peer decentralized architecture">
+          <Radio size={12} className="pulse-icon" />
+          <span>P2P MESH: 10 NODES (ZERO CENTRAL DEPENDENCY)</span>
+        </div>
       </div>
 
       <div className="top-controls">
@@ -92,6 +100,16 @@ export function ControlBar({
           </button>
         </div>
 
+        <button
+          className={`control-button mesh-toggle ${showMeshLinks ? 'active' : ''}`}
+          onClick={onToggleMeshLinks}
+          title="Toggle real-time autonomous peer-to-peer RF mesh topology and data packets"
+          aria-label="Toggle P2P Mesh Links"
+        >
+          <Share2 size={13} />
+          <span>P2P Mesh</span>
+        </button>
+
         <div className="readout">
           <span className="label">Tick</span>
           <strong>{String(tick).padStart(5, '0')}</strong>
@@ -106,9 +124,9 @@ export function ControlBar({
           </strong>
         </div>
 
-        <div className={`link-status ${socket}`}>
+        <div className={`link-status ${socket}`} title="Decentralized UDP Peer Telemetry Stream">
           <span className="status-dot" />
-          {socket === 'connected' ? <Wifi size={14} /> : <WifiOff size={14} />}
+          <Network size={14} />
           <span>{connectionLabel}</span>
         </div>
 

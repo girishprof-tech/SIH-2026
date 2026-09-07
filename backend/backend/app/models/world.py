@@ -63,52 +63,61 @@ class WorldConfig:
             return "IMPORT_DOCK"
         if (x, y) in self.dropoff_stations:
             return "EXPORT_DOCK"
+        if (x, y) in self.charging_stations:
+            return "CHARGING_BAY"
 
-        # Goods-to-Person traffic clusters around the defined shelving rows.
-        if 7 <= x <= 22 and 8 <= y <= 22:
+        # Storage racking zone
+        if 4 <= x <= 25 and 6 <= y <= 22:
             return "GOODS_TO_PERSON_ZONE"
 
-        # Sorting traffic clusters near the docks and perimeter staging lanes.
-        if x <= 5 or x >= 24 or y <= 4 or y >= 24:
+        # Sorting traffic clusters near the perimeter staging lanes
+        if (x <= 5 or x >= 24) and (y <= 4 or y >= 24):
             return "SORTING_ZONE"
+
+        # High-speed transit corridors
+        if x <= 3 or x >= 26 or y <= 4 or y >= 24:
+            return "TRANSIT_HIGHWAY"
 
         return "GENERAL"
 
 
 def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
     """
-    Build a more realistic warehouse layout with:
-      - multi-cell inbound import dock near the west side,
-      - multi-cell outbound export dock near the east side,
-      - perimeter charging stations distributed for short-range charging, and
-      - central shelving rows for Goods-to-Person AMRs.
+    Build a realistic automated fulfillment warehouse layout with:
+      - 4 modular storage pod banks (double-deep racks) separated by wide pick aisles,
+      - 2 vertical cross-highways (x=10, x=19) eliminating bottlenecks,
+      - 8 dedicated perimeter charging alcoves (top and bottom),
+      - multi-cell inbound receiving docks (West) and outbound shipping docks (East).
     """
-    static_obstacles: Set[Tuple[int, int]] = {
-        (5, 5), (5, 6), (5, 7),
-    }
-    # Generate a more interesting warehouse with shelving rows.
-    for shelf_y in range(10, 22, 2):
-        for shelf_x in range(7, 23):
-            static_obstacles.add((shelf_x, shelf_y))
+    static_obstacles: Set[Tuple[int, int]] = set()
 
-    # Distributed perimeter chargers keep robots near the outer lanes instead of forcing
-    # long cross-grid travel to reach a single charger.
+    # 4 Modular Storage Pod Banks (double-deep racks)
+    # Bank 1: y=6, 7 | Bank 2: y=11, 12 | Bank 3: y=16, 17 | Bank 4: y=21, 22
+    for rack_y in (6, 7, 11, 12, 16, 17, 21, 22):
+        for rack_x in range(4, 26):
+            # Two main vertical cross-highways at x=10 and x=19
+            if rack_x not in (10, 19):
+                static_obstacles.add((rack_x, rack_y))
+
+    # 8 Distributed Perimeter Charging Stations (4 North alcoves, 4 South alcoves)
     charging_stations = frozenset({
-        (1, 1), (1, 28),
-        (14, 1), (14, 28),
-        (27, 1), (27, 27),
+        (5, 1), (10, 1), (19, 1), (24, 1),
+        (5, 28), (10, 28), (19, 28), (24, 28),
     })
 
-    # Multi-cell dock queues: import dock on the west side; export dock on the east side.
+    # Inbound Receiving Docks along West Arterial
     import_dock = frozenset({
-        (0, 10), (1, 10), (2, 10),
-        (0, 11), (1, 11), (2, 11),
-        (0, 12), (1, 12), (2, 12),
+        (1, 9), (1, 10),
+        (1, 14), (1, 15),
+        (1, 19), (1, 20),
     })
+
+    # Outbound Shipping Docks along East Arterial
     export_dock = frozenset({
-        (27, 17), (28, 17), (29, 17),
-        (27, 18), (28, 18), (29, 18),
-        (27, 19), (28, 19), (29, 19),
+        (28, 9), (28, 10),
+        (28, 14), (28, 15),
+        (28, 16), (28, 17),
+        (28, 19), (28, 20),
     })
 
     return WorldConfig(

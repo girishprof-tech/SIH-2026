@@ -5,71 +5,71 @@
 @tailwind utilities;
 
 /* ==========================================================================
-   Design Tokens & Themes
+   Design Tokens & Themes (Warm Orange & Graphite Robotics System)
    ========================================================================== */
 :root {
-  /* Surface & Background (Light Mode) */
-  --bg-app: #f8fafc;
+  /* Surface & Background (Light Mode - Neutral Steel Grey Canvas) */
+  --bg-app: #f9fafb;
   --bg-surface: #ffffff;
-  --bg-surface-subtle: #f1f5f9;
+  --bg-surface-subtle: #f4f4f5;
   --bg-surface-elevated: #ffffff;
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border-subtle: #e4e4e7;
+  --border-strong: #d4d4d8;
 
   /* Typography */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
 
-  /* Warm Orange Accent Family (Flat fills only) */
-  --accent-primary: #c2410c;       /* Deep burnt orange for primary actions */
+  /* Warm Orange Accent Family (Flat Fills Only) */
+  --accent-primary: #c2410c;       /* Deep burnt orange for primary controls */
   --accent-hover: #9a3412;         /* Darker burnt orange for hover */
   --accent-active: #7c2d12;        /* Darkest active state */
-  --accent-secondary: #ea580c;     /* Mid orange for secondary emphasis */
-  --accent-subtle: #fff7ed;        /* Pale orange tint for subtle highlights / active rows */
+  --accent-secondary: #ea580c;     /* Mid orange for secondary accents */
+  --accent-subtle: #fff7ed;        /* Pale orange tint for highlights */
   --accent-border: #fed7aa;        /* Soft orange border */
-  --accent-text: #c2410c;          /* High-contrast orange text */
-  --accent-contrast: #ffffff;      /* Contrast text on primary accent */
+  --accent-text: #c2410c;          /* High contrast orange text */
+  --accent-contrast: #ffffff;      /* Contrast text on orange */
 
   /* Neutral Controls */
-  --control-bg: #f8fafc;
-  --control-bg-hover: #f1f5f9;
-  --control-border: #cbd5e1;
-  --control-border-hover: #94a3b8;
-  --control-text: #334155;
+  --control-bg: #f4f4f5;
+  --control-bg-hover: #e4e4e7;
+  --control-border: #d4d4d8;
+  --control-border-hover: #a1a1aa;
+  --control-text: #27272a;
 
-  /* State Tokens (Light Mode - Flat, high contrast) */
-  --state-idle-color: #059669;
+  /* State Tokens (Light Mode - High Contrast, Orange-Forward) */
+  --state-idle-color: #10b981;
   --state-idle-bg: #ecfdf5;
   --state-idle-border: #a7f3d0;
 
-  --state-assigned-color: #2563eb;
-  --state-assigned-bg: #eff6ff;
-  --state-assigned-border: #bfdbfe;
+  --state-assigned-color: #ca8a04;
+  --state-assigned-bg: #fefce8;
+  --state-assigned-border: #fef08a;
 
-  --state-route-color: #0284c7;
-  --state-route-bg: #f0f9ff;
-  --state-route-border: #bae6fd;
+  --state-route-color: #ea580c;
+  --state-route-bg: #fff7ed;
+  --state-route-border: #fed7aa;
 
-  --state-picking-color: #0d9488;
-  --state-picking-bg: #f0fdfa;
-  --state-picking-border: #99f6e4;
+  --state-picking-color: #c2410c;
+  --state-picking-bg: #ffedd5;
+  --state-picking-border: #fdba74;
 
   --state-dropping-color: #d97706;
   --state-dropping-bg: #fffbeb;
   --state-dropping-border: #fde68a;
 
-  --state-conflict-color: #c2410c;
+  --state-conflict-color: #ea580c;
   --state-conflict-bg: #fff7ed;
-  --state-conflict-border: #fed7aa;
+  --state-conflict-border: #fdba74;
 
-  --state-audit-color: #6366f1;
-  --state-audit-bg: #eef2ff;
-  --state-audit-border: #c7d2fe;
+  --state-audit-color: #71717a;
+  --state-audit-bg: #f4f4f5;
+  --state-audit-border: #d4d4d8;
 
-  --state-charge-color: #7c3aed;
-  --state-charge-bg: #f5f3ff;
-  --state-charge-border: #ddd6fe;
+  --state-charge-color: #0d9488;
+  --state-charge-bg: #f0fdfa;
+  --state-charge-border: #99f6e4;
 
   --state-failsafe-color: #b45309;
   --state-failsafe-bg: #fef3c7;
@@ -80,8 +80,8 @@
   --state-estop-border: #fca5a5;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-overlay: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --shadow-card: 0 1px 3px rgba(24, 24, 27, 0.05);
+  --shadow-overlay: 0 10px 25px -5px rgba(24, 24, 27, 0.12);
 
   /* Font Families */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -90,68 +90,68 @@
 
 [data-theme="dark"],
 .dark {
-  /* Surface & Background (Dark Mode - Neutral Charcoal/Graphite) */
-  --bg-app: #0b0f17;
-  --bg-surface: #131924;
-  --bg-surface-subtle: #1a2232;
-  --bg-surface-elevated: #1e283b;
-  --border-subtle: #222e42;
-  --border-strong: #334155;
+  /* Surface & Background (Dark Mode - Pure Neutral Graphite, Zero Blue) */
+  --bg-app: #111318;
+  --bg-surface: #181b22;
+  --bg-surface-subtle: #20242e;
+  --bg-surface-elevated: #262b36;
+  --border-subtle: #2d3340;
+  --border-strong: #3c4354;
 
   /* Typography */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f9fafb;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
 
   /* Warm Orange Accent Family (Dark Mode - Vibrant & Flat) */
   --accent-primary: #f97316;
   --accent-hover: #ea580c;
   --accent-active: #c2410c;
   --accent-secondary: #fb923c;
-  --accent-subtle: #43140740;
+  --accent-subtle: #43140733;
   --accent-border: #9a3412;
   --accent-text: #fb923c;
   --accent-contrast: #ffffff;
 
   /* Neutral Controls */
-  --control-bg: #1a2232;
-  --control-bg-hover: #222e42;
-  --control-border: #2e3d55;
-  --control-border-hover: #475569;
-  --control-text: #cbd5e1;
+  --control-bg: #20242e;
+  --control-bg-hover: #262b36;
+  --control-border: #333a4a;
+  --control-border-hover: #4b5563;
+  --control-text: #e4e4e7;
 
-  /* State Tokens (Dark Mode - Flat, high contrast) */
+  /* State Tokens (Dark Mode - High Contrast, Orange-Forward) */
   --state-idle-color: #34d399;
   --state-idle-bg: #064e3b33;
   --state-idle-border: #065f46;
 
-  --state-assigned-color: #60a5fa;
-  --state-assigned-bg: #1e3a8a33;
-  --state-assigned-border: #1e40af;
+  --state-assigned-color: #facc15;
+  --state-assigned-bg: #713f1233;
+  --state-assigned-border: #854d0e;
 
-  --state-route-color: #38bdf8;
-  --state-route-bg: #0c4a6e33;
-  --state-route-border: #0369a1;
+  --state-route-color: #fb923c;
+  --state-route-bg: #7c2d1233;
+  --state-route-border: #9a3412;
 
-  --state-picking-color: #2dd4bf;
-  --state-picking-bg: #134e4a33;
-  --state-picking-border: #0f766e;
+  --state-picking-color: #f97316;
+  --state-picking-bg: #7c2d1240;
+  --state-picking-border: #c2410c;
 
   --state-dropping-color: #fbbf24;
   --state-dropping-bg: #78350f33;
   --state-dropping-border: #92400e;
 
-  --state-conflict-color: #fb923c;
+  --state-conflict-color: #f97316;
   --state-conflict-bg: #7c2d1233;
-  --state-conflict-border: #9a3412;
+  --state-conflict-border: #ea580c;
 
-  --state-audit-color: #a5b4fc;
-  --state-audit-bg: #312e8133;
-  --state-audit-border: #3730a3;
+  --state-audit-color: #a1a1aa;
+  --state-audit-bg: #27272a40;
+  --state-audit-border: #52525b;
 
-  --state-charge-color: #c084fc;
-  --state-charge-bg: #4c1d9533;
-  --state-charge-border: #5b21b6;
+  --state-charge-color: #2dd4bf;
+  --state-charge-bg: #134e4a33;
+  --state-charge-border: #0f766e;
 
   --state-failsafe-color: #f59e0b;
   --state-failsafe-bg: #78350f40;
@@ -162,12 +162,12 @@
   --state-estop-border: #b91c1c;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 12px 30px rgba(0, 0, 0, 0.55);
 }
 
 /* ==========================================================================
-   Base Layout & Typography
+   Base Elements
    ========================================================================== */
 * {
   box-sizing: border-box;
@@ -197,6 +197,255 @@ select {
   display: flex;
   flex-direction: column;
   background-color: var(--bg-app);
+}
+
+/* ==========================================================================
+   Robotic Loading Screen
+   ========================================================================== */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-app);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.loading-screen.fading-out {
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+  padding: 32px 24px;
+}
+
+.loading-radar-frame {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background-color: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: var(--shadow-overlay);
+}
+
+.loading-grid-lines {
+  position: absolute;
+  inset: 0;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 50%;
+  margin: 14px;
+}
+
+.loading-radar-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border-right: 2px solid var(--accent-primary);
+  animation: radar-spin 2s linear infinite;
+}
+
+@keyframes radar-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-bot-icon {
+  position: relative;
+  z-index: 2;
+  color: var(--accent-primary);
+}
+
+.loading-ping-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent-primary);
+  opacity: 0;
+  animation: ping-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.loading-ping-ring.ring-2 {
+  animation-delay: 1s;
+}
+
+@keyframes ping-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+.loading-text-group {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.loading-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.loading-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--bg-surface-subtle);
+  color: var(--accent-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.loading-code-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--bg-surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.loading-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.loading-stage-title {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.loading-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+
+.loading-meter-group {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 24px;
+}
+
+.loading-bar-track {
+  width: 100%;
+  height: 5px;
+  background-color: var(--bg-surface-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+.loading-bar-fill {
+  height: 100%;
+  background-color: var(--accent-primary);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.loading-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.loading-status-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.loading-pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+.loading-telemetry-hud {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.hud-metric {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.hud-metric svg {
+  color: var(--accent-primary);
+}
+
+.loading-skip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.loading-skip-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background-color: var(--bg-surface-subtle);
 }
 
 /* ==========================================================================
@@ -243,6 +492,55 @@ select {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
+}
+
+.p2p-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-left: 12px;
+  border-radius: 9999px;
+  background-color: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  color: #14b8a6;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.p2p-badge .pulse-icon {
+  color: #2dd4bf;
+  animation: p2p-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes p2p-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+.mesh-toggle {
+  gap: 6px;
+}
+
+.mesh-toggle.active {
+  background-color: rgba(20, 184, 166, 0.16);
+  border-color: rgba(20, 184, 166, 0.45);
+  color: #14b8a6;
+}
+
+.mesh-toggle.active:hover {
+  background-color: rgba(20, 184, 166, 0.25);
+  border-color: #14b8a6;
 }
 
 .top-controls {
@@ -322,7 +620,7 @@ select {
   justify-content: center;
 }
 
-/* Numeric Readouts (JetBrains Mono tabular font) */
+/* Tabular Readouts */
 .readout {
   border-left: 1px solid var(--border-subtle);
   padding-left: 14px;
@@ -415,7 +713,6 @@ select {
   color: var(--accent-text);
 }
 
-/* Switches / Toggles */
 .toggle {
   width: 34px;
   height: 20px;
@@ -449,7 +746,7 @@ select {
 }
 
 /* ==========================================================================
-   Dashboard Grid Layout
+   Dashboard Workspace Grid
    ========================================================================== */
 .dashboard {
   max-width: 1720px;
@@ -520,7 +817,7 @@ select {
 }
 
 /* ==========================================================================
-   Grid Canvas Container & Map
+   Warehouse Twin Grid Shell
    ========================================================================== */
 .grid-shell {
   position: relative;
@@ -613,6 +910,11 @@ select {
   background-color: var(--state-charge-color);
 }
 
+.map-footer .legend-dot.mesh {
+  background-color: #14b8a6;
+  box-shadow: 0 0 6px rgba(20, 184, 166, 0.7);
+}
+
 .map-hint {
   margin-left: auto;
   color: var(--text-muted);
@@ -620,7 +922,7 @@ select {
 }
 
 /* ==========================================================================
-   Fleet Sidebar & Robot Registry
+   Fleet Registry Sidebar
    ========================================================================== */
 .fleet-panel {
   min-height: 400px;
@@ -754,7 +1056,7 @@ select {
 }
 
 /* ==========================================================================
-   Operational State System (11 States, Legible Badges & Dots)
+   State System (11 Distinct Operational Badges)
    ========================================================================== */
 .state-light {
   width: 8px;
@@ -775,7 +1077,6 @@ select {
   border: 1px solid transparent;
 }
 
-/* 1. Idle */
 .state-light.idle { background-color: var(--state-idle-color); }
 .state-badge.idle {
   background-color: var(--state-idle-bg);
@@ -783,7 +1084,6 @@ select {
   border-color: var(--state-idle-border);
 }
 
-/* 2. Assigned */
 .state-light.assigned { background-color: var(--state-assigned-color); }
 .state-badge.assigned {
   background-color: var(--state-assigned-bg);
@@ -791,7 +1091,6 @@ select {
   border-color: var(--state-assigned-border);
 }
 
-/* 3. En Route Pickup */
 .state-light.en_route_pickup,
 .state-light.en_route { background-color: var(--state-route-color); }
 .state-badge.en_route_pickup,
@@ -801,7 +1100,6 @@ select {
   border-color: var(--state-route-border);
 }
 
-/* 4. Picking */
 .state-light.picking { background-color: var(--state-picking-color); }
 .state-badge.picking {
   background-color: var(--state-picking-bg);
@@ -809,15 +1107,13 @@ select {
   border-color: var(--state-picking-border);
 }
 
-/* 5. En Route Dropoff */
-.state-light.en_route_dropoff { background-color: var(--state-assigned-color); }
+.state-light.en_route_dropoff { background-color: var(--state-picking-color); }
 .state-badge.en_route_dropoff {
-  background-color: var(--state-assigned-bg);
-  color: var(--state-assigned-color);
-  border-color: var(--state-assigned-border);
+  background-color: var(--state-picking-bg);
+  color: var(--state-picking-color);
+  border-color: var(--state-picking-border);
 }
 
-/* 6. Dropping */
 .state-light.dropping { background-color: var(--state-dropping-color); }
 .state-badge.dropping {
   background-color: var(--state-dropping-bg);
@@ -825,7 +1121,6 @@ select {
   border-color: var(--state-dropping-border);
 }
 
-/* 7. Conflict Negotiating */
 .state-light.conflict_negotiating { background-color: var(--state-conflict-color); }
 .state-badge.conflict_negotiating {
   background-color: var(--state-conflict-bg);
@@ -833,7 +1128,6 @@ select {
   border-color: var(--state-conflict-border);
 }
 
-/* 8. Auditing */
 .state-light.auditing { background-color: var(--state-audit-color); }
 .state-badge.auditing {
   background-color: var(--state-audit-bg);
@@ -841,7 +1135,6 @@ select {
   border-color: var(--state-audit-border);
 }
 
-/* 9. Charging */
 .state-light.charging { background-color: var(--state-charge-color); }
 .state-badge.charging {
   background-color: var(--state-charge-bg);
@@ -849,7 +1142,6 @@ select {
   border-color: var(--state-charge-border);
 }
 
-/* 10. Failsafe Hold (Operational caution) */
 .state-light.failsafe_hold { background-color: var(--state-failsafe-color); }
 .state-badge.failsafe_hold {
   background-color: var(--state-failsafe-bg);
@@ -858,7 +1150,6 @@ select {
   font-weight: 600;
 }
 
-/* 11. Emergency Stop (Critical Immediate Halt - Distinct Heavy Treatment) */
 .state-light.emergency_stop { background-color: var(--state-estop-color); }
 .state-badge.emergency_stop {
   background-color: var(--state-estop-bg);

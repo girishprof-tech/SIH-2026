@@ -25,7 +25,6 @@ sys.path.insert(0, str(ROOT_DIR / "testing"))
 from app.services.robot_node import run_robot_process
 from app.services.telemetry_bus import TelemetryBus
 from app.models.world import build_default_world
-from full_integration_test import get_static_shelves
 
 log = logging.getLogger(__name__)
 
@@ -43,18 +42,29 @@ class FleetOrchestrator:
         max_ticks: int = 150,
         log_dir: Optional[Path] = None,
     ) -> None:
-        self.obstacles = obstacles if obstacles is not None else get_static_shelves()
-        self.charging_stations = set(build_default_world().charging_stations)
+        default_world = build_default_world()
+        self.obstacles = obstacles if obstacles is not None else sorted(list(default_world.static_obstacles))
+        self.charging_stations = set(default_world.charging_stations)
         self.tick_interval_s = tick_interval_s
         self.max_ticks = max_ticks
         self.log_dir = log_dir or (ROOT_DIR / "logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         if robots_config is None:
-            # Match the backend fleet size. Robots remain idle until a REST job
-            # is dispatched, so demo trajectories cannot steal job capacity.
-            starts = [(1, 28), (3, 28), (5, 28), (7, 28), (9, 28),
-                      (11, 28), (13, 28), (15, 28), (17, 28), (19, 28)]
+            # Distributed starting positions across West inbound docks, East outbound docks,
+            # and North/South transit highway staging lanes with immediate highway egress.
+            starts = [
+                (2, 9),   # AMR-01: Inbound Staging Bay 1 (West)
+                (2, 14),  # AMR-02: Inbound Staging Bay 2 (West)
+                (2, 19),  # AMR-03: Inbound Staging Bay 3 (West)
+                (2, 24),  # AMR-04: West transit highway
+                (27, 9),  # AMR-05: Outbound Staging Bay 1 (East)
+                (27, 14), # AMR-06: Outbound Staging Bay 2 (East)
+                (27, 19), # AMR-07: Outbound Staging Bay 3 (East)
+                (10, 3),  # AMR-08: North Highway 1 (x=10)
+                (19, 3),  # AMR-09: North Highway 2 (x=19)
+                (15, 26), # AMR-10: South transit corridor
+            ]
             robot_types = (["GOODS_TO_PERSON"] * 4
                            + ["SORTING"] * 3
                            + ["SCANNING_AUDIT"] * 3)
@@ -75,6 +85,7 @@ class FleetOrchestrator:
 
         self.telemetry_queue: mp.Queue = mp.Queue()
         self.stop_event: mp.Event = mp.Event()
+        self.pause_event: mp.Event = mp.Event()
         # Distinct UDP ports for real decentralized networking (e.g. 9000 + N)
         self.peer_ports: Dict[str, int] = {
             cfg["robot_id"]: 9000 + i for i, cfg in enumerate(self.robots_config, start=1)
@@ -114,6 +125,7 @@ class FleetOrchestrator:
                     self.charging_stations,
                     cfg.get("robot_type", "GOODS_TO_PERSON"),
                     cfg.get("enable_idle_audit", True),
+                    self.pause_event,
                 ),
             )
             p.start()
@@ -121,6 +133,42 @@ class FleetOrchestrator:
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")
 
         print("[FleetOrchestrator] All robot processes successfully running!")
+
+    def pause(self) -> None:
+        """Pauses ticking and logging across all robot processes."""
+        self.pause_event.set()
+
+    def resume(self) -> None:
+        """Resumes ticking and logging across all robot processes."""
+        self.pause_event.clear()
+
+    def is_paused(self) -> bool:
+        """Returns True if the fleet processes are paused."""
+        return self.pause_event.is_set()
+
+    def reset_logs(self) -> None:
+        """Truncates all robot log files and resets telemetry_state.json."""
+        for log_file in self.log_dir.glob("robot_*.log"):
+            try:
+                with open(log_file, "w", encoding="utf-8") as f:
+                    pass
+            except Exception:
+                pass
+        t_file = self.log_dir / "telemetry_state.json"
+        if t_file.exists():
+            try:
+                import json
+                with open(t_file, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "type": "TICK_UPDATE",
+                        "tick": 0,
+                        "timestamp_ms": int(time.time() * 1000),
+                        "robots": [],
+                        "active_conflicts": [],
+                        "temporary_obstacles": [],
+                    }, f)
+            except Exception:
+                pass
 
     def _run_bus(self) -> None:
         """Background thread collecting telemetry frames from robot processes."""
