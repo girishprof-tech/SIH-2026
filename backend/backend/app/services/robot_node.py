@@ -106,10 +106,15 @@ class RobotNode:
         secret_key: str = "sih2026-edge-robot-shared-secret",
         charging_stations: Optional[Set[Tuple[int, int]]] = None,
         robot_type: str = "GOODS_TO_PERSON",
+        enable_idle_audit: bool = True,
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
-        self.goal_pos = goal_pos
+        # A robot with no assigned task starts genuinely idle with no goal set (goal = None)
+        if goal_pos is None or goal_pos == start_pos:
+            self.goal_pos = None
+        else:
+            self.goal_pos = goal_pos
         self.urgency = urgency
         self.battery_pct = battery_pct
         self.obstacles = obstacles or []
@@ -122,6 +127,7 @@ class RobotNode:
         self.charging_stations = charging_stations or set(build_default_world().charging_stations)
         self.charger_target: Optional[Tuple[int, int]] = None
         self.robot_type = robot_type
+        self.enable_idle_audit = enable_idle_audit
 
         # 1. Logging
         if log_dir is None:
@@ -189,7 +195,7 @@ class RobotNode:
         self.peers: Dict[str, PeerSnapshot] = {}
 
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
-        if self.goal_pos is not None and self.goal_pos != self.start_pos:
+        if self.goal_pos is not None:
             self._assign_initial_task(self.goal_pos, self.urgency)
 
     def _timed_find_path(self, *args, **kwargs) -> List[Dict[str, Any]]:
@@ -343,7 +349,7 @@ class RobotNode:
             self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
 
         # Check idle background audit patrol trigger
-        if self.fsm.state == RobotState.IDLE and not self.task:
+        if self.enable_idle_audit and self.fsm.state == RobotState.IDLE and not self.task:
             self.idle_ticks += 1
             if self.idle_ticks >= 10:
                 self.idle_ticks = 0
@@ -719,12 +725,24 @@ class RobotNode:
                 self.robot.path = []
                 action_taken = "COMPLETED"
                 self.log(f"[Tick {tick}] {scan_msg}")
-        elif self.goal_pos and self.robot.position == self.goal_pos:
+        elif (
+            self.goal_pos is not None
+            and self.task is not None
+            and self.robot.position == self.goal_pos
+            and self.fsm.state in (RobotState.EN_ROUTE_DROPOFF, RobotState.DROPPING)
+        ):
+            if self.fsm.state == RobotState.EN_ROUTE_DROPOFF:
+                self.fsm.transition(RobotEvent.DROPOFF_REACHED)
             self.fsm.transition(RobotEvent.MISSION_COMPLETE)
             self.robot.state = self.fsm.state
             self.robot.path = []
+            self.goal_pos = None
+            if self.task:
+                self.completed_task_ids.add(self.task.task_id)
+                self.task.status = "COMPLETED"
+                self.task = None
             action_taken = "COMPLETED"
-            self.log(f"[Tick {tick}] REACHED DESTINATION {self.goal_pos}! Mission COMPLETED.")
+            self.log(f"[Tick {tick}] REACHED DESTINATION {self.robot.position}! Mission COMPLETED.")
 
         prune_past(self.local_reservations, tick)
 
@@ -879,6 +897,7 @@ def run_robot_process(
     max_ticks: int = 100,
     charging_stations: Optional[Set[Tuple[int, int]]] = None,
     robot_type: str = "GOODS_TO_PERSON",
+    enable_idle_audit: bool = True,
 ) -> None:
     """
     Process target function for an autonomous robot.
@@ -898,6 +917,7 @@ def run_robot_process(
         tick_interval_s=tick_interval_s,
         charging_stations=charging_stations,
         robot_type=robot_type,
+        enable_idle_audit=enable_idle_audit,
     )
 
     tick = 0

@@ -62,10 +62,11 @@ class FleetOrchestrator:
                 {
                     "robot_id": f"AMR-{index:02d}",
                     "start": start,
-                    "goal": start,
+                    "goal": None,
                     "urgency": 1,
                     "battery_pct": 100.0,
                     "robot_type": robot_types[index - 1],
+                    "enable_idle_audit": (robot_types[index - 1] == "SCANNING_AUDIT"),
                 }
                 for index, start in enumerate(starts, start=1)
             ]
@@ -112,6 +113,7 @@ class FleetOrchestrator:
                     self.max_ticks,
                     self.charging_stations,
                     cfg.get("robot_type", "GOODS_TO_PERSON"),
+                    cfg.get("enable_idle_audit", True),
                 ),
             )
             p.start()

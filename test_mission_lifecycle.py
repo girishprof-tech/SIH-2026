@@ -11,10 +11,13 @@ from pathlib import Path
 import pytest
 
 ROOT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
+sys.path.insert(0, str(ROOT_DIR / "pathfinding"))
 sys.path.insert(0, str(ROOT_DIR / "conflict-engine"))
+sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 
 from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
+from app.services.robot_node import RobotNode
+from app.transport.loopback_transport import LoopbackNetworkHub, LoopbackTransport
 from models import Task
 
 
@@ -126,3 +129,53 @@ def test_idempotent_duplicate_task_delivery():
     # 3. Duplicate after completion -> rejected
     assert tracker.handle_task_assignment(task_spec) is False
     assert tracker.fsm.state == RobotState.IDLE
+
+
+def test_idle_robot_stays_idle_without_failsafe():
+    """
+    Regression test for infinite failsafe loop bug:
+    Asserts that a robot with no assigned task (both goal_pos=None and goal_pos=start_pos)
+    starts genuinely idle and stays in IDLE for at least 20 ticks with zero FAILSAFE_HOLD
+    transitions and zero MISSION_COMPLETE events logged.
+    """
+    hub = LoopbackNetworkHub()
+    transport1 = LoopbackTransport("AMR-01", hub=hub)
+    transport2 = LoopbackTransport("AMR-02", hub=hub)
+
+    # Case 1: goal_pos explicitly None
+    node1 = RobotNode(
+        robot_id="AMR-01",
+        start_pos=(1, 28),
+        goal_pos=None,
+        transport=transport1,
+        enable_idle_audit=False,
+    )
+    # Case 2: goal_pos passed equal to start_pos (the exact live spawn condition)
+    node2 = RobotNode(
+        robot_id="AMR-02",
+        start_pos=(3, 28),
+        goal_pos=(3, 28),
+        transport=transport2,
+        enable_idle_audit=False,
+    )
+
+    for node in (node1, node2):
+        assert node.fsm.state == RobotState.IDLE
+        assert node.goal_pos is None
+        assert node.task is None
+
+        failsafe_count = 0
+        mission_complete_count = 0
+
+        for tick in range(25):
+            frame = node.step(tick)
+            assert node.fsm.state == RobotState.IDLE, f"Tick {tick}: {node.robot_id} left IDLE -> {node.fsm.state}"
+            if node.fsm.state == RobotState.FAILSAFE_HOLD:
+                failsafe_count += 1
+            if frame.get("action") in ("COMPLETED", "MISSION_COMPLETED"):
+                mission_complete_count += 1
+
+        assert failsafe_count == 0, f"{node.robot_id} had {failsafe_count} FAILSAFE_HOLD transitions!"
+        assert mission_complete_count == 0, f"{node.robot_id} had {mission_complete_count} MISSION_COMPLETE events!"
+        assert node.fsm.state == RobotState.IDLE
+

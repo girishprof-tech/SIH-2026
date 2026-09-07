@@ -74,6 +74,10 @@ venv\Scripts\activate        # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+# NOTE: Pathfinding dependencies (networkx, numpy) must also be installed into
+# the same venv, since robot_node.py imports pathfinding/grid.py in-process via
+# sys.path injection rather than as an external service:
+pip install -r ../pathfinding/requirements.txt
 
 # Configure environment
 copy .env.example .env
