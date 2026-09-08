@@ -55,16 +55,16 @@ class FleetOrchestrator:
             # Distributed starting positions across West inbound docks, East outbound docks,
             # and North/South transit highway staging lanes with immediate highway egress.
             starts = [
-                (2, 9),   # AMR-01: Inbound Staging Bay 1 (West)
-                (2, 14),  # AMR-02: Inbound Staging Bay 2 (West)
-                (2, 19),  # AMR-03: Inbound Staging Bay 3 (West)
-                (2, 24),  # AMR-04: West transit highway
-                (27, 9),  # AMR-05: Outbound Staging Bay 1 (East)
-                (27, 14), # AMR-06: Outbound Staging Bay 2 (East)
-                (27, 19), # AMR-07: Outbound Staging Bay 3 (East)
-                (10, 3),  # AMR-08: North Highway 1 (x=10)
-                (19, 3),  # AMR-09: North Highway 2 (x=19)
-                (15, 26), # AMR-10: South transit corridor
+                (2, 4),   # AMR-01: West highway staging bay 1
+                (2, 9),   # AMR-02: West highway staging bay 2
+                (2, 15),  # AMR-03: West highway staging bay 3
+                (2, 24),  # AMR-04: West highway staging bay 4
+                (27, 4),  # AMR-05: East highway staging bay 1
+                (27, 12), # AMR-06: East highway staging bay 2
+                (27, 18), # AMR-07: East highway staging bay 3
+                (27, 24), # AMR-08: East highway staging bay 4
+                (10, 3),  # AMR-09: North central cross-highway (x=10)
+                (19, 3),  # AMR-10: North central cross-highway (x=19)
             ]
             robot_types = (["GOODS_TO_PERSON"] * 4
                            + ["SORTING"] * 3

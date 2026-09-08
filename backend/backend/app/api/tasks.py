@@ -143,40 +143,48 @@ async def get_task(task_id: str, request: Request) -> TaskOut:
     )
 
 
+_job_dispatch_counter = 0
+
+
 def _resolve_job_points(world, job_type: str, zone: str | None = None):
+    global _job_dispatch_counter
+
     if job_type == "fetch_item":
-        shelf_cells = [
-            (x, y)
-            for x in range(world.width)
-            for y in range(world.height)
-            if 7 <= x <= 22 and 8 <= y <= 22 and (x, y) not in world.static_obstacles
-        ]
-        pickup = shelf_cells[0] if shelf_cells else (11, 12)
-        dropoff = min(world.dropoff_stations, key=lambda p: (p[0], p[1])) if world.dropoff_stations else (27, 17)
+        if _job_dispatch_counter == 0:
+            pickup = (11, 12)
+        else:
+            shelf_cells = [
+                (x, y)
+                for x in range(world.width)
+                for y in range(world.height)
+                if 6 <= x <= 23 and 8 <= y <= 21 and (x, y) not in world.static_obstacles
+            ]
+            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (11, 12)
+        _job_dispatch_counter += 1
+        dropoffs = sorted(list(world.dropoff_stations))
+        dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (28, 9)
         return pickup, dropoff, AMRType.GOODS_TO_PERSON
 
     if job_type == "sort_batch":
-        pickup = min(world.pickup_stations, key=lambda p: (p[0], p[1])) if world.pickup_stations else (1, 10)
+        pickups = sorted(list(world.pickup_stations))
+        pickup = pickups[_job_dispatch_counter % len(pickups)] if pickups else (1, 10)
         sorting_candidates = [
             (x, y)
             for x in range(world.width)
             for y in range(world.height)
             if world.zone_for(x, y) == "SORTING_ZONE" and (x, y) not in world.static_obstacles
         ]
-        dropoff = sorting_candidates[0] if sorting_candidates else (12, 25)
+        dropoff = sorting_candidates[_job_dispatch_counter % len(sorting_candidates)] if sorting_candidates else (12, 25)
         return pickup, dropoff, AMRType.SORTING
 
     if job_type == "audit_checkpoint":
-        checkpoint_candidates = [
-            (x, y)
-            for x in range(world.width)
-            for y in range(world.height)
-            if (x, y) not in world.static_obstacles
-        ]
-        checkpoint = min(checkpoint_candidates, key=lambda p: abs(p[0] - 15) + abs(p[1] - 15)) if checkpoint_candidates else (15, 15)
+        from app.services.audit_mission import DEFAULT_CHECKPOINTS
+        cps = list(DEFAULT_CHECKPOINTS)
+        checkpoint = cps[_job_dispatch_counter % len(cps)]
         return checkpoint, checkpoint, AMRType.SCANNING_AUDIT
 
     raise HTTPException(400, f"Unsupported job_type: {job_type}")
+
 
 
 def _pick_idle_robot_for_type(fleet, robot_type: AMRType, target: tuple[int, int] | None = None):

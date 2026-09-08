@@ -1,7 +1,7 @@
 import type { RobotState, RobotType } from './types'
 
 export const ROBOT_TYPE_COLORS: Record<RobotType, string> = {
-  GOODS_TO_PERSON: '#0284c7',
+  GOODS_TO_PERSON: '#0ea5e9',
   SORTING: '#f59e0b',
   SCANNING_AUDIT: '#818cf8',
 }

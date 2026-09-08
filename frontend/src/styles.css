@@ -22,13 +22,13 @@
   --text-muted: #94a3b8;
 
   /* Accent Family (Precision Cyan & Amber Signals) */
-  --accent-primary: #0284c7;       /* Industrial Cyan Blue */
+  --accent-primary: #0ea5e9;       /* Industrial Cyan */
   --accent-hover: #0369a1;
   --accent-active: #075985;
   --accent-secondary: #38bdf8;
   --accent-subtle: #f0f9ff;
   --accent-border: #bae6fd;
-  --accent-text: #0284c7;
+  --accent-text: #0ea5e9;
   --accent-contrast: #ffffff;
 
   /* Neutral Controls */
@@ -43,7 +43,7 @@
   --state-idle-bg: #ecfdf5;
   --state-idle-border: #a7f3d0;
 
-  --state-assigned-color: #0284c7;
+  --state-assigned-color: #0ea5e9;
   --state-assigned-bg: #f0f9ff;
   --state-assigned-border: #bae6fd;
 
@@ -63,7 +63,7 @@
   --state-conflict-bg: #fff7ed;
   --state-conflict-border: #fdba74;
 
-  --state-audit-color: #6366f1;
+  --state-audit-color: #818cf8;
   --state-audit-bg: #eef2ff;
   --state-audit-border: #c7d2fe;
 
@@ -104,12 +104,12 @@
   --text-muted: #64748b;
 
   /* Accent Family (Electric Cyan & Amber Signal) */
-  --accent-primary: #0284c7;
-  --accent-hover: #0ea5e9;
-  --accent-active: #38bdf8;
+  --accent-primary: #0ea5e9;
+  --accent-hover: #38bdf8;
+  --accent-active: #7dd3fc;
   --accent-secondary: #38bdf8;
   --accent-subtle: rgba(56, 189, 248, 0.12);
-  --accent-border: #0284c7;
+  --accent-border: #0ea5e9;
   --accent-text: #38bdf8;
   --accent-contrast: #ffffff;
 
@@ -129,9 +129,9 @@
   --state-assigned-bg: rgba(56, 189, 248, 0.14);
   --state-assigned-border: rgba(56, 189, 248, 0.40);
 
-  --state-route-color: #0284c7;
-  --state-route-bg: rgba(2, 132, 199, 0.16);
-  --state-route-border: rgba(2, 132, 199, 0.45);
+  --state-route-color: #0ea5e9;
+  --state-route-bg: rgba(14, 165, 233, 0.16);
+  --state-route-border: rgba(14, 165, 233, 0.45);
 
   --state-picking-color: #06b6d4;
   --state-picking-bg: rgba(6, 182, 212, 0.16);
@@ -236,13 +236,13 @@ select {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(2, 132, 199, 0.15) 0%, var(--bg-surface) 75%);
+  background: var(--bg-surface-elevated);
   border: 1.5px solid var(--accent-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 0 30px rgba(2, 132, 199, 0.3);
+  box-shadow: 0 0 24px rgba(14, 165, 233, 0.25);
 }
 
 .loading-grid-lines {

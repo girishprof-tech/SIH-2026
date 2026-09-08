@@ -126,7 +126,10 @@ class RobotNode:
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
         self.secret_key = secret_key
-        self.charging_stations = charging_stations or set(build_default_world().charging_stations)
+        default_world = build_default_world()
+        self.charging_stations = charging_stations or set(default_world.charging_stations)
+        self.dropoff_stations: Set[Tuple[int, int]] = set(default_world.dropoff_stations)
+        self.pickup_stations: Set[Tuple[int, int]] = set(default_world.pickup_stations)
         self.charger_target: Optional[Tuple[int, int]] = None
         self.robot_type = robot_type
         self.enable_idle_audit = enable_idle_audit
@@ -307,6 +310,12 @@ class RobotNode:
         action_taken = "IDLE"
         conflict_resolved = None
 
+        # 0. Active Deterministic Priority Calculation for this Tick
+        dist_to_goal = 0
+        if self.goal_pos:
+            dist_to_goal = abs(self.robot.position[0] - self.goal_pos[0]) + abs(self.robot.position[1] - self.goal_pos[1])
+        self.robot.priority_score = calculate_priority_score(self.robot, self.task, dist_to_goal)
+
         # 1. Check Failsafe Watchdog
         if self.fsm.state == RobotState.FAILSAFE_HOLD:
             self.failsafe_hold_ticks += 1
@@ -318,6 +327,58 @@ class RobotNode:
 
         # 2. Drain incoming transport messages
         self._drain_inbox(tick)
+
+        # 2.5. Dynamic Dock Re-targeting (avoid queuing on occupied docks)
+        if self.goal_pos and self.goal_pos in self.dropoff_stations and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF):
+            peer_occupying_goal = any(
+                p.position == self.goal_pos for p in self.peers.values()
+                if p.robot_id != self.robot.robot_id and p.last_seen_tick >= tick - 3
+            )
+            if peer_occupying_goal:
+                peer_occupied_cells = {p.position for p in self.peers.values()} | {p.intended_pos for p in self.peers.values()}
+                open_docks = [d for d in self.dropoff_stations if d not in peer_occupied_cells]
+                if open_docks:
+                    best_dock = min(open_docks, key=lambda d: abs(d[0] - self.robot.position[0]) + abs(d[1] - self.robot.position[1]))
+                    self.log(f"[Tick {tick}] Assigned dropoff dock {self.goal_pos} occupied; dynamically retargeting to open dock {best_dock}.")
+                    self.goal_pos = best_dock
+                    if self.task:
+                        self.task.dropoff = best_dock
+                    self.robot.path = []
+
+        # 2.6. Idle Dock Clearance & Proactive Evasion for Working AMRs
+        if self.fsm.state == RobotState.IDLE and not self.task and not self.charger_target:
+            rx, ry = self.robot.position
+            peer_positions = {p.position for p in self.peers.values()}
+            peer_intents = {p.intended_pos for p in self.peers.values()}
+
+            # If idle robot is sitting inside an active dropoff dock, vacate into highway corridor
+            if (rx, ry) in self.dropoff_stations or (rx, ry) in self.pickup_stations:
+                clear_candidates = [(rx - 1, ry), (rx + 1, ry), (rx, ry - 1), (rx, ry + 1)]
+                for cand in clear_candidates:
+                    if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
+                        if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents and cand not in self.dropoff_stations and cand not in self.pickup_stations:
+                            intended_pos = cand
+                            action_taken = "VACATED_DOCK"
+                            self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": cand[0], "y": cand[1], "t": tick + 1}]
+                            self.log(f"[Tick {tick}] Vacating active dock bay ({rx}, {ry}) -> {cand} to keep transfer zone clear.")
+                            break
+
+            # If an active working robot is targeting our cell or approaching within 1 cell, yield by stepping aside
+            peer_targeting_us = any(
+                p.intended_pos == (rx, ry) or (abs(p.position[0] - rx) + abs(p.position[1] - ry) <= 1 and p.intended_pos == (rx, ry))
+                for p in self.peers.values()
+                if p.robot_id != self.robot.robot_id and p.state != "IDLE"
+            )
+            if peer_targeting_us and intended_pos == self.robot.position:
+                evade_candidates = [(rx, ry - 1), (rx, ry + 1), (rx - 1, ry), (rx + 1, ry)]
+                for cand in evade_candidates:
+                    if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
+                        if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents and cand not in self.dropoff_stations:
+                            intended_pos = cand
+                            action_taken = "EVADED / STEPPED_ASIDE"
+                            self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": cand[0], "y": cand[1], "t": tick + 1}]
+                            self.log(f"[Tick {tick}] Idle node proactively stepping aside from ({rx}, {ry}) to {cand} for oncoming active peer.")
+                            break
 
         # Check battery threshold & charging
         if self.fsm.state == RobotState.CHARGING:
@@ -414,26 +475,26 @@ class RobotNode:
             self.pre_conflict_activity = None
             return self._build_telemetry_frame(tick, "MISSION_COMPLETED", None)
 
-        # 4. Propose Next Position along Path
-        intended_pos = self.robot.position
-        if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.AUDITING, RobotState.CONFLICT_NEGOTIATING):
-            if not self.robot.path or len(self.robot.path) <= 1:
-                # Path exhausted: replan if goal exists
-                if self.goal_pos and self.robot.position != self.goal_pos:
-                    re_p = self._timed_find_path(
-                        start=self.robot.position,
-                        goal=self.goal_pos,
-                        current_tick=tick,
-                        reservation_table=self.local_reservations,
-                        grid=self.grid,
-                    )
-                    if re_p and len(re_p) > 1:
-                        self.robot.path = re_p
-                        intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
-                    else:
-                        intended_pos = self.robot.position
-            elif len(self.robot.path) > 1:
-                intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+        # 4. Propose Next Position along Path (if not already evading / vacating)
+        if intended_pos == self.robot.position:
+            if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.AUDITING, RobotState.CONFLICT_NEGOTIATING):
+                if not self.robot.path or len(self.robot.path) <= 1:
+                    # Path exhausted: replan if goal exists
+                    if self.goal_pos and self.robot.position != self.goal_pos:
+                        re_p = self._timed_find_path(
+                            start=self.robot.position,
+                            goal=self.goal_pos,
+                            current_tick=tick,
+                            reservation_table=self.local_reservations,
+                            grid=self.grid,
+                        )
+                        if re_p and len(re_p) > 1:
+                            self.robot.path = re_p
+                            intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
+                        else:
+                            intended_pos = self.robot.position
+                elif len(self.robot.path) > 1:
+                    intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
 
         # 6. Deadlock / Livelock Breaker (Phase 0 Fix)
         if (
@@ -442,13 +503,13 @@ class RobotNode:
             and self.robot.position != self.goal_pos
             and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.CONFLICT_NEGOTIATING, RobotState.AUDITING)
         ):
-            self.log(f"[Tick {tick}] Deadlock/livelock detected ({self.consecutive_wait_ticks} wait ticks). Seeking alternate route/nook...")
+            self.log(f"[Tick {tick}] Deadlock/livelock detected ({self.consecutive_wait_ticks} wait ticks). Seeking alternate spatial route/nook...")
             for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
                 del self.local_reservations[k]
 
-            # Lock peer positions in local_reservations so find_path navigates around oncoming robot
+            # Lock peer positions for the full 30-tick horizon so Space-Time A* cannot just wait in place
             for p in self.peers.values():
-                for dt in range(self.HOLD):
+                for dt in range(30):
                     self.local_reservations[(p.position[0], p.position[1], tick + dt)] = p.robot_id
                     self.local_reservations[(p.intended_pos[0], p.intended_pos[1], tick + dt)] = p.robot_id
 
@@ -459,38 +520,37 @@ class RobotNode:
                 reservation_table=self.local_reservations,
                 grid=self.grid,
             )
+            peer_curr_positions = {p.position for p in self.peers.values() if p.robot_id != self.robot.robot_id}
+            detour_valid = False
             if alt_path and len(alt_path) > 1:
-                self.robot.path = alt_path
-                reserve_path(alt_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-                intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
-                self.log(f"[Tick {tick}] Alternate route found to goal ({len(alt_path)} steps).")
-            else:
+                next_step = (int(alt_path[1]["x"]), int(alt_path[1]["y"]))
+                if next_step != self.robot.position and next_step not in peer_curr_positions:
+                    self.robot.path = alt_path
+                    reserve_path(alt_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                    intended_pos = next_step
+                    detour_valid = True
+                    self.log(f"[Tick {tick}] Alternate spatial detour found ({len(alt_path)} steps). Moving to {intended_pos}.")
+
+            if not detour_valid:
                 # Direct path hemmed in: step aside into adjacent free nook
                 rx, ry = self.robot.position
                 candidate_nooks = [(rx, ry - 1), (rx, ry + 1), (rx + 1, ry), (rx - 1, ry)]
                 peer_positions = {p.position for p in self.peers.values()}
                 peer_intents = {p.intended_pos for p in self.peers.values()}
-                best_nook_path = None
                 best_nook_cell = None
                 for cand in candidate_nooks:
                     if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
                         if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents:
-                            n_path = self._timed_find_path(
-                                start=self.robot.position,
-                                goal=cand,
-                                current_tick=tick,
-                                reservation_table=self.local_reservations,
-                                grid=self.grid,
-                            )
-                            if n_path and len(n_path) > 1:
-                                best_nook_cell = cand
-                                best_nook_path = n_path
-                                break
-                if best_nook_path:
-                    self.robot.path = best_nook_path
-                    reserve_path(best_nook_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-                    intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
-                    self.log(f"[Tick {tick}] Stepping aside into free nook {best_nook_cell} to let oncoming peer pass.")
+                            best_nook_cell = cand
+                            break
+                if best_nook_cell:
+                    intended_pos = best_nook_cell
+                    self.robot.path = [
+                        {"x": rx, "y": ry, "t": tick},
+                        {"x": best_nook_cell[0], "y": best_nook_cell[1], "t": tick + 1}
+                    ]
+                    action_taken = "EVADED / STEPPED_ASIDE"
+                    self.log(f"[Tick {tick}] Stepping aside into free nook {best_nook_cell} to break deadlock.")
 
         # 7. Broadcast Reservation Claim & Intention via Transport with HMAC
         self.seq += 1
@@ -515,28 +575,28 @@ class RobotNode:
 
         # 8. Drain inbox again for peer responses
         wait_start = time.time()
-        max_peer_wait = max(0.12, self.tick_interval_s * 1.2)
+        max_peer_wait = max(0.08, self.tick_interval_s * 0.8)
         while (time.time() - wait_start) < max_peer_wait:
             self._drain_inbox(tick)
             nearby_stale = any(
                 (abs(self.robot.position[0] - p.position[0]) + abs(self.robot.position[1] - p.position[1]) <= 3)
-                and p.last_seen_tick < tick
+                and p.last_seen_tick < tick - 1
                 for p in self.peers.values()
             )
             if not nearby_stale:
                 break
-            time.sleep(0.003)
+            time.sleep(0.002)
 
-        # Fail-safe check for unconfirmed immediately adjacent peer
+        # Fail-safe check for unconfirmed immediately adjacent peer (packet actually dropped)
         unconfirmed_nearby = any(
             (abs(self.robot.position[0] - p.position[0]) + abs(self.robot.position[1] - p.position[1]) <= 2)
-            and p.last_seen_tick < tick
+            and p.last_seen_tick < tick - 2
             for p in self.peers.values()
         )
         if unconfirmed_nearby and intended_pos != self.robot.position:
             intended_pos = self.robot.position
             action_taken = "WAITING"
-            self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby did not confirm tick {tick} in time.")
+            self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby dropped communication (>2 ticks).")
 
         # 9. Symmetric Conflict Detection & Arbitration
         action_taken = "MOVED"
@@ -554,9 +614,9 @@ class RobotNode:
 
                 is_swap = (intended_pos == (px, py) and (pix, piy) == (rx, ry) and (rx, ry) != (px, py))
                 is_vertex = (intended_pos == (pix, piy) and intended_pos != (rx, ry))
-                is_blocked = (intended_pos == (px, py) and (pix, piy) == (px, py))
+                is_occupying = (intended_pos == (px, py))
 
-                if is_swap or is_vertex or is_blocked:
+                if is_swap or is_vertex or is_occupying:
                     c_type = "SWAP_CONFLICT" if is_swap else ("CELL_OVERLAP" if is_vertex else "STATIONARY_BLOCK")
                     conflict_cell = {"x": intended_pos[0], "y": intended_pos[1]}
 
@@ -579,62 +639,135 @@ class RobotNode:
                     )
 
                     if not i_win:
-                        # THIS ROBOT IS THE LOSER -> YIELD
-                        action_taken = "YIELDED / BRAKED"
+                        # THIS ROBOT IS THE LOSER -> YIELD RIGHT OF WAY
                         self.robot.wait_ticks_so_far += 1
                         self.consecutive_wait_ticks += 1
 
-                        # Store pre-conflict activity for deterministic resume
                         if self.fsm.state != RobotState.CONFLICT_NEGOTIATING:
                             self.pre_conflict_activity = self.fsm.state
                         self.fsm.transition(RobotEvent.CONFLICT_LOST)
                         self.robot.state = self.fsm.state
 
                         self.log(
-                            f"[Tick {tick}] ARBITRATION RESULT: LOST to {peer_snap.robot_id}. Action=YIELD. Yielded right-of-way."
+                            f"[Tick {tick}] ARBITRATION RESULT: LOST to {peer_snap.robot_id}. Action=YIELD. Yielding right-of-way."
                         )
 
                         # Purge stale reservations for self
                         for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
                             del self.local_reservations[k]
 
-                        re_path = self._timed_find_path(
-                            start=self.robot.position,
-                            goal=self.goal_pos or self.robot.position,
-                            current_tick=tick,
-                            reservation_table=self.local_reservations,
-                            grid=self.grid,
-                        )
-                        if re_path and len(re_path) > 1:
-                            self.robot.path = re_path
-                            self.log(f"[Tick {tick}] Replanned alternate detour path ({len(re_path)} steps).")
-                        else:
-                            self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": rx, "y": ry, "t": tick + 1}]
+                        # 1. Lock winner's current cell and path into local_reservations for 30 ticks so A* cannot wait in place
+                        for dt in range(30):
+                            self.local_reservations[(px, py, tick + dt)] = peer_snap.robot_id
+                        for p_step in peer_snap.path:
+                            px_step = int(p_step["x"])
+                            py_step = int(p_step["y"])
+                            for dt in range(30):
+                                self.local_reservations[(px_step, py_step, tick + dt)] = peer_snap.robot_id
 
-                        intended_pos = self.robot.position
+                        # 2. Try to find a real spatial detour around the winner to goal
+                        re_path = None
+                        if self.goal_pos:
+                            re_path = self._timed_find_path(
+                                start=self.robot.position,
+                                goal=self.goal_pos,
+                                current_tick=tick,
+                                reservation_table=self.local_reservations,
+                                grid=self.grid,
+                            )
+
+                        detour_taken = False
+                        if re_path and len(re_path) > 1:
+                            next_detour = (int(re_path[1]["x"]), int(re_path[1]["y"]))
+                            if next_detour != (rx, ry) and next_detour != (px, py) and next_detour != (pix, piy):
+                                self.robot.path = re_path
+                                intended_pos = next_detour
+                                action_taken = "DETOUR_YIELD"
+                                detour_taken = True
+                                self.log(f"[Tick {tick}] Replanned alternate detour path ({len(re_path)} steps). Detouring to {intended_pos}.")
+
+                        # 3. If no direct detour available, step aside into an adjacent free evasion cell (lateral nook or reverse)
+                        if not detour_taken:
+                            dx_rel = px - rx
+                            dy_rel = py - ry
+                            if dx_rel != 0:
+                                candidate_evasions = [(rx, ry - 1), (rx, ry + 1), (rx - dx_rel, ry), (rx + dx_rel, ry)]
+                            else:
+                                candidate_evasions = [(rx - 1, ry), (rx + 1, ry), (rx, ry - dy_rel), (rx, ry + dy_rel)]
+
+                            peer_blocked = {
+                                (px, py), (pix, piy),
+                                *((int(s["x"]), int(s["y"])) for s in peer_snap.path[:5])
+                            }
+                            other_peer_positions = {p.position for p in self.peers.values() if p.robot_id != self.robot.robot_id}
+                            evade_cell = None
+                            for cand in candidate_evasions:
+                                if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
+                                    if self.grid.is_free(cand) and cand not in peer_blocked and cand not in other_peer_positions:
+                                        evade_cell = cand
+                                        break
+
+                            if evade_cell:
+                                intended_pos = evade_cell
+                                self.robot.path = [
+                                    {"x": rx, "y": ry, "t": tick},
+                                    {"x": evade_cell[0], "y": evade_cell[1], "t": tick + 1}
+                                ]
+                                action_taken = "EVADED / STEPPED_ASIDE"
+                                self.log(f"[Tick {tick}] Stepping aside into evasion cell {evade_cell} to let {peer_snap.robot_id} pass.")
+                            else:
+                                intended_pos = self.robot.position
+                                action_taken = "YIELDED / BRAKED"
+                                self.robot.path = [
+                                    {"x": rx, "y": ry, "t": tick},
+                                    {"x": rx, "y": ry, "t": tick + 1}
+                                ]
+                                self.log(f"[Tick {tick}] Bottleneck hemmed in: holding position at {self.robot.position} for 1 tick.")
+
                         conflict_resolved = {
                             "winner_id": winner_id,
                             "loser_id": loser_id,
-                            "action": "YIELD_AND_WAIT",
+                            "action": action_taken,
                             "type": c_type,
                             "cell": conflict_cell,
                         }
                         break
                     else:
-                        # THIS ROBOT IS THE WINNER
+                        # THIS ROBOT IS THE WINNER -> PROCEED
                         self.log(
                             f"[Tick {tick}] ARBITRATION RESULT: WON against {peer_snap.robot_id}. Action=PROCEED."
                         )
-                        # Physical clearance rule: if target cell is currently occupied by peer, hold 1 tick
+                        # If winner's intended target cell is currently physically occupied by loser:
                         if intended_pos == (px, py):
-                            intended_pos = self.robot.position
-                            action_taken = "WAITING"
-                            self.log(f"[Tick {tick}] Pausing 1 tick at {self.robot.position} for yielding peer {peer_snap.robot_id} to clear {px, py}.")
+                            if self.consecutive_wait_ticks < 2:
+                                intended_pos = self.robot.position
+                                action_taken = "WAITING"
+                                self.log(f"[Tick {tick}] Pausing 1 tick at {self.robot.position} for yielding peer {peer_snap.robot_id} to clear {px, py}.")
+                            else:
+                                # Loser hasn't cleared after 2 ticks: winner replans around loser
+                                self.log(f"[Tick {tick}] Peer {peer_snap.robot_id} unable to clear {px, py} after 2 ticks; winner seeking bypass.")
+                                for dt in range(30):
+                                    self.local_reservations[(px, py, tick + dt)] = peer_snap.robot_id
+                                if self.goal_pos:
+                                    w_bypass = self._timed_find_path(
+                                        start=self.robot.position,
+                                        goal=self.goal_pos,
+                                        current_tick=tick,
+                                        reservation_table=self.local_reservations,
+                                        grid=self.grid,
+                                    )
+                                    if w_bypass and len(w_bypass) > 1:
+                                        next_w = (int(w_bypass[1]["x"]), int(w_bypass[1]["y"]))
+                                        if next_w != self.robot.position and next_w != (px, py):
+                                            self.robot.path = w_bypass
+                                            intended_pos = next_w
+                                            action_taken = "DETOUR_WINNER"
+                                            self.log(f"[Tick {tick}] Winner bypassing stationary peer to {next_w}.")
 
                         conflict_resolved = {
                             "winner_id": winner_id,
                             "loser_id": loser_id,
-                            "action": "PROCEED",
+                            "action": action_taken if "DETOUR_WINNER" in action_taken else "PROCEED",
                             "type": c_type,
                             "cell": conflict_cell,
                         }
@@ -656,14 +789,15 @@ class RobotNode:
                 self.log(f"[Tick {tick}] Load weight inertia pause (carrying {p_weight}kg).")
 
         # 12. Commit Movement / Turn / Wait
-        if self.fsm.state == RobotState.IDLE or not self.robot.path:
-            action_taken = "IDLE"
-        elif intended_pos == prev_pos:
-            self.consecutive_wait_ticks += 1
-            if action_taken not in ("YIELDED / BRAKED", "LOAD_WEIGHT_PAUSE", "DEGRADED_SPEED_PAUSE"):
-                self.robot.wait_ticks_so_far += 1
-                action_taken = "WAITING"
-                self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.0)
+        if intended_pos == prev_pos:
+            if self.fsm.state == RobotState.IDLE or not self.robot.path:
+                action_taken = "IDLE"
+            else:
+                self.consecutive_wait_ticks += 1
+                if action_taken not in ("YIELDED / BRAKED", "LOAD_WEIGHT_PAUSE", "DEGRADED_SPEED_PAUSE"):
+                    self.robot.wait_ticks_so_far += 1
+                    action_taken = "WAITING"
+                    self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.0)
         else:
             self.consecutive_wait_ticks = 0
             self.load_move_steps += 1
@@ -678,12 +812,13 @@ class RobotNode:
                 action_taken = "TURNED"
                 self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.1)
             else:
-                action_taken = "MOVED"
+                if action_taken not in ("VACATED_DOCK", "EVADED / STEPPED_ASIDE", "DETOUR_YIELD", "DETOUR_WINNER"):
+                    action_taken = "MOVED"
                 self.battery_move_steps += 1
                 self.robot.battery_pct = max(0.0, self.robot.battery_pct - 0.2)
 
             self.robot.position = intended_pos
-            self.robot.path = self.robot.path[1:]
+            self.robot.path = self.robot.path[1:] if len(self.robot.path) > 1 else []
             self.robot.wait_ticks_so_far = 0
 
             # Deterministic conflict resume if robot was negotiating
