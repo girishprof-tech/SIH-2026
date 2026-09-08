@@ -1,0 +1,28 @@
+{
+  "fleet_size": 10,
+  "total_ticks": 500,
+  "tasks_completed": 80,
+  "collisions": 0,
+  "total_sim_wall_s": 2.83,
+  "cores_assigned": 4,
+  "memory_profile": {
+    "peak_fleet_rss_mb": 135.97,
+    "mean_fleet_rss_mb": 135.43,
+    "estimated_per_amr_rss_mb": 13.6,
+    "ram_budget_target_mb": 250.0,
+    "memory_budget_status": "PASS"
+  },
+  "latency_profile_ms": {
+    "mean_step_lat_ms": 0.539,
+    "p50_step_lat_ms": 0.34,
+    "p95_step_lat_ms": 0.867,
+    "p99_step_lat_ms": 1.888,
+    "max_step_lat_ms": 173.993,
+    "latency_budget_target_ms": 50.0,
+    "latency_budget_status": "PASS"
+  },
+  "cpu_profile": {
+    "mean_cpu_percent": 97.2,
+    "peak_cpu_percent": 134.1
+  }
+}

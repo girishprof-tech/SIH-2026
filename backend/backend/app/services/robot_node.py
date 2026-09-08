@@ -544,8 +544,10 @@ class RobotNode:
                     intended_pos = (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"]))
 
         # 6. Deadlock / Livelock Breaker (Phase 0 Fix)
+        from app.services.policies.stop_and_wait import is_stop_and_wait_enabled, StopAndWaitPolicy
+        deadlock_threshold = 20 if is_stop_and_wait_enabled() else 3
         if (
-            self.consecutive_wait_ticks >= 3
+            self.consecutive_wait_ticks >= deadlock_threshold
             and self.goal_pos
             and self.robot.position != self.goal_pos
             and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF, RobotState.CONFLICT_NEGOTIATING, RobotState.AUDITING)
@@ -723,7 +725,7 @@ class RobotNode:
                         for k in [k for k, v in list(self.local_reservations.items()) if v == self.robot.robot_id]:
                             del self.local_reservations[k]
 
-                        # 1. Lock winner's current cell and path into local_reservations for 30 ticks so A* cannot wait in place
+                        # 1. Lock all peers' current and intended cells into local_reservations for 30 ticks so A* routes around everyone
                         for dt in range(30):
                             self.local_reservations[(px, py, tick + dt)] = peer_snap.robot_id
                         for p_step in peer_snap.path:
@@ -731,6 +733,12 @@ class RobotNode:
                             py_step = int(p_step["y"])
                             for dt in range(30):
                                 self.local_reservations[(px_step, py_step, tick + dt)] = peer_snap.robot_id
+                        for p_other in self.peers.values():
+                            if p_other.robot_id != self.robot.robot_id:
+                                p_c = p_other.intended_pos if p_other.last_seen_tick < tick else p_other.position
+                                for dt in range(30):
+                                    self.local_reservations[(p_c[0], p_c[1], tick + dt)] = p_other.robot_id
+                                    self.local_reservations[(p_other.intended_pos[0], p_other.intended_pos[1], tick + dt)] = p_other.robot_id
 
                         # 2. Try to find a real spatial detour around the winner to goal
                         re_path = None
@@ -743,10 +751,17 @@ class RobotNode:
                                 grid=self.grid,
                             )
 
+                        all_blocked_cells = {
+                            (p.intended_pos if p.last_seen_tick < tick else p.position)
+                            for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                        } | {
+                            p.intended_pos for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                        }
+
                         detour_taken = False
                         if re_path and len(re_path) > 1:
                             next_detour = (int(re_path[1]["x"]), int(re_path[1]["y"]))
-                            if next_detour != (rx, ry) and next_detour != (px, py) and next_detour != (pix, piy):
+                            if next_detour != (rx, ry) and next_detour not in all_blocked_cells:
                                 self.robot.path = re_path
                                 intended_pos = next_detour
                                 action_taken = "DETOUR_YIELD"
@@ -822,6 +837,20 @@ class RobotNode:
                                 for dt in range(30):
                                     self.local_reservations[(px, py, tick + dt)] = peer_snap.robot_id
                                     self.local_reservations[(pix, piy, tick + dt)] = peer_snap.robot_id
+                                for p_other in self.peers.values():
+                                    if p_other.robot_id != self.robot.robot_id:
+                                        p_c = p_other.intended_pos if p_other.last_seen_tick < tick else p_other.position
+                                        for dt in range(30):
+                                            self.local_reservations[(p_c[0], p_c[1], tick + dt)] = p_other.robot_id
+                                            self.local_reservations[(p_other.intended_pos[0], p_other.intended_pos[1], tick + dt)] = p_other.robot_id
+
+                                all_blocked_cells_w = {
+                                    (p.intended_pos if p.last_seen_tick < tick else p.position)
+                                    for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                                } | {
+                                    p.intended_pos for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                                }
+
                                 bypass_found = False
                                 if self.goal_pos:
                                     w_bypass = self._timed_find_path(
@@ -833,7 +862,7 @@ class RobotNode:
                                     )
                                     if w_bypass and len(w_bypass) > 1:
                                         next_w = (int(w_bypass[1]["x"]), int(w_bypass[1]["y"]))
-                                        if next_w != self.robot.position and next_w != (px, py) and next_w != (pix, piy):
+                                        if next_w != self.robot.position and next_w not in all_blocked_cells_w:
                                             self.robot.path = w_bypass
                                             intended_pos = next_w
                                             action_taken = "DETOUR_WINNER"

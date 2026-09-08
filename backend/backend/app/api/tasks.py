@@ -84,6 +84,18 @@ async def inject_task(
     )
     fleet.queue_task(task)
 
+    # Durable Write-Ahead Journal entry (SPOF Hardening)
+    journal = getattr(request.app.state, "job_journal", None)
+    if journal:
+        journal.log_submission(
+            job_id=task.task_id,
+            job_type="custom_task",
+            pickup=(task.pickup_x, task.pickup_y),
+            dropoff=(task.dropoff_x, task.dropoff_y),
+            urgency=task.urgency,
+            payload_weight_kg=getattr(task, "payload_weight_kg", 0.0),
+        )
+
     # Attempt immediate dispatch to available robot via UDP
     from app.services.task_manager import get_fleet_peer_ports
     orchestrator = getattr(request.app.state, "orchestrator", None)
@@ -228,6 +240,23 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
         assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
         if not assigned_robot:
             raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
+
+        # Write-ahead commit to journal
+        journal = getattr(request.app.state, "job_journal", None)
+        if journal:
+            journal.log_submission(
+                job_id=task.task_id,
+                job_type=body.job_type,
+                pickup=pickup,
+                dropoff=dropoff,
+                urgency=body.urgency,
+            )
+            journal.log_assignment(
+                job_id=task.task_id,
+                assigned_robot_id=assigned_robot,
+                tick=fleet.tick,
+            )
+
         task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
         return JobOut(
             job_type=body.job_type,
@@ -255,6 +284,23 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
         assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
         if not assigned_robot:
             raise HTTPException(409, "No SORTING robot available for sort_batch job")
+
+        # Write-ahead commit to journal
+        journal = getattr(request.app.state, "job_journal", None)
+        if journal:
+            journal.log_submission(
+                job_id=task.task_id,
+                job_type=body.job_type,
+                pickup=pickup,
+                dropoff=dropoff,
+                urgency=body.urgency,
+            )
+            journal.log_assignment(
+                job_id=task.task_id,
+                assigned_robot_id=assigned_robot,
+                tick=fleet.tick,
+            )
+
         task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
         return JobOut(
             job_type=body.job_type,
@@ -289,6 +335,23 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
         selected_robot.current_task_id = mission.audit_id
         selected_robot.path = []
         selected_robot.state = RobotState.EN_ROUTE
+
+        # Write-ahead commit to journal
+        journal = getattr(request.app.state, "job_journal", None)
+        if journal:
+            journal.log_submission(
+                job_id=mission.audit_id,
+                job_type=body.job_type,
+                pickup=checkpoint,
+                dropoff=checkpoint,
+                urgency=body.urgency,
+            )
+            journal.log_assignment(
+                job_id=mission.audit_id,
+                assigned_robot_id=selected_robot.robot_id,
+                tick=fleet.tick,
+            )
+
         task_manager.dispatch_to_fleet(audit_task, peer_ports=peer_ports, target_robot_id=selected_robot.robot_id)
         return JobOut(
             job_type=body.job_type,

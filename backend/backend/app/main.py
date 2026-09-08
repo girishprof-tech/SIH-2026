@@ -188,6 +188,31 @@ async def lifespan(app: FastAPI):
         planner=planner,
     )
 
+    # ── SPOF Hardening: Recover in-flight jobs from write-ahead journal ────────
+    from app.services.job_journal import JobJournal
+    job_journal = JobJournal()
+    recovered_jobs = job_journal.recover_uncompleted_jobs()
+    if recovered_jobs:
+        log.info("[SPOF RECOVERY] Replaying %d uncompleted jobs from journal...", len(recovered_jobs))
+        for r_job in recovered_jobs:
+            try:
+                pickup = r_job.get("pickup") or [2, 2]
+                dropoff = r_job.get("dropoff") or [27, 27]
+                t = task_manager.create_task(
+                    pickup_x=pickup[0],
+                    pickup_y=pickup[1],
+                    dropoff_x=dropoff[0],
+                    dropoff_y=dropoff[1],
+                    urgency=r_job.get("urgency", 3),
+                    current_tick=fleet_state.tick,
+                )
+                t.task_id = r_job["job_id"]
+                if r_job.get("assigned_robot_id"):
+                    t.assigned_robot_id = r_job["assigned_robot_id"]
+                fleet_state.queue_task(t)
+            except Exception as ex:
+                log.warning("[SPOF RECOVERY] Error replaying job %s: %s", r_job.get("job_id"), ex)
+
     def _is_udp_port_bound(port: int = 9001, host: str = "127.0.0.1") -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
@@ -238,6 +263,7 @@ async def lifespan(app: FastAPI):
     app.state.orchestrator = orchestrator
     app.state.telemetry_streaming_paused = False
     app.state.fleet_mode = fleet_mode
+    app.state.job_journal = job_journal
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry

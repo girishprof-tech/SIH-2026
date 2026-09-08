@@ -1,5 +1,11 @@
 # System Architecture — SIH-2026 Fleet Coordination
 
+> **Notice:** The canonical, exhaustive system design suite is maintained under [`docs/system-design/`](docs/system-design/):
+> - Architecture Overview: [`01-architecture-overview.md`](docs/system-design/01-architecture-overview.md)
+> - Edge Hardware Guide: [`06-edge-deployment-guide.md`](docs/system-design/06-edge-deployment-guide.md)
+> - BEL PS26123 Compliance Matrix: [`07-ps26123-compliance-matrix.md`](docs/system-design/07-ps26123-compliance-matrix.md)
+> - Technical Defense & Judge QA: [`docs/JUDGE_QA.md`](docs/JUDGE_QA.md)
+
 ## Overview & Single Source of Truth
 
 In this repository, **only one simulation implementation powers the live application and demo**:

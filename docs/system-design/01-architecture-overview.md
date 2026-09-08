@@ -114,3 +114,18 @@ Peer Conflict Arbitrated at Tick 38 -> AMR-02 yields to AMR-01 via UDP.
 FastAPI Server Restarted at Tick 50 -> Reconnects to ongoing fleet operation.
 Zero Centralized Dependency Verified: PASSED.
 ```
+
+---
+
+## Single Point of Failure (SPOF) Hardening & Write-Ahead Journal
+
+To guarantee zero mission loss across unplanned central supervisor reboots or power outages:
+1. **Durable WAL Journal (`data/job_log.jsonl`):**
+   - Every job injected via `POST /api/task/inject` or `POST /api/job` is appended to `data/job_log.jsonl` with cryptographic timestamps and `os.fsync` flushed before returning HTTP 200/201.
+   - Lifecycle state transitions (`SUBMITTED`, `ASSIGNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`) are recorded chronologically.
+2. **Startup Crash Recovery:**
+   - On FastAPI startup (in `main.py` lifespan), the `JobJournal` replays `data/job_log.jsonl`.
+   - Any jobs in `SUBMITTED`, `ASSIGNED`, or `IN_PROGRESS` states that were not marked `COMPLETED` or `CANCELLED` are automatically reconstructed and re-queued into `TaskManager`.
+   - Active AMR nodes in the warehouse complete their current tasks collision-free, and reconnected supervisors resume dispatch without duplicate assignments.
+3. **Automated Verification:** Verified in `test_spof_recovery.py` with 100% test pass rate across journal durability, state reconstruction, and fleet survival without central infrastructure.
+

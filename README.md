@@ -7,6 +7,11 @@ Project for Smart India Hackathon 2026: Decentralized Edge-AI Multi-Robot Wareho
 > - [03. Conflict Resolution & Swap-Collision Fix (Before vs. After)](docs/system-design/03-sequence-conflict-resolution.md)
 > - [04. Telemetry Data Flow & Push-vs-Poll Architecture](docs/system-design/04-data-flow.md)
 > - [05. Architecture Decision Records (ADR Log)](docs/system-design/05-adr-log.md)
+> - [06. Edge Hardware Deployment Guide (Pi 4 & Jetson Nano)](docs/system-design/06-edge-deployment-guide.md)
+> - [07. PS26123 Compliance Matrix & Verification Traceability](docs/system-design/07-ps26123-compliance-matrix.md)
+> - [Judge Q&A & Technical Defense Guide](docs/JUDGE_QA.md)
+> - [Empirical Coordination Benchmark (58%–66% Speedup over Baseline)](benchmark_results/coordination_comparison.md)
+> - [Edge Hardware Resource & Latency Profile (13.6MB RSS, 0.87ms P95)](benchmark_results/edge_resource_profile.md)
 > - [Engineering Verification & Regression Reports (FIXES_APPLIED.md)](FIXES_APPLIED.md)
 
 ---
