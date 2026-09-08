@@ -147,8 +147,29 @@ class FleetOrchestrator:
         """Returns True if the fleet processes are paused."""
         return self.pause_event.is_set()
 
+    def initial_robots_telemetry(self) -> List[Dict[str, Any]]:
+        """Returns the initial snapshot of all robots at their starting bays."""
+        return [
+            {
+                "robot_id": cfg["robot_id"],
+                "id": cfg["robot_id"],
+                "position": {"x": cfg["start"][0], "y": cfg["start"][1]},
+                "heading": "NORTH",
+                "state": "IDLE",
+                "robot_type": cfg.get("robot_type", "GOODS_TO_PERSON"),
+                "battery": 100.0,
+                "battery_pct": 100.0,
+                "current_task_id": None,
+                "priority_score": 0.0,
+                "path": [],
+                "conflict": None,
+                "wait_ticks_so_far": 0,
+            }
+            for cfg in self.robots_config
+        ]
+
     def reset_logs(self) -> None:
-        """Truncates all robot log files and resets telemetry_state.json."""
+        """Truncates all robot log files and resets telemetry_state.json with initial robot states."""
         for log_file in self.log_dir.glob("robot_*.log"):
             try:
                 with open(log_file, "w", encoding="utf-8") as f:
@@ -156,20 +177,38 @@ class FleetOrchestrator:
             except Exception:
                 pass
         t_file = self.log_dir / "telemetry_state.json"
-        if t_file.exists():
-            try:
-                import json
-                with open(t_file, "w", encoding="utf-8") as f:
-                    json.dump({
-                        "type": "TICK_UPDATE",
-                        "tick": 0,
-                        "timestamp_ms": int(time.time() * 1000),
-                        "robots": [],
-                        "active_conflicts": [],
-                        "temporary_obstacles": [],
-                    }, f)
-            except Exception:
-                pass
+        try:
+            import json
+            with open(t_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "type": "TICK_UPDATE",
+                    "tick": 0,
+                    "timestamp_ms": int(time.time() * 1000),
+                    "robots": self.initial_robots_telemetry(),
+                    "active_conflicts": [],
+                    "temporary_obstacles": [],
+                }, f)
+        except Exception:
+            pass
+
+    def reset(self, pause_on_reset: bool = True) -> None:
+        """Fully resets all robot processes back to initial starting bays and battery."""
+        print("[FleetOrchestrator] Stopping processes for reset...")
+        self.stop()
+        time.sleep(0.15)
+        self.reset_logs()
+
+        # Re-initialize events and queue
+        self.stop_event = mp.Event()
+        self.pause_event = mp.Event()
+        if pause_on_reset:
+            self.pause_event.set()
+        self.telemetry_queue = mp.Queue()
+        self.processes = []
+        self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
+
+        self.start()
+        print("[FleetOrchestrator] Robot processes restarted in initial state.")
 
     def _run_bus(self) -> None:
         """Background thread collecting telemetry frames from robot processes."""
@@ -189,6 +228,8 @@ class FleetOrchestrator:
         """Signals all processes to stop and joins them."""
         print("[FleetOrchestrator] Stopping all robot processes...")
         self.stop_event.set()
+        if self._bus_thread and self._bus_thread.is_alive():
+            self._bus_thread.join(timeout=1.0)
         for p in self.processes:
             p.join(timeout=1.0)
             if p.is_alive():

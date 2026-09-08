@@ -75,9 +75,9 @@ export function ControlBar({
           <Layers size={18} strokeWidth={2.2} />
         </div>
         <span className="brand-name">Kinetix</span>
-        <div className="p2p-badge" title="Fully autonomous peer-to-peer decentralized architecture">
+        <div className="p2p-badge" title="Fully autonomous peer-to-peer decentralized architecture (zero central dependency)">
           <Radio size={12} className="pulse-icon" />
-          <span>P2P MESH: 10 NODES (ZERO CENTRAL DEPENDENCY)</span>
+          <span>P2P MESH: 10 NODES</span>
         </div>
         <div className="fleet-mode-badge" title={`Fleet Operational Mode: ${formattedMode}`}>
           <span>MODE: {formattedMode.toUpperCase()}</span>

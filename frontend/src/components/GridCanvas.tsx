@@ -25,35 +25,35 @@ type Projection = { originX: number; originY: number; tileW: number; tileH: numb
 type Motion = { from: Point; to: Point; fromAngle: number; toAngle: number; started: number; duration: number }
 
 const darkPalette = {
-  background: '#070b12',
-  gridSoft: 'rgba(56, 189, 248, 0.10)',
-  steel: '#1e293b',
-  steelTop: '#334155',
-  steelDark: '#0f172a',
-  floor: '#0c1322',
-  floorAlt: '#10192d',
-  floorShadow: '#04070d',
-  import: '#ea580c',
-  export: '#f59e0b',
-  charger: '#10b981',
-  hazard: '#ef4444',
-  text: '#f1f5f9',
+  background: '#111111',
+  gridSoft: 'rgba(255, 255, 255, 0.05)',
+  steel: '#262626',
+  steelTop: '#383838',
+  steelDark: '#1A1A1A',
+  floor: '#171717',
+  floorAlt: '#1E1E1E',
+  floorShadow: '#0A0A0A',
+  import: '#FF6B35',
+  export: '#FFC300',
+  charger: '#16A34A',
+  hazard: '#DC2626',
+  text: '#F5F5F5',
 }
 
 const lightPalette = {
-  background: '#f8fafc',
-  gridSoft: 'rgba(100, 116, 139, 0.15)',
-  steel: '#94a3b8',
-  steelTop: '#cbd5e1',
-  steelDark: '#64748b',
-  floor: '#ffffff',
-  floorAlt: '#f1f5f9',
-  floorShadow: '#e2e8f0',
-  import: '#ea580c',
-  export: '#d97706',
-  charger: '#0d9488',
-  hazard: '#dc2626',
-  text: '#0f172a',
+  background: '#E5E5E5',
+  gridSoft: 'rgba(0, 0, 0, 0.06)',
+  steel: '#8A8A8A',
+  steelTop: '#B5B5B5',
+  steelDark: '#5C5C5C',
+  floor: '#F5F5F5',
+  floorAlt: '#EBEBEB',
+  floorShadow: '#D1D1D1',
+  import: '#FF6B35',
+  export: '#FFC300',
+  charger: '#16A34A',
+  hazard: '#DC2626',
+  text: '#141414',
 }
 
 const headingAngle = { NORTH: 0, EAST: Math.PI / 2, SOUTH: Math.PI, WEST: -Math.PI / 2 }
@@ -233,14 +233,20 @@ export function GridCanvas({
 
     const current = view.current
     const base =
-      Math.min((width / (world.width + world.height)) * 1.72, (height / (world.width + world.height)) * 1.25) *
+      Math.min((width / (world.width + world.height)) * 2.05, (height / (world.width + world.height)) * 1.62) *
       current.zoom
+    const tileW = base * 1.38
+    const tileH = base * 0.72
+    const lift = base * 0.9
+    // Vertically and horizontally center the 30x30 isometric floor on canvas
+    const originX = width / 2 + current.panX
+    const originY = height / 2 - ((world.width + world.height - 2) * tileH) / 4 + current.panY
     const projection: Projection = {
-      originX: width / 2 + current.panX,
-      originY: height * 0.51 + current.panY,
-      tileW: base * 1.38,
-      tileH: base * 0.72,
-      lift: base * 0.9,
+      originX,
+      originY,
+      tileW,
+      tileH,
+      lift,
     }
     const at = (point: Point, z = 0) => ({
       x: projection.originX + ((point.x - point.y) * projection.tileW) / 2,
@@ -267,13 +273,13 @@ export function GridCanvas({
 
         // Subtle zone tints
         if (pickupSet.has(key)) {
-          ctx.fillStyle = theme === 'light' ? 'rgba(194, 65, 12, 0.12)' : 'rgba(234, 88, 12, 0.14)'
+          ctx.fillStyle = theme === 'light' ? 'rgba(255, 107, 53, 0.14)' : 'rgba(255, 107, 53, 0.18)'
           ctx.fill()
         } else if (dropoffSet.has(key)) {
-          ctx.fillStyle = theme === 'light' ? 'rgba(217, 119, 6, 0.12)' : 'rgba(217, 119, 6, 0.14)'
+          ctx.fillStyle = theme === 'light' ? 'rgba(255, 195, 0, 0.14)' : 'rgba(255, 195, 0, 0.18)'
           ctx.fill()
         } else if (chargingSet.has(key)) {
-          ctx.fillStyle = theme === 'light' ? 'rgba(13, 148, 136, 0.12)' : 'rgba(20, 184, 166, 0.14)'
+          ctx.fillStyle = theme === 'light' ? 'rgba(22, 163, 74, 0.15)' : 'rgba(22, 163, 74, 0.20)'
           ctx.fill()
         }
 
@@ -286,7 +292,7 @@ export function GridCanvas({
           ctx.beginPath()
           diamond(ctx, center.x, center.y, projection.tileW * 0.9, projection.tileH * 0.9)
           ctx.clip()
-          ctx.strokeStyle = theme === 'light' ? 'rgba(217, 119, 6, 0.45)' : 'rgba(245, 158, 11, 0.35)'
+          ctx.strokeStyle = theme === 'light' ? 'rgba(255, 107, 53, 0.45)' : 'rgba(255, 195, 0, 0.38)'
           ctx.lineWidth = 1.8
           const tw = projection.tileW * 0.5
           for (let s = -tw; s <= tw; s += 6) {
@@ -318,7 +324,7 @@ export function GridCanvas({
       ctx.fillStyle = color
       diamond(ctx, center.x, center.y - depth, w, h)
       ctx.fill()
-      ctx.fillStyle = theme === 'light' ? '#71717a' : '#27272a'
+      ctx.fillStyle = theme === 'light' ? '#737373' : '#262626'
       ctx.beginPath()
       ctx.moveTo(center.x - w / 2, center.y - depth)
       ctx.lineTo(center.x, center.y - depth + h / 2)
@@ -326,7 +332,7 @@ export function GridCanvas({
       ctx.lineTo(center.x - w / 2, center.y)
       ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = theme === 'light' ? '#52525b' : '#18181b'
+      ctx.fillStyle = theme === 'light' ? '#525252' : '#171717'
       ctx.beginPath()
       ctx.moveTo(center.x, center.y - depth + h / 2)
       ctx.lineTo(center.x + w / 2, center.y - depth)
@@ -354,9 +360,9 @@ export function GridCanvas({
       ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.4)'
       ctx.fill()
 
-      // Outer teal charging pad ring with glowing perimeter
+      // Outer safety green charging pad ring
       diamond(ctx, center.x, center.y - depth * 0.5, w * 1.1, h * 1.1)
-      ctx.fillStyle = theme === 'light' ? 'rgba(13, 148, 136, 0.25)' : 'rgba(20, 184, 166, 0.3)'
+      ctx.fillStyle = theme === 'light' ? 'rgba(22, 163, 74, 0.25)' : 'rgba(22, 163, 74, 0.35)'
       ctx.fill()
       ctx.strokeStyle = palette.charger
       ctx.lineWidth = 1.5
@@ -368,7 +374,7 @@ export function GridCanvas({
       ctx.fill()
 
       // Pad beveled edge left
-      ctx.fillStyle = theme === 'light' ? '#71717a' : '#27272a'
+      ctx.fillStyle = theme === 'light' ? '#737373' : '#262626'
       ctx.beginPath()
       ctx.moveTo(center.x - w / 2, center.y - depth)
       ctx.lineTo(center.x, center.y - depth + h / 2)
@@ -378,7 +384,7 @@ export function GridCanvas({
       ctx.fill()
 
       // Pad beveled edge right
-      ctx.fillStyle = theme === 'light' ? '#52525b' : '#18181b'
+      ctx.fillStyle = theme === 'light' ? '#525252' : '#171717'
       ctx.beginPath()
       ctx.moveTo(center.x, center.y - depth + h / 2)
       ctx.lineTo(center.x + w / 2, center.y - depth)
@@ -448,7 +454,7 @@ export function GridCanvas({
       ctx.fill()
 
       // Right face of the rack
-      ctx.fillStyle = theme === 'light' ? '#71717a' : '#18181b'
+      ctx.fillStyle = theme === 'light' ? '#737373' : '#171717'
       ctx.beginPath()
       ctx.moveTo(center.x, center.y - depth + h / 2)
       ctx.lineTo(center.x + w / 2, center.y - depth)
@@ -458,7 +464,7 @@ export function GridCanvas({
       ctx.fill()
 
       // Visible Shelf Tiers & Uprights (Industrial Racking Realism)
-      ctx.strokeStyle = theme === 'light' ? '#d4d4d8' : '#3f3f46'
+      ctx.strokeStyle = theme === 'light' ? '#d4d4d4' : '#404040'
       ctx.lineWidth = 1.2
       const tiers = [0.3, 0.65, 0.95]
       tiers.forEach((tier) => {
@@ -478,17 +484,17 @@ export function GridCanvas({
         const toteW = w * 0.16
         const toteH = h * 0.16
         // Left shelf tote (warm amber/orange)
-        ctx.fillStyle = tier === 0.3 ? '#d97706' : tier === 0.65 ? '#ea580c' : '#71717a'
+        ctx.fillStyle = tier === 0.3 ? '#d97706' : tier === 0.65 ? '#ea580c' : '#737373'
         roundedBox(ctx, center.x - w * 0.28, center.y - tierOffset + h * 0.1, toteW, toteH, 2)
         ctx.fill()
         // Right shelf tote
-        ctx.fillStyle = tier === 0.3 ? '#71717a' : '#d97706'
+        ctx.fillStyle = tier === 0.3 ? '#737373' : '#d97706'
         roundedBox(ctx, center.x + w * 0.12, center.y - tierOffset + h * 0.1, toteW, toteH, 2)
         ctx.fill()
       })
 
       // Vertical corner upright struts
-      ctx.strokeStyle = theme === 'light' ? '#a1a1aa' : '#52525b'
+      ctx.strokeStyle = theme === 'light' ? '#a3a3a3' : '#525252'
       ctx.lineWidth = 1.5
       ctx.beginPath()
       ctx.moveTo(center.x, center.y - depth + h / 2)
@@ -617,8 +623,8 @@ export function GridCanvas({
 
             const isConflicted = r1.state === 'CONFLICT_NEGOTIATING' || r2.state === 'CONFLICT_NEGOTIATING'
             const linkColor = isConflicted
-              ? 'rgba(249, 115, 22, 0.65)'
-              : 'rgba(20, 184, 166, 0.42)'
+              ? 'rgba(220, 38, 38, 0.75)'
+              : 'rgba(255, 195, 0, 0.55)'
 
             ctx.save()
             ctx.beginPath()
@@ -638,8 +644,8 @@ export function GridCanvas({
 
             ctx.beginPath()
             ctx.arc(px, py, isConflicted ? 3.5 : 2.5, 0, Math.PI * 2)
-            ctx.fillStyle = isConflicted ? '#fbbf24' : '#22d3ee'
-            ctx.shadowColor = isConflicted ? '#ea580c' : '#06b6d4'
+            ctx.fillStyle = isConflicted ? '#DC2626' : '#FFC300'
+            ctx.shadowColor = isConflicted ? '#B91C1C' : '#FF6B35'
             ctx.shadowBlur = 6
             ctx.fill()
             ctx.restore()
@@ -714,8 +720,8 @@ export function GridCanvas({
           ctx.beginPath()
           ctx.moveTo(center.x, center.y)
           ctx.lineTo(targetPt.x, targetPt.y)
-          ctx.strokeStyle = isHeadingToDropoff ? '#d97706' : '#ea580c'
-          ctx.lineWidth = 1.5
+          ctx.strokeStyle = isHeadingToDropoff ? '#FFC300' : '#FF6B35'
+          ctx.lineWidth = 1.6
           ctx.globalAlpha = 0.7
           ctx.setLineDash([3, 3])
           ctx.stroke()
@@ -723,33 +729,115 @@ export function GridCanvas({
         }
       }
 
-      // Robot contact drop shadow on ground
-      diamond(ctx, center.x, center.y + 2, projection.tileW * 0.42, projection.tileH * 0.34)
-      ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.45)'
+      // Robot ground contact: Soft ambient occlusion shadow + sharp contact shadow
+      diamond(ctx, center.x, center.y + 3, projection.tileW * 0.52, projection.tileH * 0.40)
+      ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.10)' : 'rgba(0,0,0,0.55)'
+      ctx.fill()
+
+      diamond(ctx, center.x, center.y + 1, projection.tileW * 0.38, projection.tileH * 0.28)
+      ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.20)' : 'rgba(0,0,0,0.70)'
       ctx.fill()
 
       const podW = projection.tileW * 0.38
       const podH = projection.tileH * 0.32
       const z = projection.lift * 0.34
-      const nose = projection.tileW * 0.13
 
-      // AMR Chassis
+      // AMR 2.5D Layered Chassis
       ctx.save()
       ctx.translate(center.x, center.y - z)
       ctx.rotate(renderedAngle)
-      ctx.fillStyle = theme === 'light' ? '#3f3f46' : '#18181b'
-      roundedBox(ctx, -podW / 2, -podH / 2 + 3, podW, podH, podH * 0.28)
+
+      // 1. Four corner casters / wheels peeking out from under the chassis body
+      const casterW = podW * 0.16
+      const casterH = podH * 0.24
+      const cxOffset = podW * 0.40
+      const cyOffset = podH * 0.36
+      ctx.fillStyle = '#0D0D0D'
+      // Top-left caster
+      roundedBox(ctx, -cxOffset - casterW / 2, -cyOffset - casterH / 2, casterW, casterH, 2)
       ctx.fill()
+      // Top-right caster
+      roundedBox(ctx, cxOffset - casterW / 2, -cyOffset - casterH / 2, casterW, casterH, 2)
+      ctx.fill()
+      // Bottom-left caster
+      roundedBox(ctx, -cxOffset - casterW / 2, cyOffset - casterH / 2, casterW, casterH, 2)
+      ctx.fill()
+      // Bottom-right caster
+      roundedBox(ctx, cxOffset - casterW / 2, cyOffset - casterH / 2, casterW, casterH, 2)
+      ctx.fill()
+      // Metallic wheel hubs
+      ctx.fillStyle = '#282828'
+      ctx.fillRect(-cxOffset - casterW * 0.2, -cyOffset - casterH * 0.3, casterW * 0.4, casterH * 0.6)
+      ctx.fillRect(cxOffset - casterW * 0.2, -cyOffset - casterH * 0.3, casterW * 0.4, casterH * 0.6)
+      ctx.fillRect(-cxOffset - casterW * 0.2, cyOffset - casterH * 0.3, casterW * 0.4, casterH * 0.6)
+      ctx.fillRect(cxOffset - casterW * 0.2, cyOffset - casterH * 0.3, casterW * 0.4, casterH * 0.6)
+
+      // 2. Protective lower bumper skirt
+      ctx.fillStyle = theme === 'light' ? '#262626' : '#141414'
+      roundedBox(ctx, -podW * 0.52, -podH * 0.52 + 2, podW * 1.04, podH * 1.04, podH * 0.28)
+      ctx.fill()
+
+      // 3. Main AMR Body Hull (Solid Saturated Depot Signal color)
       ctx.fillStyle = color
-      roundedBox(ctx, -podW / 2, -podH / 2, podW, podH * 0.72, podH * 0.25)
+      roundedBox(ctx, -podW * 0.48, -podH * 0.48, podW * 0.96, podH * 0.96, podH * 0.24)
       ctx.fill()
-      ctx.fillStyle = '#ffffff'
+
+      // 4. Distinct Top Plate Deck with subtle bevel highlight edge
+      const topW = podW * 0.82
+      const topH = podH * 0.80
+      ctx.fillStyle = theme === 'light' ? '#D5D5D5' : '#222222'
+      roundedBox(ctx, -topW / 2, -topH / 2, topW, topH, topH * 0.20)
+      ctx.fill()
+
+      // Top plate subtle bevel/highlight edge
+      ctx.strokeStyle = theme === 'light' ? 'rgba(255, 255, 255, 0.90)' : 'rgba(255, 255, 255, 0.28)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      // Turntable docking ring on deck
       ctx.beginPath()
-      ctx.moveTo(-nose * 0.2, -podH * 0.36)
-      ctx.lineTo(nose, 0)
-      ctx.lineTo(-nose * 0.2, podH * 0.36)
+      ctx.arc(0, 0, topH * 0.26, 0, Math.PI * 2)
+      ctx.strokeStyle = theme === 'light' ? '#A3A3A3' : '#383838'
+      ctx.lineWidth = 1
+      ctx.stroke()
+
+      ctx.restore()
+
+      // 5. Separate, Elevated Directional Chevron floating above chassis
+      // Bold, clearly legible status+heading combo rotating smoothly with heading
+      const chevronZ = z + projection.lift * 0.30
+      const chevLen = projection.tileW * 0.17
+      const chevWidth = projection.tileH * 0.22
+      const stateColor = STATE_COLORS[robot.state] || '#16A34A'
+
+      ctx.save()
+      ctx.translate(center.x, center.y - chevronZ)
+      ctx.rotate(renderedAngle)
+
+      // Drop shadow underneath the elevated floating chevron
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)'
+      ctx.shadowBlur = 4
+      ctx.shadowOffsetY = 2
+
+      // Swept-back bold directional chevron
+      ctx.beginPath()
+      ctx.moveTo(chevLen * 0.9, 0)
+      ctx.lineTo(-chevLen * 0.55, -chevWidth)
+      ctx.lineTo(-chevLen * 0.10, 0)
+      ctx.lineTo(-chevLen * 0.55, chevWidth)
       ctx.closePath()
+
+      ctx.fillStyle = stateColor
       ctx.fill()
+
+      // High contrast outline so chevron pops from any distance
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
+      ctx.strokeStyle = '#111111'
+      ctx.lineWidth = 1.6
+      ctx.stroke()
+
       ctx.restore()
 
       // Goods-To-Person AMR Visually Carrying Inventory Shelf Pod
@@ -803,22 +891,22 @@ export function GridCanvas({
       }
 
       // State Ring Indicator
-      ctx.fillStyle = STATE_COLORS[robot.state] || '#71717a'
+      ctx.fillStyle = STATE_COLORS[robot.state] || '#737373'
       ctx.beginPath()
       ctx.arc(center.x, center.y + projection.tileH * 0.27, Math.max(3.5, base * 0.08), 0, Math.PI * 2)
       ctx.fill()
 
       // Selection or Conflict Indicator
       if (isSelected || robot.state === 'CONFLICT_NEGOTIATING') {
-        ctx.strokeStyle = isSelected ? (theme === 'light' ? '#c2410c' : '#f97316') : '#ea580c'
-        ctx.lineWidth = isSelected ? 2.5 : 1.5
+        ctx.strokeStyle = isSelected ? '#FF6B35' : '#DC2626'
+        ctx.lineWidth = isSelected ? 2.5 : 1.8
         diamond(ctx, center.x, center.y - projection.lift * 0.34, projection.tileW * 0.57, projection.tileH * 0.45)
         ctx.stroke()
       }
 
       // Robot Numerical ID Tag
       ctx.fillStyle = palette.text
-      ctx.font = `600 ${Math.max(8, base * 0.16)}px 'JetBrains Mono', monospace`
+      ctx.font = `700 ${Math.max(8, base * 0.16)}px 'JetBrains Mono', monospace`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(robot.robot_id.replace('AMR-', ''), center.x, center.y + projection.tileH * 0.44)
@@ -851,16 +939,18 @@ export function GridCanvas({
       return
     }
     const base =
-      Math.min((rect.width / (world.width + world.height)) * 1.72, (rect.height / (world.width + world.height)) * 1.25) *
+      Math.min((rect.width / (world.width + world.height)) * 2.05, (rect.height / (world.width + world.height)) * 1.62) *
       current.zoom
     const tileW = base * 1.38
     const tileH = base * 0.72
-    const dx = event.clientX - rect.left - rect.width / 2 - current.panX
-    const dy = event.clientY - rect.top - rect.height * 0.51 - current.panY
-    const sum = (2 * dx) / tileW - 1
-    const difference = (2 * dy) / tileH - 1
-    const x = Math.floor((sum - difference) / 2)
-    const y = Math.floor((sum + difference) / 2)
+    const originX = rect.width / 2 + current.panX
+    const originY = rect.height / 2 - ((world.width + world.height - 2) * tileH) / 4 + current.panY
+    const dx = event.clientX - rect.left - originX
+    const dy = event.clientY - rect.top - originY
+    const u = (2 * dx) / tileW
+    const v = (2 * dy) / tileH - 1
+    const x = Math.floor((u + v) / 2)
+    const y = Math.floor((v - u) / 2)
     if (x < 0 || x >= world.width || y < 0 || y >= world.height) return
     const clickedRobot = robots.find((robot) => robot.position.x === x && robot.position.y === y)
     clickedRobot ? onRobot(clickedRobot) : onCell({ x, y })

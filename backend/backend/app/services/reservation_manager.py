@@ -134,3 +134,9 @@ class ReservationManager:
             "total_reservations": len(self._table),
             "robots_with_reservations": len(self._robot_keys),
         }
+
+    def clear(self) -> None:
+        """Clear all space-time reservations on simulation reset."""
+        self._table.clear()
+        self._robot_keys.clear()
+        log.info("RESERVATION_MANAGER_CLEARED: All reservations purged.")

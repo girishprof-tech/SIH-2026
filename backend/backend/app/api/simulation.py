@@ -57,10 +57,24 @@ async def pause_simulation(request: Request) -> dict:
 async def reset_simulation(request: Request) -> dict:
     fleet = request.app.state.fleet_state
     fleet.reset()
-    request.app.state.telemetry_streaming_paused = False
+    request.app.state.telemetry_streaming_paused = True
+    fleet.is_running = False
+
+    task_mgr = getattr(request.app.state, "task_manager", None)
+    if task_mgr is not None and hasattr(task_mgr, "clear"):
+        task_mgr.clear()
+
+    res_mgr = getattr(request.app.state, "reservation_manager", None)
+    if res_mgr is not None and hasattr(res_mgr, "clear"):
+        res_mgr.clear()
+
+    telemetry = getattr(request.app.state, "telemetry", None)
+    if telemetry is not None and hasattr(telemetry, "reset"):
+        telemetry.reset()
+
     orchestrator = getattr(request.app.state, "orchestrator", None)
     if orchestrator is not None:
-        orchestrator.reset_logs()
+        orchestrator.reset(pause_on_reset=True)
     else:
         # Direct reset of logs folder
         from pathlib import Path
@@ -71,7 +85,7 @@ async def reset_simulation(request: Request) -> dict:
                     pass
             except Exception:
                 pass
-    log.info("SIMULATION_RESET: Telemetry viewer state and robot logs reset.")
+    log.info("SIMULATION_RESET: Telemetry viewer state, fleet processes, tasks, and robot logs reset.")
     return {"status": "reset", "tick": 0, "mode": "decentralized_telemetry"}
 
 

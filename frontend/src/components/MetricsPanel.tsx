@@ -55,8 +55,8 @@ export function MetricsPanel({
   const stateCount = (type: RobotType, state: RobotState) =>
     robots.filter((robot) => robot.robot_type === type && robot.state === state).length
 
-  const chartColor = theme === 'light' ? '#c2410c' : '#f97316'
-  const chartFill = theme === 'light' ? '#fff7ed' : '#43140733'
+  const chartColor = '#FF6B35'
+  const chartFill = theme === 'light' ? 'rgba(255, 107, 53, 0.14)' : 'rgba(255, 107, 53, 0.22)'
 
   return (
     <section className="metrics panel">
@@ -134,12 +134,12 @@ export function MetricsPanel({
             <YAxis hide domain={[0, 'auto']} />
             <Tooltip
               contentStyle={{
-                backgroundColor: theme === 'light' ? '#ffffff' : '#1e283b',
-                borderColor: theme === 'light' ? '#cbd5e1' : '#334155',
+                backgroundColor: theme === 'light' ? '#FFFFFF' : '#171717',
+                borderColor: theme === 'light' ? '#D4D4D4' : '#333333',
                 borderRadius: '6px',
-                color: theme === 'light' ? '#0f172a' : '#f8fafc',
+                color: theme === 'light' ? '#141414' : '#F5F5F5',
                 fontSize: 12,
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
               }}
               labelFormatter={(value) => `Tick ${value}`}
             />

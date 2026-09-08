@@ -8,80 +8,80 @@
    Design Tokens & Themes (Warm Orange & Graphite Robotics System)
    ========================================================================== */
 :root {
-  /* Surface & Background (Light Mode - Precision Industrial Lab) */
-  --bg-app: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-subtle: #f1f5f9;
-  --bg-surface-elevated: #ffffff;
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* Surface & Background (Light Mode - Warehouse Floor Concrete & Heavy Equipment) */
+  --bg-app: #E5E5E5;
+  --bg-surface: #FFFFFF;
+  --bg-surface-subtle: #EFEFEF;
+  --bg-surface-elevated: #FFFFFF;
+  --border-subtle: #D4D4D4;
+  --border-strong: #ADADAD;
 
   /* Typography */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #141414;
+  --text-secondary: #4A4A4A;
+  --text-muted: #737373;
 
-  /* Accent Family (Precision Cyan & Amber Signals) */
-  --accent-primary: #0ea5e9;       /* Industrial Cyan */
-  --accent-hover: #0369a1;
-  --accent-active: #075985;
-  --accent-secondary: #38bdf8;
-  --accent-subtle: #f0f9ff;
-  --accent-border: #bae6fd;
-  --accent-text: #0ea5e9;
-  --accent-contrast: #ffffff;
+  /* Accent Family (Depot Signal: Safety Orange & Hazard Yellow) */
+  --accent-primary: #FF6B35;       /* Solid Safety Orange */
+  --accent-hover: #EA580C;
+  --accent-active: #C2410C;
+  --accent-secondary: #FFC300;     /* Solid Hazard/Forklift Yellow */
+  --accent-subtle: rgba(255, 107, 53, 0.14);
+  --accent-border: #FF6B35;
+  --accent-text: #FF6B35;
+  --accent-contrast: #FFFFFF;
 
   /* Neutral Controls */
-  --control-bg: #f1f5f9;
-  --control-bg-hover: #e2e8f0;
-  --control-border: #cbd5e1;
-  --control-border-hover: #94a3b8;
-  --control-text: #1e293b;
+  --control-bg: #DFDFDF;
+  --control-bg-hover: #D4D4D4;
+  --control-border: #B8B8B8;
+  --control-border-hover: #8F8F8F;
+  --control-text: #141414;
 
-  /* State Tokens (Light Mode) */
-  --state-idle-color: #10b981;
-  --state-idle-bg: #ecfdf5;
-  --state-idle-border: #a7f3d0;
+  /* State Tokens (Light Mode - Solid Saturated Depot Signal) */
+  --state-idle-color: #16A34A;
+  --state-idle-bg: #16A34A;
+  --state-idle-border: #15803D;
 
-  --state-assigned-color: #0ea5e9;
-  --state-assigned-bg: #f0f9ff;
-  --state-assigned-border: #bae6fd;
+  --state-assigned-color: #FFC300;
+  --state-assigned-bg: #FFC300;
+  --state-assigned-border: #EAB308;
 
-  --state-route-color: #0369a1;
-  --state-route-bg: #e0f2fe;
-  --state-route-border: #7dd3fc;
+  --state-route-color: #FF6B35;
+  --state-route-bg: #FF6B35;
+  --state-route-border: #EA580C;
 
-  --state-picking-color: #0891b2;
-  --state-picking-bg: #ecfeff;
-  --state-picking-border: #a5f3fc;
+  --state-picking-color: #F97316;
+  --state-picking-bg: #F97316;
+  --state-picking-border: #EA580C;
 
-  --state-dropping-color: #d97706;
-  --state-dropping-bg: #fffbeb;
-  --state-dropping-border: #fde68a;
+  --state-dropping-color: #D97706;
+  --state-dropping-bg: #D97706;
+  --state-dropping-border: #B45309;
 
-  --state-conflict-color: #ea580c;
-  --state-conflict-bg: #fff7ed;
-  --state-conflict-border: #fdba74;
+  --state-conflict-color: #DC2626;
+  --state-conflict-bg: #DC2626;
+  --state-conflict-border: #B91C1C;
 
-  --state-audit-color: #818cf8;
-  --state-audit-bg: #eef2ff;
-  --state-audit-border: #c7d2fe;
+  --state-audit-color: #737373;
+  --state-audit-bg: #737373;
+  --state-audit-border: #525252;
 
-  --state-charge-color: #0d9488;
-  --state-charge-bg: #f0fdfa;
-  --state-charge-border: #99f6e4;
+  --state-charge-color: #15803D;
+  --state-charge-bg: #15803D;
+  --state-charge-border: #166534;
 
-  --state-failsafe-color: #b45309;
-  --state-failsafe-bg: #fef3c7;
-  --state-failsafe-border: #fcd34d;
+  --state-failsafe-color: #D97706;
+  --state-failsafe-bg: #D97706;
+  --state-failsafe-border: #B45309;
 
-  --state-estop-color: #dc2626;
-  --state-estop-bg: #fef2f2;
-  --state-estop-border: #fca5a5;
+  --state-estop-color: #B91C1C;
+  --state-estop-bg: #B91C1C;
+  --state-estop-border: #991B1B;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-overlay: 0 12px 32px -4px rgba(15, 23, 42, 0.16);
+  --shadow-card: 0 1px 3px rgba(17, 17, 17, 0.08);
+  --shadow-overlay: 0 12px 32px -4px rgba(17, 17, 17, 0.20);
 
   /* Font Families */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -90,80 +90,80 @@
 
 [data-theme="dark"],
 .dark {
-  /* Surface & Background (Dark Mode - Apollo Deep Control Room Slate) */
-  --bg-app: #070b12;
-  --bg-surface: #0c1322;
-  --bg-surface-subtle: #121b2d;
-  --bg-surface-elevated: #162238;
-  --border-subtle: #1e2d47;
-  --border-strong: #2b3e61;
+  /* Surface & Background (Dark Mode - Deep Industrial Charcoal & Heavy Steel Racking) */
+  --bg-app: #111111;
+  --bg-surface: #171717;
+  --bg-surface-subtle: #1E1E1E;
+  --bg-surface-elevated: #262626;
+  --border-subtle: #333333;
+  --border-strong: #484848;
 
   /* Typography */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #F5F5F5;
+  --text-secondary: #A3A3A3;
+  --text-muted: #707070;
 
-  /* Accent Family (Electric Cyan & Amber Signal) */
-  --accent-primary: #0ea5e9;
-  --accent-hover: #38bdf8;
-  --accent-active: #7dd3fc;
-  --accent-secondary: #38bdf8;
-  --accent-subtle: rgba(56, 189, 248, 0.12);
-  --accent-border: #0ea5e9;
-  --accent-text: #38bdf8;
-  --accent-contrast: #ffffff;
+  /* Accent Family (Depot Signal: Safety Orange & Hazard Yellow) */
+  --accent-primary: #FF6B35;
+  --accent-hover: #FF8252;
+  --accent-active: #EA580C;
+  --accent-secondary: #FFC300;
+  --accent-subtle: rgba(255, 107, 53, 0.18);
+  --accent-border: #FF6B35;
+  --accent-text: #FF6B35;
+  --accent-contrast: #FFFFFF;
 
   /* Neutral Controls */
-  --control-bg: #121b2d;
-  --control-bg-hover: #1a2740;
-  --control-border: #243552;
-  --control-border-hover: #3b5278;
-  --control-text: #e2e8f0;
+  --control-bg: #1E1E1E;
+  --control-bg-hover: #252525;
+  --control-border: #383838;
+  --control-border-hover: #525252;
+  --control-text: #F5F5F5;
 
-  /* State Tokens (Dark Mode - Neon Status Signals) */
-  --state-idle-color: #10b981;
-  --state-idle-bg: rgba(16, 185, 129, 0.14);
-  --state-idle-border: rgba(16, 185, 129, 0.40);
+  /* State Tokens (Dark Mode - Solid Saturated Depot Signal) */
+  --state-idle-color: #16A34A;
+  --state-idle-bg: #16A34A;
+  --state-idle-border: #15803D;
 
-  --state-assigned-color: #38bdf8;
-  --state-assigned-bg: rgba(56, 189, 248, 0.14);
-  --state-assigned-border: rgba(56, 189, 248, 0.40);
+  --state-assigned-color: #FFC300;
+  --state-assigned-bg: #FFC300;
+  --state-assigned-border: #EAB308;
 
-  --state-route-color: #0ea5e9;
-  --state-route-bg: rgba(14, 165, 233, 0.16);
-  --state-route-border: rgba(14, 165, 233, 0.45);
+  --state-route-color: #FF6B35;
+  --state-route-bg: #FF6B35;
+  --state-route-border: #EA580C;
 
-  --state-picking-color: #06b6d4;
-  --state-picking-bg: rgba(6, 182, 212, 0.16);
-  --state-picking-border: rgba(6, 182, 212, 0.45);
+  --state-picking-color: #F97316;
+  --state-picking-bg: #F97316;
+  --state-picking-border: #EA580C;
 
-  --state-dropping-color: #f59e0b;
-  --state-dropping-bg: rgba(245, 158, 11, 0.16);
-  --state-dropping-border: rgba(245, 158, 11, 0.45);
+  --state-dropping-color: #D97706;
+  --state-dropping-bg: #D97706;
+  --state-dropping-border: #B45309;
 
-  --state-conflict-color: #f97316;
-  --state-conflict-bg: rgba(249, 115, 22, 0.18);
-  --state-conflict-border: rgba(249, 115, 22, 0.50);
+  --state-conflict-color: #DC2626;
+  --state-conflict-bg: #DC2626;
+  --state-conflict-border: #B91C1C;
 
-  --state-audit-color: #818cf8;
-  --state-audit-bg: rgba(129, 140, 248, 0.16);
-  --state-audit-border: rgba(129, 140, 248, 0.40);
+  --state-audit-color: #737373;
+  --state-audit-bg: #737373;
+  --state-audit-border: #525252;
 
-  --state-charge-color: #14b8a6;
-  --state-charge-bg: rgba(20, 184, 166, 0.16);
-  --state-charge-border: rgba(20, 184, 166, 0.40);
+  --state-charge-color: #15803D;
+  --state-charge-bg: #15803D;
+  --state-charge-border: #166534;
 
-  --state-failsafe-color: #eab308;
-  --state-failsafe-bg: rgba(234, 179, 8, 0.16);
-  --state-failsafe-border: rgba(234, 179, 8, 0.45);
+  --state-failsafe-color: #D97706;
+  --state-failsafe-bg: #D97706;
+  --state-failsafe-border: #B45309;
 
-  --state-estop-color: #ef4444;
-  --state-estop-bg: rgba(239, 68, 68, 0.20);
-  --state-estop-border: rgba(239, 68, 68, 0.50);
+  --state-estop-color: #B91C1C;
+  --state-estop-bg: #B91C1C;
+  --state-estop-border: #991B1B;
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(30, 45, 71, 0.4);
-  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(51, 51, 51, 0.5);
+  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.85);
 }
 
 /* ==========================================================================
@@ -242,7 +242,7 @@ select {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 0 24px rgba(14, 165, 233, 0.25);
+  box-shadow: 0 0 24px rgba(255, 107, 53, 0.35);
 }
 
 .loading-grid-lines {
@@ -463,6 +463,12 @@ select {
   position: sticky;
   top: 0;
   z-index: 20;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar::-webkit-scrollbar {
+  display: none;
 }
 
 .brand {
@@ -472,6 +478,7 @@ select {
   text-decoration: none;
   color: var(--text-primary);
   user-select: none;
+  flex-shrink: 0;
 }
 
 .brand-icon {
@@ -501,9 +508,9 @@ select {
   padding: 2px 8px;
   margin-left: 8px;
   border-radius: 9999px;
-  background-color: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  color: #10b981;
+  background-color: rgba(22, 163, 74, 0.16);
+  border: 1px solid rgba(22, 163, 74, 0.45);
+  color: #16A34A;
   font-size: 10px;
   font-weight: 600;
   font-family: var(--font-mono);
@@ -513,7 +520,7 @@ select {
 }
 
 .p2p-badge .pulse-icon {
-  color: #10b981;
+  color: #16A34A;
   animation: p2p-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
@@ -597,14 +604,14 @@ select {
 }
 
 .mesh-toggle.active {
-  background-color: rgba(16, 185, 129, 0.16);
-  border-color: rgba(16, 185, 129, 0.45);
-  color: #10b981;
+  background-color: rgba(22, 163, 74, 0.18);
+  border-color: rgba(22, 163, 74, 0.5);
+  color: #16A34A;
 }
 
 .mesh-toggle.active:hover {
-  background-color: rgba(16, 185, 129, 0.25);
-  border-color: #10b981;
+  background-color: rgba(22, 163, 74, 0.28);
+  border-color: #16A34A;
 }
 
 .fullscreen-toggle {
@@ -621,6 +628,7 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .button-group {
@@ -990,9 +998,9 @@ select {
   align-items: center;
   padding: 2px 8px;
   border-radius: 9999px;
-  background-color: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #10b981;
+  background-color: rgba(22, 163, 74, 0.16);
+  border: 1px solid rgba(22, 163, 74, 0.45);
+  color: #16A34A;
   font-size: 9.5px;
   font-weight: 700;
   font-family: var(--font-mono);
@@ -1128,8 +1136,8 @@ select {
 }
 
 .map-footer .legend-dot.mesh {
-  background-color: #14b8a6;
-  box-shadow: 0 0 6px rgba(20, 184, 166, 0.7);
+  background-color: var(--accent-secondary);
+  box-shadow: 0 0 6px rgba(255, 195, 0, 0.7);
 }
 
 .map-hint {
@@ -1300,7 +1308,7 @@ select {
 }
 
 /* ==========================================================================
-   State System (11 Distinct Operational Badges)
+   State System (Solid Saturated Depot Signal Operational Badges)
    ========================================================================== */
 .state-light {
   width: 8px;
@@ -1313,26 +1321,28 @@ select {
 .state-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
-  font-size: 11px;
-  font-weight: 500;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   border-radius: 4px;
   margin-top: 4px;
-  border: 1px solid transparent;
+  line-height: 1.1;
+  border: none;
 }
 
 .state-light.idle { background-color: var(--state-idle-color); }
 .state-badge.idle {
   background-color: var(--state-idle-bg);
-  color: var(--state-idle-color);
-  border-color: var(--state-idle-border);
+  color: #ffffff;
 }
 
 .state-light.assigned { background-color: var(--state-assigned-color); }
 .state-badge.assigned {
   background-color: var(--state-assigned-bg);
-  color: var(--state-assigned-color);
-  border-color: var(--state-assigned-border);
+  color: #111111;
 }
 
 .state-light.en_route_pickup,
@@ -1340,66 +1350,58 @@ select {
 .state-badge.en_route_pickup,
 .state-badge.en_route {
   background-color: var(--state-route-bg);
-  color: var(--state-route-color);
-  border-color: var(--state-route-border);
+  color: #ffffff;
 }
 
 .state-light.picking { background-color: var(--state-picking-color); }
 .state-badge.picking {
   background-color: var(--state-picking-bg);
-  color: var(--state-picking-color);
-  border-color: var(--state-picking-border);
+  color: #ffffff;
 }
 
-.state-light.en_route_dropoff { background-color: var(--state-picking-color); }
+.state-light.en_route_dropoff { background-color: var(--state-route-color); }
 .state-badge.en_route_dropoff {
-  background-color: var(--state-picking-bg);
-  color: var(--state-picking-color);
-  border-color: var(--state-picking-border);
+  background-color: var(--state-route-bg);
+  color: #ffffff;
 }
 
 .state-light.dropping { background-color: var(--state-dropping-color); }
 .state-badge.dropping {
   background-color: var(--state-dropping-bg);
-  color: var(--state-dropping-color);
-  border-color: var(--state-dropping-border);
+  color: #111111;
 }
 
 .state-light.conflict_negotiating { background-color: var(--state-conflict-color); }
 .state-badge.conflict_negotiating {
   background-color: var(--state-conflict-bg);
-  color: var(--state-conflict-color);
-  border-color: var(--state-conflict-border);
+  color: #ffffff;
+  font-weight: 800;
 }
 
 .state-light.auditing { background-color: var(--state-audit-color); }
 .state-badge.auditing {
   background-color: var(--state-audit-bg);
-  color: var(--state-audit-color);
-  border-color: var(--state-audit-border);
+  color: #ffffff;
 }
 
 .state-light.charging { background-color: var(--state-charge-color); }
 .state-badge.charging {
   background-color: var(--state-charge-bg);
-  color: var(--state-charge-color);
-  border-color: var(--state-charge-border);
+  color: #ffffff;
 }
 
 .state-light.failsafe_hold { background-color: var(--state-failsafe-color); }
 .state-badge.failsafe_hold {
   background-color: var(--state-failsafe-bg);
-  color: var(--state-failsafe-color);
-  border-color: var(--state-failsafe-border);
-  font-weight: 600;
+  color: #111111;
+  font-weight: 800;
 }
 
 .state-light.emergency_stop { background-color: var(--state-estop-color); }
 .state-badge.emergency_stop {
   background-color: var(--state-estop-bg);
-  color: var(--state-estop-color);
-  border: 1.5px solid var(--state-estop-border);
-  font-weight: 700;
+  color: #ffffff;
+  font-weight: 800;
 }
 
 /* ==========================================================================

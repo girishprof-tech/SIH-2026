@@ -181,6 +181,11 @@ class TaskManager:
     def pending_tasks(self) -> List[Task]:
         return [t for t in self._tasks.values() if t.status == TaskStatus.PENDING]
 
+    def clear(self) -> None:
+        """Clear all tasks from the registry on simulation reset."""
+        self._tasks.clear()
+        log.info("TASK_MANAGER_CLEARED: All tasks removed.")
+
     # ── Assignment ────────────────────────────────────────────────────────────
 
     def try_assign(

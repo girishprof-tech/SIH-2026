@@ -75,3 +75,12 @@ class Telemetry:
         if current == 0.0:
             return new
         return self._alpha * new + (1 - self._alpha) * current
+
+    def reset(self) -> None:
+        """Reset metric counters on simulation reset."""
+        self.last_tick_processing_ms = 0.0
+        self.planner_latency_ms = 0.0
+        self.broadcast_latency_ms = 0.0
+        self.active_conflicts = 0
+        self.replans = 0
+        self.total_ticks = 0

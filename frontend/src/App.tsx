@@ -174,20 +174,25 @@ export default function App() {
       setLoading(false)
     }, 5200)
 
-    void Promise.all([
-      api.world().then(setWorld),
-      api.robots().then(setRobots),
-      api.tasks().then(setTasks),
-      api.obstacles().then(setObstacles),
-      api.status().then(setStatus),
-      api.health().then((h) => {
-        if (h.fleet_mode) setFleetMode(h.fleet_mode)
-      }),
-      api.chaosStatus().then((snapshot) => {
-        setChaos(snapshot.enabled)
-        setLoss(snapshot.packet_loss_pct)
-      }),
-    ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
+    // Reset simulation to clean initial state on page load / reload
+    api.simulation('reset')
+      .catch(() => undefined)
+      .finally(() => {
+        void Promise.all([
+          api.world().then(setWorld),
+          api.robots().then(setRobots),
+          api.tasks().then(setTasks),
+          api.obstacles().then(setObstacles),
+          api.status().then(setStatus),
+          api.health().then((h) => {
+            if (h.fleet_mode) setFleetMode(h.fleet_mode)
+          }),
+          api.chaosStatus().then((snapshot) => {
+            setChaos(snapshot.enabled)
+            setLoss(snapshot.packet_loss_pct)
+          }),
+        ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
+      })
 
     // Polling restricted to external human toggles (chaos mode) and backend health/mode detection.
     // All active simulation telemetry (robots, tasks, obstacles, metrics, status) is delivered synchronously per tick over WebSocket.
@@ -290,7 +295,20 @@ export default function App() {
         onToggleFullscreen={handleToggleFullscreen}
         onAction={(action) =>
           run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
-            () => api.status().then(setStatus)
+            () => {
+              if (action === 'reset') {
+                setSelected(null)
+                void Promise.all([
+                  api.world().then(setWorld),
+                  api.robots().then(setRobots),
+                  api.tasks().then(setTasks),
+                  api.obstacles().then(setObstacles),
+                  api.status().then(setStatus),
+                ])
+              } else {
+                void api.status().then(setStatus)
+              }
+            }
           )
         }
         onChaos={(enabled, value) => {

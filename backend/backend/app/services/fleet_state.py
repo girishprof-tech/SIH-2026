@@ -119,7 +119,7 @@ class FleetState:
                 y=sy,
                 heading=Heading.NORTH,
                 state=RobotState.IDLE,
-                battery_pct=100.0 - i * 5.0,
+                battery_pct=100.0,
                 current_task_id=None,
                 priority_score=0,
                 last_updated_tick=0,

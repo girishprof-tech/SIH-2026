@@ -315,6 +315,7 @@ class RobotNode:
         """
         prev_pos = self.robot.position
         prev_heading = self.robot.heading
+        intended_pos = self.robot.position
         action_taken = "IDLE"
         conflict_resolved = None
         intended_pos = self.robot.position
