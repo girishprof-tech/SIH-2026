@@ -6,6 +6,7 @@ frontend/vite.config.d.ts
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.hypothesis/
 .venv/
 venv/
 .env
