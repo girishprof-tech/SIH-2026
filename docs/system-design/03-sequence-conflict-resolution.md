@@ -1,7 +1,7 @@
 # 03 — Sequence: Conflict Resolution & The Swap-Collision Fix
 
 ## Overview
-This document illustrates the head-on collision scenario documented in [`PEER_BUG_ANALYSIS.md`](file:///c:/Users/akhil/Desktop/SIHHH/SIH-2026/PEER_BUG_ANALYSIS.md) and [`FIXES_APPLIED.md`](file:///c:/Users/akhil/Desktop/SIHHH/SIH-2026/FIXES_APPLIED.md). 
+This document illustrates the head-on collision scenario documented in [`PEER_BUG_ANALYSIS.md`](../reports/PEER_BUG_ANALYSIS.md) and [`FIXES_APPLIED.md`](../reports/FIXES_APPLIED.md). 
 
 In a narrow 1-tile wide corridor:
 - **AMR-01** is at coordinate `(9, 6)` heading East towards `(10, 6)`.
