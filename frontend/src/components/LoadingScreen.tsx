@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, Cpu, Layers, Radio } from 'lucide-react'
+import { Activity, ArrowRight, Cpu, Radio } from 'lucide-react'
 
 interface LoadingScreenProps {
   theme?: 'light' | 'dark'
@@ -56,55 +56,58 @@ export function LoadingScreen({ theme = 'dark', durationMs = 5000, onComplete }:
   return (
     <div className={`loading-screen ${theme} ${fading ? 'fading-out' : ''}`}>
       <div className="loading-container">
-        <div className="loading-radar-frame">
-          <div className="loading-grid-lines" />
-          <div className="loading-radar-sweep" />
-          <div className="loading-bot-icon">
-            <Layers size={38} strokeWidth={2.2} />
-          </div>
-          <div className="loading-ping-ring ring-1" />
-          <div className="loading-ping-ring ring-2" />
+        <div className="loading-video-frame">
+          <video
+            className="loading-video"
+            src="/loading-robot.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
         </div>
 
-        <div className="loading-text-group">
-          <div className="loading-brand-row">
-            <span className="loading-badge">KINETIX FLEET OS</span>
-            <span className="loading-code-badge">{currentStage.code}</span>
+        <div className="loading-content-stack">
+          <div className="loading-text-group">
+            <div className="loading-brand-row">
+              <span className="loading-badge">KINETIX FLEET OS</span>
+              <span className="loading-code-badge">{currentStage.code}</span>
+            </div>
+            <h1 className="loading-title">Kinetix</h1>
+            <p className="loading-stage-title">{currentStage.title}</p>
+            <p className="loading-subtitle">{currentStage.subtitle}</p>
           </div>
-          <h1 className="loading-title">Kinetix</h1>
-          <p className="loading-stage-title">{currentStage.title}</p>
-          <p className="loading-subtitle">{currentStage.subtitle}</p>
-        </div>
 
-        <div className="loading-meter-group">
-          <div className="loading-bar-track">
-            <div className="loading-bar-fill" style={{ width: `${progress}%` }} />
+          <div className="loading-meter-group">
+            <div className="loading-bar-track">
+              <div className="loading-bar-fill" style={{ width: `${progress}%` }} />
+            </div>
+            <div className="loading-progress-meta">
+              <span className="loading-status-text">SYSTEM BOOT SEQUENCE</span>
+              <span className="loading-pct">{progress}%</span>
+            </div>
           </div>
-          <div className="loading-progress-meta">
-            <span className="loading-status-text">SYSTEM BOOT SEQUENCE</span>
-            <span className="loading-pct">{progress}%</span>
-          </div>
-        </div>
 
-        <div className="loading-telemetry-hud">
-          <div className="hud-metric">
-            <Radio size={12} />
-            <span>MESH: 10/10 NODES</span>
+          <div className="loading-telemetry-hud">
+            <div className="hud-metric">
+              <Radio size={12} />
+              <span>MESH: 10/10 NODES</span>
+            </div>
+            <div className="hud-metric">
+              <Cpu size={12} />
+              <span>DISPATCH: P2P</span>
+            </div>
+            <div className="hud-metric">
+              <Activity size={12} />
+              <span>TICK: 500MS</span>
+            </div>
           </div>
-          <div className="hud-metric">
-            <Cpu size={12} />
-            <span>DISPATCH: P2P</span>
-          </div>
-          <div className="hud-metric">
-            <Activity size={12} />
-            <span>TICK: 500MS</span>
-          </div>
-        </div>
 
-        <button type="button" className="loading-skip-btn" onClick={handleSkip}>
-          <span>Enter console</span>
-          <ArrowRight size={13} />
-        </button>
+          <button type="button" className="loading-skip-btn" onClick={handleSkip}>
+            <span>Enter console</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
       </div>
     </div>
   )
