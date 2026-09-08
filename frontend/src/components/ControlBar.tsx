@@ -10,6 +10,8 @@ import {
   Moon,
   Layers,
   Network,
+  Maximize,
+  Minimize,
 } from 'lucide-react'
 import type { SocketStatus } from '../hooks/useFleetSocket'
 
@@ -28,6 +30,8 @@ type Props = {
   onToggleMeshLinks: () => void
   theme: 'light' | 'dark'
   onToggleTheme: () => void
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
   onAction: (action: 'start' | 'pause' | 'reset') => void
   onChaos: (enabled: boolean, loss: number) => void
   onDemo: () => void
@@ -48,6 +52,8 @@ export function ControlBar({
   onToggleMeshLinks,
   theme,
   onToggleTheme,
+  isFullscreen = false,
+  onToggleFullscreen,
   onAction,
   onChaos,
   onDemo,
@@ -123,6 +129,18 @@ export function ControlBar({
           <Share2 size={13} />
           <span>P2P Mesh</span>
         </button>
+
+        {onToggleFullscreen && (
+          <button
+            className={`control-button fullscreen-toggle ${isFullscreen ? 'active' : ''}`}
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Exit Full Screen' : 'View Simulation in Full Screen'}
+            aria-label={isFullscreen ? 'Exit Full Screen' : 'View Simulation in Full Screen'}
+          >
+            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+            <span>{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
+          </button>
+        )}
 
         <div className="readout">
           <span className="label">Tick</span>

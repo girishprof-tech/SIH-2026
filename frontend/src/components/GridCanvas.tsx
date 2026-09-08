@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Maximize, Minimize, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
 import { api } from '../api'
 import type { Conflict, Point, Robot, Task, TempObstacle, World } from '../types'
 import { ROBOT_TYPE_COLORS, STATE_COLORS } from '../state-meta'
@@ -14,6 +15,8 @@ type Props = {
   selected: string | null
   showMeshLinks?: boolean
   theme?: 'light' | 'dark'
+  isFullscreen?: boolean
+  onToggleFullscreen?: () => void
   onRobot: (robot: Robot) => void
   onCell: (point: Point) => void
 }
@@ -105,6 +108,8 @@ export function GridCanvas({
   selected,
   showMeshLinks = true,
   theme = 'dark',
+  isFullscreen = false,
+  onToggleFullscreen,
   onRobot,
   onCell,
 }: Props) {
@@ -113,6 +118,31 @@ export function GridCanvas({
   const motion = useRef<Map<string, Motion>>(new Map())
   const [viewVersion, setViewVersion] = useState(0)
   const [duration, setDuration] = useState(tickMs)
+
+  const handleZoomIn = () => {
+    view.current.zoom = Math.min(2.5, Number((view.current.zoom + 0.15).toFixed(2)))
+    setViewVersion((v) => v + 1)
+  }
+
+  const handleZoomOut = () => {
+    view.current.zoom = Math.max(0.5, Number((view.current.zoom - 0.15).toFixed(2)))
+    setViewVersion((v) => v + 1)
+  }
+
+  const handleResetView = () => {
+    view.current.zoom = 1
+    view.current.panX = 0
+    view.current.panY = 0
+    setViewVersion((v) => v + 1)
+  }
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewVersion((v) => v + 1)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const palette = theme === 'light' ? lightPalette : darkPalette
 
@@ -808,6 +838,7 @@ export function GridCanvas({
     pickupSet,
     dropoffSet,
     nearObstacleSet,
+    isFullscreen,
   ])
 
   const hitPoint = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -836,14 +867,34 @@ export function GridCanvas({
   }
 
   return (
-    <div className="grid-shell">
+    <div className={`grid-shell ${isFullscreen ? 'fullscreen' : ''}`}>
       <div className="grid-caption">
-        <span>
-          <i className="legend-dot" style={{ backgroundColor: 'var(--accent-primary)' }} /> Live warehouse floor
-        </span>
-        <span>
-          {world.width} × {world.height} grid, isometric
-        </span>
+        <div className="caption-left">
+          <span className="live-indicator">
+            <i className="legend-dot" style={{ backgroundColor: 'var(--accent-primary)' }} /> Live warehouse floor
+          </span>
+          <span className="grid-dimensions">
+            {world.width} × {world.height} grid, isometric
+          </span>
+          {isFullscreen && (
+            <span className="fullscreen-badge">
+              FULLSCREEN SIMULATION ACTIVE
+            </span>
+          )}
+        </div>
+        <div className="caption-right">
+          {isFullscreen && onToggleFullscreen && (
+            <button
+              className="fullscreen-exit-btn"
+              onClick={onToggleFullscreen}
+              title="Exit Full Screen (Esc)"
+              aria-label="Exit Full Screen"
+            >
+              <Minimize size={13} />
+              <span>Exit Full Screen (Esc)</span>
+            </button>
+          )}
+        </div>
       </div>
       <canvas
         ref={ref}
@@ -873,10 +924,55 @@ export function GridCanvas({
         }}
         onWheel={(event) => {
           event.preventDefault()
-          view.current.zoom = Math.max(0.65, Math.min(2.2, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
+          view.current.zoom = Math.max(0.5, Math.min(2.5, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
           setViewVersion((version) => version + 1)
         }}
       />
+
+      {/* Floating Canvas Control HUD */}
+      <div className="canvas-hud-controls">
+        <button
+          className="canvas-hud-btn"
+          onClick={handleZoomIn}
+          title="Zoom In (+)"
+          aria-label="Zoom in canvas"
+        >
+          <ZoomIn size={14} />
+        </button>
+        <button
+          className="canvas-hud-btn"
+          onClick={handleZoomOut}
+          title="Zoom Out (-)"
+          aria-label="Zoom out canvas"
+        >
+          <ZoomOut size={14} />
+        </button>
+        <button
+          className="canvas-hud-btn"
+          onClick={handleResetView}
+          title="Reset View / Center"
+          aria-label="Reset canvas view"
+        >
+          <RotateCcw size={13} />
+        </button>
+        {onToggleFullscreen && (
+          <button
+            className={`canvas-hud-btn ${isFullscreen ? 'active' : ''}`}
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Exit Full Screen (Esc)' : 'View Simulation in Full Screen (F)'}
+            aria-label={isFullscreen ? 'Exit Full Screen' : 'Toggle Full Screen'}
+          >
+            {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+          </button>
+        )}
+      </div>
+
+      {isFullscreen && (
+        <div className="fullscreen-watermark">
+          <span>KINETIX AUTONOMOUS FLEET SIMULATOR</span>
+          <span>10 NODES P2P MESH • TICK #{tick}</span>
+        </div>
+      )}
     </div>
   )
 }

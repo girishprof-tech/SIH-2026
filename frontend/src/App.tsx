@@ -66,6 +66,55 @@ export default function App() {
     }
   }, [theme])
 
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {
+          setIsFullscreen((prev) => !prev)
+        })
+      } else {
+        setIsFullscreen((prev) => !prev)
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {
+          setIsFullscreen(false)
+        })
+      } else {
+        setIsFullscreen(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => undefined)
+        }
+        setIsFullscreen(false)
+      } else if (
+        (e.key === 'f' || e.key === 'F') &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        handleToggleFullscreen()
+      }
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isFullscreen, handleToggleFullscreen])
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
@@ -237,6 +286,8 @@ export default function App() {
         onToggleMeshLinks={() => setShowMeshLinks((prev) => !prev)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
         onAction={(action) =>
           run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
             () => api.status().then(setStatus)
@@ -277,6 +328,8 @@ export default function App() {
             selected={selected}
             showMeshLinks={showMeshLinks}
             theme={theme}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
             onRobot={setSelected ? (robot) => setSelected(robot.robot_id) : () => undefined}
             onCell={selectCell}
           />
