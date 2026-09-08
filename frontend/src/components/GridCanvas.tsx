@@ -309,18 +309,34 @@ export function GridCanvas({
       }
     }
 
-    // 2. Fixed Stations
+    // 2. Fixed Stations & Perimeter Warehouse Loading Docks
+    const getGateLabel = (point: Point, label: 'in' | 'out'): { bayLabel: string; isCenter: boolean } => {
+      if (label === 'in') {
+        if (point.y >= 8 && point.y <= 10) return { bayLabel: 'IN-1', isCenter: point.y === 9 }
+        if (point.y >= 13 && point.y <= 15) return { bayLabel: 'IN-2', isCenter: point.y === 14 }
+        if (point.y >= 18 && point.y <= 20) return { bayLabel: 'IN-3', isCenter: point.y === 19 }
+        return { bayLabel: 'IN', isCenter: true }
+      } else {
+        if (point.y >= 8 && point.y <= 10) return { bayLabel: 'OUT-1', isCenter: point.y === 9 }
+        if (point.y >= 13 && point.y <= 15) return { bayLabel: 'OUT-2', isCenter: point.y === 14 }
+        if (point.y >= 18 && point.y <= 20) return { bayLabel: 'OUT-3', isCenter: point.y === 19 }
+        return { bayLabel: 'OUT', isCenter: true }
+      }
+    }
+
     const drawStationBlock = (point: Point, color: string, label: 'in' | 'out') => {
       const center = cellCenter(point)
-      const w = projection.tileW * 0.68
-      const h = projection.tileH * 0.57
+      const w = projection.tileW * 0.72
+      const h = projection.tileH * 0.60
       const depth = projection.lift * 0.28
+      const { bayLabel, isCenter } = getGateLabel(point, label)
 
       // Soft contact shadow
       diamond(ctx, center.x, center.y, w * 1.15, h * 1.15)
       ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.35)'
       ctx.fill()
 
+      // Primary dock platform plate
       ctx.fillStyle = color
       diamond(ctx, center.x, center.y - depth, w, h)
       ctx.fill()
@@ -341,12 +357,14 @@ export function GridCanvas({
       ctx.closePath()
       ctx.fill()
 
-      drawArrow(ctx, center.x, center.y - depth, label, Math.min(w, h) * 0.7)
+      drawArrow(ctx, center.x, center.y - depth, label, Math.min(w, h) * 0.65)
       ctx.fillStyle = '#ffffff'
-      ctx.font = `600 ${Math.max(7, projection.tileH * 0.14)}px 'JetBrains Mono', monospace`
+      ctx.font = isCenter
+        ? `700 ${Math.max(8, projection.tileH * 0.16)}px 'JetBrains Mono', monospace`
+        : `600 ${Math.max(6, projection.tileH * 0.12)}px 'JetBrains Mono', monospace`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(label === 'in' ? 'IN' : 'OUT', center.x, center.y + projection.tileH * 0.18)
+      ctx.fillText(isCenter ? bayLabel : label === 'in' ? '▲ IN' : '▼ OUT', center.x, center.y + projection.tileH * 0.18)
     }
 
     world.charging_stations.forEach((point, idx) => {

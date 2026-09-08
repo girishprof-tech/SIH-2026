@@ -174,12 +174,12 @@ def _resolve_job_points(world, job_type: str, zone: str | None = None):
             pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (11, 12)
         _job_dispatch_counter += 1
         dropoffs = sorted(list(world.dropoff_stations))
-        dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (28, 9)
+        dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (29, 9)
         return pickup, dropoff, AMRType.GOODS_TO_PERSON
 
     if job_type == "sort_batch":
         pickups = sorted(list(world.pickup_stations))
-        pickup = pickups[_job_dispatch_counter % len(pickups)] if pickups else (1, 10)
+        pickup = pickups[_job_dispatch_counter % len(pickups)] if pickups else (0, 9)
         sorting_candidates = [
             (x, y)
             for x in range(world.width)

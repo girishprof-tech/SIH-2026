@@ -338,7 +338,7 @@ class TaskManager:
                 log.debug("Failed sending TASK_ANNOUNCEMENT to %s: %s", rid, e)
 
         if broadcast_count > 0:
-            log.info(
+            log.debug(
                 "TASK_ANNOUNCED task_id=%s broadcasted to %d robots pickup=(%d,%d) dropoff=(%d,%d)",
                 task.task_id, broadcast_count, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
             )

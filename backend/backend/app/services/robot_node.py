@@ -55,6 +55,7 @@ from priority import calculate_priority_score
 from conflict_detector import detect_peer_conflict
 from arbitration import resolve_peer_conflict
 from models import Heading, Robot, Task
+from app.models.robot import AMRType
 from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
 from app.transport.base import Transport
 from app.transport.udp_transport import UdpTransport
@@ -173,6 +174,7 @@ class RobotNode:
         self.active_audit_mission: Optional[AuditMission] = None
 
         # 7. Robot Model Entity
+        rt_enum = AMRType(robot_type) if isinstance(robot_type, str) else robot_type
         self.robot = Robot(
             robot_id=robot_id,
             position=start_pos,
@@ -184,6 +186,7 @@ class RobotNode:
             priority_score=0.0,
             wait_ticks_so_far=0,
             last_updated_tick=0,
+            robot_type=rt_enum,
         )
 
         # 8. Deadlock / Livelock Breaker State
@@ -990,6 +993,8 @@ class RobotNode:
                 scan_msg = self.active_audit_mission.record_scan(self.robot.position)
                 self.fsm.transition(RobotEvent.AUDIT_CHECKPOINT_LOGGED)
                 self.robot.state = self.fsm.state
+                if self.active_audit_mission.audit_id:
+                    self.completed_task_ids.add(self.active_audit_mission.audit_id)
                 self.active_audit_mission = None
                 self.goal_pos = None
                 self.robot.path = []
@@ -1050,6 +1055,7 @@ class RobotNode:
         frame = {
             "tick": tick,
             "robot_id": self.robot.robot_id,
+            "robot_type": self.robot_type,
             "x": self.robot.position[0],
             "y": self.robot.position[1],
             "heading": self.robot.heading.value,
@@ -1144,14 +1150,34 @@ class RobotNode:
                 if tid and tid not in self.completed_task_ids and self.fsm.state == RobotState.IDLE:
                     pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
                     dropoff_pos = tuple(t_dict["dropoff"])
-                    self._assign_initial_task(
-                        goal_pos=dropoff_pos,
-                        urgency=int(t_dict.get("urgency", 3)),
-                        payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
-                        task_id=tid,
-                        pickup_pos=pickup_pos,
-                    )
-                    self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid} to pickup {pickup_pos} -> dropoff {dropoff_pos}.")
+                    if tid.startswith("AUDIT") or self.robot_type == "SCANNING_AUDIT":
+                        from app.services.audit_mission import AuditMission
+                        self.active_audit_mission = AuditMission(dropoff_pos, audit_id=tid)
+                        self.goal_pos = dropoff_pos
+                        self.fsm.transition(RobotEvent.START_AUDIT)
+                        self.robot.state = self.fsm.state
+                        audit_path = self._timed_find_path(
+                            start=self.robot.position,
+                            goal=dropoff_pos,
+                            current_tick=current_tick,
+                            reservation_table=self.local_reservations,
+                            grid=self.grid,
+                        )
+                        if audit_path and len(audit_path) > 1:
+                            self.robot.path = audit_path
+                            reserve_path(audit_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                        else:
+                            self.robot.path = [{"x": self.robot.position[0], "y": self.robot.position[1], "t": current_tick}]
+                        self.log(f"[Tick {current_tick}] Accepted AUDIT mission {tid} to checkpoint {dropoff_pos}.")
+                    else:
+                        self._assign_initial_task(
+                            goal_pos=dropoff_pos,
+                            urgency=int(t_dict.get("urgency", 3)),
+                            payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
+                            task_id=tid,
+                            pickup_pos=pickup_pos,
+                        )
+                        self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid} to pickup {pickup_pos} -> dropoff {dropoff_pos}.")
 
             elif m_type == "TASK_ANNOUNCEMENT":
                 # Handle decentralized contract-net announcement broadcast

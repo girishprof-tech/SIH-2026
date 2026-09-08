@@ -44,6 +44,7 @@ class Robot:
     priority_score: float = 0.0
     wait_ticks_so_far: int = 0
     last_updated_tick: int = 0
+    robot_type: Any = "GOODS_TO_PERSON"
 
     @property
     def x(self) -> int:

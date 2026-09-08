@@ -72,18 +72,53 @@ export function launchBackendPlugin() {
                 return;
             }
             var pythonBin = resolvePython();
-            console.log("[launch-backend] Starting FastAPI backend + robot fleet (".concat(pythonBin, ")..."));
-            backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'], {
-                cwd: backendDir,
-                stdio: 'inherit',
-                env: process.env,
-                detached: process.platform !== 'win32',
-            });
-            backendProcess.on('exit', function (code) {
-                if (!shuttingDown) {
-                    console.error("[launch-backend] Backend process exited unexpectedly (code ".concat(code, ")."));
+            var restartTimer = null;
+            function cleanStalePort8000() {
+                if (process.platform === 'win32') {
+                    try {
+                        var netstat = spawn('netstat', ['-ano', '-p', 'tcp'], { stdio: 'pipe' });
+                        var out_1 = '';
+                        netstat.stdout.on('data', function (d) { out_1 += d.toString(); });
+                        netstat.on('close', function () {
+                            for (var _i = 0, _a = out_1.split('\n'); _i < _a.length; _i++) {
+                                var line = _a[_i];
+                                if (line.includes(':8000') && line.includes('LISTENING')) {
+                                    var parts = line.trim().split(/\s+/);
+                                    var pid = parts[parts.length - 1];
+                                    if (pid && pid !== '0') {
+                                        console.log("[launch-backend] Freeing stale port 8000 (PID ".concat(pid, ")..."));
+                                        spawn('taskkill', ['/pid', pid, '/F'], { stdio: 'ignore' });
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    catch (_a) {
+                        // ignore
+                    }
                 }
-            });
+            }
+            function startBackend() {
+                if (shuttingDown)
+                    return;
+                cleanStalePort8000();
+                console.log("[launch-backend] Starting FastAPI backend + robot fleet (".concat(pythonBin, ")..."));
+                backendProcess = spawn(pythonBin, ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'], {
+                    cwd: backendDir,
+                    stdio: 'inherit',
+                    env: process.env,
+                    detached: process.platform !== 'win32',
+                });
+                backendProcess.on('exit', function (code) {
+                    if (!shuttingDown) {
+                        console.warn("[launch-backend] Backend process exited (code ".concat(code, "). Auto-restarting in 2s..."));
+                        if (restartTimer)
+                            clearTimeout(restartTimer);
+                        restartTimer = setTimeout(startBackend, 2000);
+                    }
+                });
+            }
+            startBackend();
             process.on('SIGINT', function () {
                 shutdown();
                 process.exit();

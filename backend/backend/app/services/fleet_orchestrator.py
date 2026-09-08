@@ -195,7 +195,7 @@ class FleetOrchestrator:
         """Fully resets all robot processes back to initial starting bays and battery."""
         print("[FleetOrchestrator] Stopping processes for reset...")
         self.stop()
-        time.sleep(0.15)
+        time.sleep(0.25)
         self.reset_logs()
 
         # Re-initialize events and queue
@@ -231,9 +231,14 @@ class FleetOrchestrator:
         if self._bus_thread and self._bus_thread.is_alive():
             self._bus_thread.join(timeout=1.0)
         for p in self.processes:
-            p.join(timeout=1.0)
+            p.join(timeout=0.5)
             if p.is_alive():
-                p.terminate()
+                try:
+                    p.terminate()
+                except Exception:
+                    pass
+                p.join(timeout=0.5)
+        self.processes.clear()
         print("[FleetOrchestrator] All robot processes stopped.")
 
 

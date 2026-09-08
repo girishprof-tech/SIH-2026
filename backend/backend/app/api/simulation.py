@@ -32,13 +32,24 @@ async def start_simulation(request: Request) -> dict:
     request.app.state.telemetry_streaming_paused = False
     fleet.is_running = True
     orchestrator = getattr(request.app.state, "orchestrator", None)
-    if orchestrator is not None:
+
+    if orchestrator is None or not orchestrator.is_alive():
+        from app.services.fleet_orchestrator import FleetOrchestrator
+        from app.core.config import get_settings
+        cfg = get_settings()
+        log.info("SIMULATION_START: Orchestrator was not active; spawning fresh FleetOrchestrator...")
+        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0, max_ticks=0)
+        orchestrator.start()
+        request.app.state.orchestrator = orchestrator
+        request.app.state.fleet_mode = "spawned_new_fleet"
+    else:
         orchestrator.resume()
+
     log.info(
-        "SIMULATION_START: Decentralized fleet telemetry streaming active. "
-        "Authoritative SimulationEngine tick loop remains disabled."
+        "SIMULATION_START: Decentralized fleet telemetry streaming active (tick=%d, running=True).",
+        fleet.tick,
     )
-    return {"status": "started", "tick": fleet.tick, "mode": "decentralized_telemetry"}
+    return {"status": "started", "tick": fleet.tick, "mode": getattr(request.app.state, "fleet_mode", "spawned_new_fleet")}
 
 
 @router.post("/pause", summary="Pause simulation telemetry streaming")

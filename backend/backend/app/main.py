@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import sys
 import time
 from contextlib import asynccontextmanager
 
@@ -213,31 +214,74 @@ async def lifespan(app: FastAPI):
             except Exception as ex:
                 log.warning("[SPOF RECOVERY] Error replaying job %s: %s", r_job.get("job_id"), ex)
 
+    def _clean_stale_udp_ports(ports: range = range(9001, 9011)) -> None:
+        """Terminates any stale/zombie processes holding AMR UDP ports on Windows."""
+        if sys.platform != "win32":
+            return
+        import subprocess
+        try:
+            out = subprocess.check_output(["netstat", "-ano", "-p", "udp"], text=True)
+            my_pid = os.getpid()
+            killed = set()
+            for line in out.splitlines():
+                parts = line.strip().split()
+                if len(parts) >= 4 and parts[0].upper() == "UDP":
+                    addr = parts[1]
+                    pid_str = parts[-1]
+                    for p in ports:
+                        if f":{p}" in addr:
+                            try:
+                                pid = int(pid_str)
+                                if pid != my_pid and pid not in killed and pid > 0:
+                                    subprocess.run(
+                                        ["taskkill", "/F", "/PID", str(pid)],
+                                        stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL,
+                                    )
+                                    killed.add(pid)
+                            except Exception:
+                                pass
+            if killed:
+                time.sleep(0.3)
+        except Exception:
+            pass
+
     def _is_udp_port_bound(port: int = 9001, host: str = "127.0.0.1") -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
-                if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-                    try:
-                        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-                    except Exception:
-                        pass
                 s.bind((host, port))
                 return False
             except OSError:
                 return True
 
+    def _is_external_fleet_active() -> bool:
+        """Checks whether an external fleet is genuinely running and actively publishing telemetry."""
+        from app.services.telemetry_bus import TELEMETRY_FILE
+        if not _is_udp_port_bound(9001):
+            return False
+        if not TELEMETRY_FILE.exists():
+            return False
+        try:
+            mtime = TELEMETRY_FILE.stat().st_mtime
+            return (time.time() - mtime) < 2.5
+        except Exception:
+            return False
+
     # ── Autonomous Decentralized Fleet Orchestrator ───────────────────────────
     orchestrator = None
-    fleet_already_running = _is_udp_port_bound(9001)
     spawn_enabled = os.environ.get("SPAWN_FLEET_ORCHESTRATOR", "1") == "1"
 
-    if fleet_already_running:
+    if _is_external_fleet_active():
         fleet_mode = "attached_to_existing_fleet"
         log.info(
-            "[FLEET STARTUP] Mode: ATTACHED TO EXISTING FLEET (UDP port 9001 bound by existing process). "
+            "[FLEET STARTUP] Mode: ATTACHED TO EXISTING FLEET (UDP port 9001 active with live telemetry). "
             "Operating as pure Telemetry Viewer."
         )
     elif spawn_enabled:
+        if _is_udp_port_bound(9001):
+            log.info("[FLEET STARTUP] Cleaning stale zombie processes holding UDP ports 9001-9010...")
+            _clean_stale_udp_ports()
+
         fleet_mode = "spawned_new_fleet"
         log.info(
             "[FLEET STARTUP] Mode: SPAWNED NEW FLEET (Spawning %d autonomous AMR OS processes on ports 9001+)...",
@@ -273,28 +317,32 @@ async def lifespan(app: FastAPI):
         """Reads updates from the independent robot processes and broadcasts them."""
         last_tick = -1
         disconnect_time: Optional[float] = None
-        auto_pause = os.environ.get("AUTO_PAUSE_ON_DISCONNECT", "1") == "1"
+        auto_pause = os.environ.get("AUTO_PAUSE_ON_DISCONNECT", "0") == "1"
 
         while True:
             try:
+                cur_orch = getattr(app.state, "orchestrator", None)
                 clients = len(connection_manager._connections)
                 telemetry.connected_clients = clients
 
-                # Auto-pause simulation processes when no browser tabs are open
-                if auto_pause and orchestrator is not None:
+                # Optional auto-pause simulation processes when no browser tabs are open for > 60s
+                if auto_pause and cur_orch is not None and fleet_state.is_running:
                     if clients == 0:
                         if disconnect_time is None:
                             disconnect_time = time.time()
-                        elif time.time() - disconnect_time > 3.0 and not orchestrator.is_paused():
-                            log.info("Zero active dashboard clients for 3s. Auto-pausing fleet processes...")
-                            orchestrator.pause()
+                        elif time.time() - disconnect_time > 60.0 and not cur_orch.is_paused():
+                            log.info("Zero active dashboard clients for 60s. Auto-pausing fleet processes...")
+                            cur_orch.pause()
                     else:
                         disconnect_time = None
-                        if orchestrator.is_paused() and not getattr(app.state, "telemetry_streaming_paused", False):
+                        if cur_orch.is_paused() and not getattr(app.state, "telemetry_streaming_paused", False):
                             log.info("Dashboard client connected. Auto-resuming fleet processes...")
-                            orchestrator.resume()
+                            cur_orch.resume()
+                else:
+                    disconnect_time = None
 
-                if not getattr(app.state, "telemetry_streaming_paused", False) and not (orchestrator and orchestrator.is_paused()):
+                is_orch_paused = cur_orch.is_paused() if cur_orch is not None else False
+                if not getattr(app.state, "telemetry_streaming_paused", False) and not is_orch_paused:
                     t_start = time.perf_counter()
                     data = read_latest_telemetry()
                     if data and data.get("tick", -1) != last_tick:
@@ -353,7 +401,7 @@ async def lifespan(app: FastAPI):
                     for t in pending:
                         assigned = task_manager.dispatch_to_fleet(t, peer_ports=p_ports)
                         if assigned:
-                            log.info("DISPATCH_RETRY: Pending task %s dispatched to %s", t.task_id, assigned)
+                            log.debug("DISPATCH_RETRY: Pending task %s dispatched to %s", t.task_id, assigned)
             except Exception as e:
                 log.debug("Pending task dispatcher error: %s", e)
             await asyncio.sleep(1.0)

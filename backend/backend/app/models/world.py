@@ -105,19 +105,18 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
         (5, 28), (10, 28), (19, 28), (24, 28),
     })
 
-    # Inbound Receiving Docks along West Arterial
+    # 3 Inbound Receiving Gates along West Perimeter Wall (x=0), covering 3 tiles each (9 tiles total)
     import_dock = frozenset({
-        (1, 9), (1, 10),
-        (1, 14), (1, 15),
-        (1, 19), (1, 20),
+        (0, 8), (0, 9), (0, 10),    # Gate IN-1 (aligned with Pick Aisle 1)
+        (0, 13), (0, 14), (0, 15),  # Gate IN-2 (aligned with Pick Aisle 2)
+        (0, 18), (0, 19), (0, 20),  # Gate IN-3 (aligned with Pick Aisle 3)
     })
 
-    # Outbound Shipping Docks along East Arterial
+    # 3 Outbound Shipping Gates along East Perimeter Wall (x=29), covering 3 tiles each (9 tiles total)
     export_dock = frozenset({
-        (28, 9), (28, 10),
-        (28, 14), (28, 15),
-        (28, 16), (28, 17),
-        (28, 19), (28, 20),
+        (29, 8), (29, 9), (29, 10),    # Gate OUT-1 (aligned with Pick Aisle 1)
+        (29, 13), (29, 14), (29, 15),  # Gate OUT-2 (aligned with Pick Aisle 2)
+        (29, 18), (29, 19), (29, 20),  # Gate OUT-3 (aligned with Pick Aisle 3)
     })
 
     return WorldConfig(

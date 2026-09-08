@@ -293,8 +293,13 @@ export default function App() {
         onToggleTheme={toggleTheme}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
-        onAction={(action) =>
-          run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
+        onAction={(action) => {
+          if (action === 'start') {
+            setStatus((prev) => ({ ...prev, running: true }))
+          } else if (action === 'pause' || action === 'reset') {
+            setStatus((prev) => ({ ...prev, running: false }))
+          }
+          return run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
             () => {
               if (action === 'reset') {
                 setSelected(null)
@@ -310,7 +315,7 @@ export default function App() {
               }
             }
           )
-        }
+        }}
         onChaos={(enabled, value) => {
           setChaos(enabled)
           setLoss(value)

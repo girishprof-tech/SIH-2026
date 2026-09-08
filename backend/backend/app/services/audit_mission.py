@@ -18,12 +18,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
+# Walkable aisle inspection coordinates directly adjacent to double-deep storage banks
 DEFAULT_CHECKPOINTS: List[Tuple[int, int]] = [
-    (6, 6),
-    (14, 6),
-    (20, 6),
-    (7, 12),
-    (14, 12),
+    (7, 5), (14, 5), (21, 5),      # North rack face (Aisle 0)
+    (7, 9), (14, 9), (21, 9),      # Pick Aisle 1 (between Banks 1 and 2)
+    (7, 14), (14, 14), (21, 14),   # Pick Aisle 2 (between Banks 2 and 3)
+    (7, 19), (14, 19), (21, 19),   # Pick Aisle 3 (between Banks 3 and 4)
+    (7, 23), (14, 23), (21, 23),   # South rack face (Aisle 4)
 ]
 
 

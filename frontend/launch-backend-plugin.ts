@@ -76,24 +76,58 @@ export function launchBackendPlugin(): Plugin {
       }
 
       const pythonBin = resolvePython()
-      console.log(`[launch-backend] Starting FastAPI backend + robot fleet (${pythonBin})...`)
+      let restartTimer: NodeJS.Timeout | null = null
 
-      backendProcess = spawn(
-        pythonBin,
-        ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'],
-        {
-          cwd: backendDir,
-          stdio: 'inherit',
-          env: process.env,
-          detached: process.platform !== 'win32',
-        },
-      )
-
-      backendProcess.on('exit', (code) => {
-        if (!shuttingDown) {
-          console.error(`[launch-backend] Backend process exited unexpectedly (code ${code}).`)
+      function cleanStalePort8000() {
+        if (process.platform === 'win32') {
+          try {
+            const netstat = spawn('netstat', ['-ano', '-p', 'tcp'], { stdio: 'pipe' })
+            let out = ''
+            netstat.stdout.on('data', (d) => { out += d.toString() })
+            netstat.on('close', () => {
+              for (const line of out.split('\n')) {
+                if (line.includes(':8000') && line.includes('LISTENING')) {
+                  const parts = line.trim().split(/\s+/)
+                  const pid = parts[parts.length - 1]
+                  if (pid && pid !== '0') {
+                    console.log(`[launch-backend] Freeing stale port 8000 (PID ${pid})...`)
+                    spawn('taskkill', ['/pid', pid, '/F'], { stdio: 'ignore' })
+                  }
+                }
+              }
+            })
+          } catch {
+            // ignore
+          }
         }
-      })
+      }
+
+      function startBackend() {
+        if (shuttingDown) return
+        cleanStalePort8000()
+        console.log(`[launch-backend] Starting FastAPI backend + robot fleet (${pythonBin})...`)
+
+        backendProcess = spawn(
+          pythonBin,
+          ['-m', 'uvicorn', 'app.main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'],
+          {
+            cwd: backendDir,
+            stdio: 'inherit',
+            env: process.env,
+            detached: process.platform !== 'win32',
+          },
+        )
+
+        backendProcess.on('exit', (code) => {
+          if (!shuttingDown) {
+            console.warn(`[launch-backend] Backend process exited (code ${code}). Auto-restarting in 2s...`)
+            if (restartTimer) clearTimeout(restartTimer)
+            restartTimer = setTimeout(startBackend, 2000)
+          }
+        })
+      }
+
+      startBackend()
 
       process.on('SIGINT', () => {
         shutdown()
