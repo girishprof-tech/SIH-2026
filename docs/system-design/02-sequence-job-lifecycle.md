@@ -29,17 +29,27 @@ sequenceDiagram
     participant TBus as TelemetryBus<br/>(app/services/telemetry_bus.py)
     participant WS as WebSocket Clients<br/>(React Frontend)
 
-    %% 1. Job Intake & Assignment
+    %% 1. Job Intake & Decentralized Contract-Net Bidding
     rect rgb(30, 41, 59)
-        note over Operator, TM: Phase 1: Centralized Job Creation & UDP Dispatch
+        note over Operator, Peer: Phase 1: Centralized Job Intake & Peer Contract-Net Bidding
         Operator->>API: POST /api/job {job_type: "fetch_item", urgency: 4}
         API->>API: _resolve_job_points(world, "fetch_item") -> pickup, dropoff
-        API->>API: _pick_idle_robot_for_type(fleet, GOODS_TO_PERSON) -> "AMR-01"
         API->>TM: create_task(pickup, dropoff, urgency, current_tick)
-        TM->>TM: try_assign(task, robots, tick)
-        TM->>TM: build_task_assignment_envelope(task, "AMR-01", secret_key)
-        TM->>Node1: UDP Datagram: TASK_ASSIGNMENT (Port 9001)
-        API-->>Operator: HTTP 200 {task_id: "TASK-101", robot_id: "AMR-01", status: "ASSIGNED"}
+        TM->>TM: build_task_announcement_envelope(task, secret_key)
+        TM->>Node1: UDP Broadcast: TASK_ANNOUNCEMENT (Port 9001)
+        TM->>Peer: UDP Broadcast: TASK_ANNOUNCEMENT (Port 9002)
+        API-->>Operator: HTTP 200 {task_id: "TASK-101", status: "ANNOUNCED"}
+
+        note over Node1, Peer: Peer Bidding Window (2 Ticks)
+        Node1->>Node1: Compute bid: dist_to_pickup * 10 + battery_penalty -> score=25.0
+        Peer->>Peer: Compute bid: dist_to_pickup * 10 + battery_penalty -> score=75.0
+        Node1->>Peer: UDP Broadcast: TASK_BID {task_id: "TASK-101", bidder: "AMR-01", score: 25.0}
+        Peer->>Node1: UDP Broadcast: TASK_BID {task_id: "TASK-101", bidder: "AMR-02", score: 75.0}
+
+        note over Node1, Peer: Symmetrical Resolution (Lowest Bid Wins; Tie-break: lowest robot_id)
+        Node1->>Node1: _resolve_contract_net_bids: AMR-01 Wins (25.0 < 75.0) -> Self-Assigns
+        Node1->>Peer: UDP Broadcast: TASK_CLAIM {task_id: "TASK-101", winner: "AMR-01"}
+        Peer->>Peer: Marks TASK-101 claimed -> Stands Down
     end
 
     %% 2. Autonomous Route Planning

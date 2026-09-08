@@ -155,3 +155,101 @@ def test_auditing_robot_with_gnn_cannot_leapfrog_task_robot():
 
     assert boosted_audit_score <= -500.0
     assert delivery_score > boosted_audit_score
+
+
+def test_numpy_pytorch_numerical_parity():
+    """
+    Verifies numerical parity between NumPy edge inference engine and PyTorch/mathematical forward pass
+    across 20 fixed sample inputs with tolerance < 1e-4.
+    """
+    import numpy as np
+    from app.ml.priority_gnn_infer import PriorityGNNInfer
+
+    infer = PriorityGNNInfer()
+
+    # Generate 20 fixed pseudo-random feature vectors
+    rng = np.random.RandomState(1337)
+    sample_inputs = rng.uniform(
+        low=[1.0, 20.0, 0.0, 1.0, 0.0, 0.0],
+        high=[5.0, 100.0, 30.0, 50.0, 5.0, 1.0],
+        size=(20, 6),
+    ).astype(np.float32)
+
+    # 1. Forward pass with NumPy infer engine
+    numpy_outputs = infer.forward(sample_inputs)
+
+    # 2. Forward pass with PyTorch (if torch installed) or explicit manual layer math
+    try:
+        import torch
+        import torch.nn as nn
+
+        w1_torch = torch.from_numpy(infer.W_self1.T)
+        b1_torch = torch.from_numpy(infer.b1)
+        w2_torch = torch.from_numpy(infer.W_self2.T)
+        b2_torch = torch.from_numpy(infer.b2)
+        w_out_torch = torch.from_numpy(infer.W_out.T)
+        b_out_torch = torch.from_numpy(infer.b_out)
+
+        x_torch = torch.from_numpy(sample_inputs)
+        h1 = torch.relu(torch.matmul(x_torch, w1_torch.T) + b1_torch)
+        h2 = torch.relu(torch.matmul(h1, w2_torch.T) + b2_torch)
+        ref_outputs = (200.0 * torch.tanh((torch.matmul(h2, w_out_torch.T) + b_out_torch) / 50.0)).numpy()
+    except ImportError:
+        # Exact reference math
+        h1 = np.maximum(0.0, np.dot(sample_inputs, infer.W_self1) + infer.b1)
+        h2 = np.maximum(0.0, np.dot(h1, infer.W_self2) + infer.b2)
+        ref_outputs = 200.0 * np.tanh((np.dot(h2, infer.W_out) + infer.b_out) / 50.0)
+
+    # Assert numerical parity tolerance < 1e-4
+    max_diff = float(np.max(np.abs(numpy_outputs - ref_outputs)))
+    assert max_diff < 1e-4, f"Numerical divergence between NumPy and reference forward pass: {max_diff}"
+    assert numpy_outputs.shape == (20, 1)
+
+
+def test_robot_node_live_gnn_model_wired():
+    """
+    Verifies that RobotNode loads a real instance of PriorityGNNInfer (not None),
+    and in a live simulation run across 100 ticks, non-zero GNN adjustments appear
+    in priority scores.
+    """
+    from app.services.robot_node import RobotNode
+    from app.transport.loopback_transport import LoopbackNetworkHub, LoopbackTransport
+    from app.ml.priority_gnn_infer import PriorityGNNInfer
+
+    hub = LoopbackNetworkHub()
+    transport = LoopbackTransport(node_id="AMR-TEST", hub=hub)
+
+    node = RobotNode(
+        robot_id="AMR-TEST",
+        start_pos=(2, 2),
+        goal_pos=(15, 15),
+        urgency=4,
+        battery_pct=85.0,
+        obstacles=[],
+        port=9999,
+        peer_ports={"AMR-TEST": 9999},
+        transport=transport,
+        tick_interval_s=0.0,
+    )
+
+    # Assert model is a real instance of PriorityGNNInfer (not None)
+    assert node.gnn_model is not None, "RobotNode.gnn_model must not be None in production"
+    assert isinstance(node.gnn_model, PriorityGNNInfer)
+
+    adjustments_observed = []
+    for tick in range(100):
+        frame = node.step(tick)
+        dist_to_goal = 0
+        if node.goal_pos:
+            dist_to_goal = abs(node.robot.position[0] - node.goal_pos[0]) + abs(node.robot.position[1] - node.goal_pos[1])
+        baseline = calculate_deterministic_priority(node.robot, node.task, dist_to_goal)
+        current_score = node.robot.priority_score
+        adj = current_score - baseline
+        adjustments_observed.append(adj)
+
+    node.close()
+
+    # Verify at least once across 100 ticks a non-zero adjustment appeared
+    non_zero_adjustments = [a for a in adjustments_observed if abs(a) > 1e-3]
+    assert len(non_zero_adjustments) > 0, "Expected non-zero GNN priority adjustment in live 100-tick run"
+

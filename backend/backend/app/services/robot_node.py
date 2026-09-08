@@ -63,6 +63,7 @@ from app.security.replay_guard import ReplayGuard
 from app.services.degraded_mode import DegradedModeDetector
 from app.services.audit_mission import AuditMission
 from app.ml.priority_gnn import compute_priority
+from app.ml.priority_gnn_infer import get_priority_gnn_model
 from app.core.config import get_settings
 from app.models.world import build_default_world
 
@@ -200,6 +201,13 @@ class RobotNode:
         # Perceived peer states
         self.peers: Dict[str, PeerSnapshot] = {}
 
+        # 11. Learned Edge Priority Model (NumPy Inference)
+        self.gnn_model = get_priority_gnn_model()
+
+        # 12. Contract-Net Decentralized Task Bidding
+        self.active_bids: Dict[str, Dict[str, Any]] = {}
+        self.known_task_claims: Set[str] = set()
+
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
         if self.goal_pos is not None:
             self._assign_initial_task(self.goal_pos, self.urgency)
@@ -309,12 +317,15 @@ class RobotNode:
         prev_heading = self.robot.heading
         action_taken = "IDLE"
         conflict_resolved = None
+        intended_pos = self.robot.position
 
-        # 0. Active Deterministic Priority Calculation for this Tick
+        # 0. Active GNN-Tuned Priority Calculation for this Tick with Mandatory Fallback
         dist_to_goal = 0
         if self.goal_pos:
             dist_to_goal = abs(self.robot.position[0] - self.goal_pos[0]) + abs(self.robot.position[1] - self.goal_pos[1])
-        self.robot.priority_score = calculate_priority_score(self.robot, self.task, dist_to_goal)
+        self.robot.priority_score = compute_priority(
+            self.robot, self.task, dist_to_goal, gnn_model=self.gnn_model
+        )
 
         # 1. Check Failsafe Watchdog
         if self.fsm.state == RobotState.FAILSAFE_HOLD:
@@ -325,8 +336,9 @@ class RobotNode:
                 self.log(f"[Tick {tick}] In FAILSAFE_HOLD ({self.failsafe_hold_ticks}/5 ticks). Holding position.")
                 return self._build_telemetry_frame(tick, "HOLDING", None)
 
-        # 2. Drain incoming transport messages
+        # 2. Drain incoming transport messages & resolve contract-net bids
         self._drain_inbox(tick)
+        self._resolve_contract_net_bids(tick)
 
         # 2.5. Dynamic Dock Re-targeting (avoid queuing on occupied docks)
         if self.goal_pos and self.goal_pos in self.dropoff_stations and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF):
@@ -348,11 +360,22 @@ class RobotNode:
         # 2.6. Idle Dock Clearance & Proactive Evasion for Working AMRs
         if self.fsm.state == RobotState.IDLE and not self.task and not self.charger_target:
             rx, ry = self.robot.position
-            peer_positions = {p.position for p in self.peers.values()}
-            peer_intents = {p.intended_pos for p in self.peers.values()}
+            peer_positions = {
+                (p.intended_pos if p.last_seen_tick < tick else p.position)
+                for p in self.peers.values() if p.robot_id != self.robot.robot_id
+            }
+            peer_intents = {
+                p.intended_pos
+                for p in self.peers.values() if p.robot_id != self.robot.robot_id
+            }
 
-            # If idle robot is sitting inside an active dropoff dock, vacate into highway corridor
-            if (rx, ry) in self.dropoff_stations or (rx, ry) in self.pickup_stations:
+            # If idle robot is sitting inside a dock bay, only vacate if an active robot is targeting it
+            dock_targeted = any(
+                (p.intended_pos == (rx, ry) or any(s.get("x") == rx and s.get("y") == ry for s in (p.path or [])))
+                for p in self.peers.values()
+                if p.robot_id != self.robot.robot_id and p.state != "IDLE"
+            )
+            if ((rx, ry) in self.dropoff_stations or (rx, ry) in self.pickup_stations) and dock_targeted:
                 clear_candidates = [(rx - 1, ry), (rx + 1, ry), (rx, ry - 1), (rx, ry + 1)]
                 for cand in clear_candidates:
                     if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
@@ -363,17 +386,41 @@ class RobotNode:
                             self.log(f"[Tick {tick}] Vacating active dock bay ({rx}, {ry}) -> {cand} to keep transfer zone clear.")
                             break
 
-            # If an active working robot is targeting our cell or approaching within 1 cell, yield by stepping aside
+            # If an active working robot is targeting our cell, approaching within 2 cells, or our cell is in its planned path
             peer_targeting_us = any(
-                p.intended_pos == (rx, ry) or (abs(p.position[0] - rx) + abs(p.position[1] - ry) <= 1 and p.intended_pos == (rx, ry))
+                (
+                    p.intended_pos == (rx, ry)
+                    or (abs(p.position[0] - rx) + abs(p.position[1] - ry) <= 2 and any(step.get("x") == rx and step.get("y") == ry for step in (p.path or [])))
+                )
                 for p in self.peers.values()
                 if p.robot_id != self.robot.robot_id and p.state != "IDLE"
             )
             if peer_targeting_us and intended_pos == self.robot.position:
-                evade_candidates = [(rx, ry - 1), (rx, ry + 1), (rx - 1, ry), (rx + 1, ry)]
+                oncoming_peers = [
+                    p for p in self.peers.values()
+                    if p.robot_id != self.robot.robot_id and p.state != "IDLE" and
+                    (p.intended_pos == (rx, ry) or any(s.get("x") == rx and s.get("y") == ry for s in (p.path or [])))
+                ]
+                peer_path_cells = {
+                    (int(s["x"]), int(s["y"]))
+                    for p in oncoming_peers
+                    for s in (p.path or [])
+                } | {p.intended_pos for p in oncoming_peers} | {p.position for p in oncoming_peers}
+
+                dx_app = oncoming_peers[0].position[0] - rx if oncoming_peers else 0
+                if dx_app != 0:
+                    evade_candidates = [(rx, ry - 1), (rx, ry + 1), (rx - dx_app, ry), (rx + dx_app, ry)]
+                else:
+                    evade_candidates = [(rx + 1, ry), (rx - 1, ry), (rx, ry - 1), (rx, ry + 1)]
+
                 for cand in evade_candidates:
                     if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
-                        if self.grid.is_free(cand) and cand not in peer_positions and cand not in peer_intents and cand not in self.dropoff_stations:
+                        if (
+                            self.grid.is_free(cand)
+                            and cand not in peer_positions
+                            and cand not in peer_intents
+                            and cand not in peer_path_cells
+                        ):
                             intended_pos = cand
                             action_taken = "EVADED / STEPPED_ASIDE"
                             self.robot.path = [{"x": rx, "y": ry, "t": tick}, {"x": cand[0], "y": cand[1], "t": tick + 1}]
@@ -575,7 +622,7 @@ class RobotNode:
 
         # 8. Drain inbox again for peer responses
         wait_start = time.time()
-        max_peer_wait = max(0.08, self.tick_interval_s * 0.8)
+        max_peer_wait = 0.0 if self.tick_interval_s <= 0.0 else max(0.08, self.tick_interval_s * 0.8)
         while (time.time() - wait_start) < max_peer_wait:
             self._drain_inbox(tick)
             nearby_stale = any(
@@ -598,15 +645,35 @@ class RobotNode:
             action_taken = "WAITING"
             self.log(f"[Tick {tick}] HOLDING POSITION: Peer nearby dropped communication (>2 ticks).")
 
-        # 9. Symmetric Conflict Detection & Arbitration
+        # 9. Symmetric Conflict Detection & Arbitration (or Stop-and-Wait Policy)
+        from app.services.policies.stop_and_wait import is_stop_and_wait_enabled, StopAndWaitPolicy
+
         action_taken = "MOVED"
-        if self.fsm.state != RobotState.IDLE and intended_pos != self.robot.position:
+        if is_stop_and_wait_enabled():
+            # Traditional Stop-and-Wait Baseline: No arbitration, no peer negotiation.
+            # If intended next cell is occupied by any peer, halt in place.
+            # In textbook stop-and-wait, a robot halts if the target cell is currently occupied
+            # by any peer, or if another peer has arrived or is entering that cell.
+            blocked_cells = set()
+            for p in self.peers.values():
+                if p.robot_id != self.robot.robot_id and p.last_seen_tick >= tick - 4:
+                    blocked_cells.add(p.position)
+                    blocked_cells.add(p.intended_pos)
+            intended_pos, action_taken, did_halt = StopAndWaitPolicy.check_halt(
+                self.robot.position, intended_pos, blocked_cells
+            )
+            if did_halt:
+                self.robot.wait_ticks_so_far += 1
+                self.log(f"[Tick {tick}] STOP_AND_WAIT: Target cell occupied. Halting in place at {self.robot.position}.")
+        elif intended_pos != self.robot.position:
             rx, ry = self.robot.position
             for peer_snap in list(self.peers.values()):
                 if peer_snap.last_seen_tick < tick - 2:
                     continue
 
-                px, py = peer_snap.position
+                # Current physical position of the peer: if peer's report was from a prior tick,
+                # the peer already completed its move to intended_pos.
+                px, py = peer_snap.intended_pos if peer_snap.last_seen_tick < tick else peer_snap.position
                 pix, piy = peer_snap.intended_pos
                 m_dist = abs(rx - px) + abs(ry - py)
                 if m_dist > 2:
@@ -699,7 +766,12 @@ class RobotNode:
                                 (px, py), (pix, piy),
                                 *((int(s["x"]), int(s["y"])) for s in peer_snap.path[:5])
                             }
-                            other_peer_positions = {p.position for p in self.peers.values() if p.robot_id != self.robot.robot_id}
+                            other_peer_positions = {
+                                (p.intended_pos if p.last_seen_tick < tick else p.position)
+                                for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                            } | {
+                                p.intended_pos for p in self.peers.values() if p.robot_id != self.robot.robot_id
+                            }
                             evade_cell = None
                             for cand in candidate_evasions:
                                 if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
@@ -737,17 +809,20 @@ class RobotNode:
                         self.log(
                             f"[Tick {tick}] ARBITRATION RESULT: WON against {peer_snap.robot_id}. Action=PROCEED."
                         )
-                        # If winner's intended target cell is currently physically occupied by loser:
-                        if intended_pos == (px, py):
+                        # If winner's intended target cell is currently physically occupied or already committed by peer:
+                        target_occupied = (intended_pos == (px, py)) or (intended_pos == (pix, piy) and peer_snap.robot_id < self.robot.robot_id)
+                        if target_occupied:
                             if self.consecutive_wait_ticks < 2:
                                 intended_pos = self.robot.position
                                 action_taken = "WAITING"
-                                self.log(f"[Tick {tick}] Pausing 1 tick at {self.robot.position} for yielding peer {peer_snap.robot_id} to clear {px, py}.")
+                                self.log(f"[Tick {tick}] Pausing 1 tick at {self.robot.position} for yielding peer {peer_snap.robot_id} to clear {conflict_cell['x'], conflict_cell['y']}.")
                             else:
                                 # Loser hasn't cleared after 2 ticks: winner replans around loser
                                 self.log(f"[Tick {tick}] Peer {peer_snap.robot_id} unable to clear {px, py} after 2 ticks; winner seeking bypass.")
                                 for dt in range(30):
                                     self.local_reservations[(px, py, tick + dt)] = peer_snap.robot_id
+                                    self.local_reservations[(pix, piy, tick + dt)] = peer_snap.robot_id
+                                bypass_found = False
                                 if self.goal_pos:
                                     w_bypass = self._timed_find_path(
                                         start=self.robot.position,
@@ -758,11 +833,16 @@ class RobotNode:
                                     )
                                     if w_bypass and len(w_bypass) > 1:
                                         next_w = (int(w_bypass[1]["x"]), int(w_bypass[1]["y"]))
-                                        if next_w != self.robot.position and next_w != (px, py):
+                                        if next_w != self.robot.position and next_w != (px, py) and next_w != (pix, piy):
                                             self.robot.path = w_bypass
                                             intended_pos = next_w
                                             action_taken = "DETOUR_WINNER"
+                                            bypass_found = True
                                             self.log(f"[Tick {tick}] Winner bypassing stationary peer to {next_w}.")
+                                if not bypass_found:
+                                    intended_pos = self.robot.position
+                                    action_taken = "WAITING"
+                                    self.log(f"[Tick {tick}] Bypass around stationary peer unavailable; holding position at {self.robot.position}.")
 
                         conflict_resolved = {
                             "winner_id": winner_id,
@@ -788,10 +868,25 @@ class RobotNode:
                 self.load_move_steps += 1
                 self.log(f"[Tick {tick}] Load weight inertia pause (carrying {p_weight}kg).")
 
+        # 11.5. Broadcast Updated Intention if arbitration or throttling altered intended_pos
+        if list(intended_pos) != claim_payload.get("intended_pos"):
+            self.seq += 1
+            claim_payload["intended_pos"] = [intended_pos[0], intended_pos[1]]
+            claim_payload["action"] = action_taken
+            update_envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
+            for peer_id in self.peer_ports.keys():
+                if peer_id != self.robot.robot_id:
+                    self.transport.send(peer_id, update_envelope)
+
         # 12. Commit Movement / Turn / Wait
         if intended_pos == prev_pos:
             if self.fsm.state == RobotState.IDLE or not self.robot.path:
                 action_taken = "IDLE"
+            elif len(self.robot.path) > 1 and (int(self.robot.path[1]["x"]), int(self.robot.path[1]["y"])) == prev_pos:
+                # Path contains a turn/orientation step at the current position: advance path
+                self.robot.path = self.robot.path[1:]
+                action_taken = "TURNED"
+                self.consecutive_wait_ticks = 0
             else:
                 self.consecutive_wait_ticks += 1
                 if action_taken not in ("YIELDED / BRAKED", "LOAD_WEIGHT_PAUSE", "DEGRADED_SPEED_PAUSE"):
@@ -959,7 +1054,7 @@ class RobotNode:
                     self.log(f"Security envelope verification failed: {err}")
                     continue
                 body = msg.get("body", {})
-                sender = payload.get("sender_id") or payload.get("robot_id", "unknown")
+                sender = payload.get("sender_id") or payload.get("robot_id") or payload.get("bidder_id") or payload.get("winner_id") or body.get("sender_id", "unknown")
                 seq = body.get("seq")
                 ts = body.get("timestamp", time.time())
                 r_valid, r_err = self.replay_guard.validate(sender, seq, ts)
@@ -1013,7 +1108,7 @@ class RobotNode:
                     self.local_reservations[(int(p["x"]), int(p["y"]), int(p["t"]))] = sender_id
 
             elif m_type == "TASK_ASSIGNMENT":
-                # Handle task assignment message from central dispatcher
+                # Handle task assignment message from central dispatcher (legacy / direct mode)
                 t_dict = actual_msg.get("task", {})
                 tid = t_dict.get("task_id")
                 if tid and tid not in self.completed_task_ids and self.fsm.state == RobotState.IDLE:
@@ -1028,6 +1123,68 @@ class RobotNode:
                     )
                     self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid} to pickup {pickup_pos} -> dropoff {dropoff_pos}.")
 
+            elif m_type == "TASK_ANNOUNCEMENT":
+                # Handle decentralized contract-net announcement broadcast
+                t_dict = actual_msg.get("task", {})
+                tid = t_dict.get("task_id")
+                if (
+                    tid
+                    and tid not in self.completed_task_ids
+                    and tid not in self.known_task_claims
+                    and tid not in self.active_bids
+                    and self.fsm.state == RobotState.IDLE
+                    and not self.task
+                    and self.robot_type in ("GOODS_TO_PERSON", "SORTING")
+                ):
+                    pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
+                    dist_to_pickup = abs(self.robot.position[0] - pickup_pos[0]) + abs(self.robot.position[1] - pickup_pos[1])
+                    battery_penalty = max(0.0, (100.0 - self.robot.battery_pct) * 0.5)
+                    bid_score = float(dist_to_pickup * 10.0 + battery_penalty)
+
+                    self.active_bids[tid] = {
+                        "announced_tick": current_tick,
+                        "task_dict": t_dict,
+                        "my_bid": bid_score,
+                        "peer_bids": {},
+                        "claimed": False,
+                    }
+
+                    # Broadcast signed TASK_BID to peers
+                    self.seq += 1
+                    bid_payload = {
+                        "type": "TASK_BID",
+                        "sender_id": self.robot.robot_id,
+                        "robot_id": self.robot.robot_id,
+                        "task_id": tid,
+                        "bidder_id": self.robot.robot_id,
+                        "bid_score": round(bid_score, 2),
+                        "tick": current_tick,
+                    }
+                    envelope = sign_payload(bid_payload, secret_key=self.secret_key, seq=self.seq)
+                    for peer_id in self.peer_ports.keys():
+                        if peer_id != self.robot.robot_id:
+                            self.transport.send(peer_id, envelope)
+                    self.log(f"[Tick {current_tick}] Contract-Net: Received TASK_ANNOUNCEMENT {tid}. Broadcasted TASK_BID={bid_score:.1f}.")
+
+            elif m_type == "TASK_BID":
+                # Handle competing bid from a peer AMR
+                tid = actual_msg.get("task_id")
+                bidder = actual_msg.get("bidder_id")
+                score = float(actual_msg.get("bid_score", float("inf")))
+                if tid in self.active_bids:
+                    self.active_bids[tid]["peer_bids"][bidder] = score
+                    self.log(f"[Tick {current_tick}] Contract-Net: Received TASK_BID from {bidder} for {tid}: {score:.1f}")
+
+            elif m_type == "TASK_CLAIM":
+                # Handle task claim announcement from the winning AMR
+                tid = actual_msg.get("task_id")
+                winner = actual_msg.get("winner_id")
+                self.known_task_claims.add(tid)
+                if tid in self.active_bids:
+                    self.active_bids[tid]["claimed"] = True
+                    if winner != self.robot.robot_id:
+                        self.log(f"[Tick {current_tick}] Contract-Net: Peer {winner} claimed task {tid}. Standing down.")
+
             elif m_type == "EMERGENCY_STOP":
                 self.log(f"[Tick {current_tick}] Control command received: EMERGENCY_STOP.")
                 self.fsm.transition(RobotEvent.E_STOP)
@@ -1037,6 +1194,66 @@ class RobotNode:
             elif m_type in ("RESET", "RESET_FAILSAFE"):
                 self.log(f"[Tick {current_tick}] Control command received: {m_type}.")
                 self.reset_failsafe()
+
+    def _resolve_contract_net_bids(self, current_tick: int) -> None:
+        """
+        Resolves pending contract-net bids after the bid window (2 ticks).
+        The lowest bid wins. Ties broken by lowest robot_id string.
+        Winning AMR self-assigns and broadcasts signed TASK_CLAIM; losers stand down.
+        """
+        for tid, bid_info in list(self.active_bids.items()):
+            if bid_info.get("claimed"):
+                continue
+
+            ticks_elapsed = current_tick - bid_info["announced_tick"]
+            # 2-tick window gives all network peers opportunity to submit bids
+            if ticks_elapsed >= 2:
+                all_bids = [(bid_info["my_bid"], self.robot.robot_id)] + [
+                    (score, pid) for pid, score in bid_info["peer_bids"].items()
+                ]
+                all_bids.sort(key=lambda x: (x[0], x[1]))
+                winning_score, winning_id = all_bids[0]
+
+                bid_info["claimed"] = True
+                self.known_task_claims.add(tid)
+
+                if winning_id == self.robot.robot_id and self.fsm.state == RobotState.IDLE and not self.task:
+                    t_dict = bid_info["task_dict"]
+                    pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
+                    dropoff_pos = tuple(t_dict["dropoff"])
+                    self._assign_initial_task(
+                        goal_pos=dropoff_pos,
+                        urgency=int(t_dict.get("urgency", 3)),
+                        payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
+                        task_id=tid,
+                        pickup_pos=pickup_pos,
+                    )
+                    self.log(
+                        f"[Tick {current_tick}] CONTRACT-NET WON: Task {tid} claimed by self (bid={winning_score:.1f}). "
+                        f"Broadcasting TASK_CLAIM."
+                    )
+
+                    # Broadcast signed TASK_CLAIM
+                    self.seq += 1
+                    claim_payload = {
+                        "type": "TASK_CLAIM",
+                        "sender_id": self.robot.robot_id,
+                        "robot_id": self.robot.robot_id,
+                        "task_id": tid,
+                        "winner_id": self.robot.robot_id,
+                        "bid_score": winning_score,
+                        "tick": current_tick,
+                    }
+                    envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
+                    for peer_id in self.peer_ports.keys():
+                        if peer_id != self.robot.robot_id:
+                            self.transport.send(peer_id, envelope)
+                else:
+                    self.log(
+                        f"[Tick {current_tick}] CONTRACT-NET LOST: Task {tid} won by {winning_id} "
+                        f"({winning_score:.1f} vs my {bid_info['my_bid']:.1f}). Standing down."
+                    )
+
 
 
 def run_robot_process(

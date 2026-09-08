@@ -56,6 +56,26 @@ def build_task_assignment_envelope(
     return sign_payload(payload, secret_key=secret_key, seq=seq)
 
 
+def build_task_announcement_envelope(
+    task: Task,
+    secret_key: str = DEFAULT_SECRET_KEY,
+    seq: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Constructs a signed cryptographic HMAC envelope for TASK_ANNOUNCEMENT."""
+    payload = {
+        "type": "TASK_ANNOUNCEMENT",
+        "sender_id": "DISPATCHER",
+        "task": {
+            "task_id": task.task_id,
+            "pickup": [task.pickup_x, task.pickup_y],
+            "dropoff": [task.dropoff_x, task.dropoff_y],
+            "urgency": task.urgency,
+            "payload_weight_kg": getattr(task, "payload_weight_kg", 0.0),
+        },
+    }
+    return sign_payload(payload, secret_key=secret_key, seq=seq)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Task Assignment Interface (plug-in point for Member 3)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +251,29 @@ class TaskManager:
         self._assigner = assigner
         log.info("TaskManager: assigner replaced with %s", type(assigner).__name__)
 
+    def _send_envelope_to_robot(
+        self,
+        robot_id: str,
+        envelope: Dict[str, Any],
+        transport_sender: Optional[Any],
+        peer_ports: Dict[str, int],
+        host: str,
+    ) -> None:
+        if callable(transport_sender):
+            transport_sender(robot_id, envelope)
+        elif transport_sender is not None and hasattr(transport_sender, "send"):
+            transport_sender.send(robot_id, envelope)
+        else:
+            target_port = peer_ports.get(robot_id)
+            if not target_port:
+                if "AMR-" in robot_id:
+                    target_port = 9000 + int(robot_id.replace("AMR-", ""))
+                else:
+                    target_port = 9001
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                raw = json.dumps(envelope).encode("utf-8")
+                sock.sendto(raw, (host, target_port))
+
     def dispatch_to_fleet(
         self,
         task: Task,
@@ -241,71 +284,61 @@ class TaskManager:
         secret_key: str = DEFAULT_SECRET_KEY,
     ) -> Optional[str]:
         """
-        Assigns and dispatches a pending task to an available idle robot process via UDP.
-        Sources real robot status from read_latest_telemetry().
+        Assigns/dispatches a pending task.
+        If target_robot_id is provided, unicasts signed TASK_ASSIGNMENT directly (backward compatibility).
+        Otherwise, broadcasts signed TASK_ANNOUNCEMENT to all currently-IDLE robots for decentralized bidding.
         """
-        best_robot_id: Optional[str] = target_robot_id
+        ports = peer_ports or get_fleet_peer_ports()
 
-        if not best_robot_id:
-            telemetry_data = read_latest_telemetry()
-            if not telemetry_data or not telemetry_data.get("robots"):
-                log.info("DISPATCH_WAIT: No telemetry data available to select idle robot for task %s", task.task_id)
+        # Backward compatibility unicast if explicit robot specified
+        if target_robot_id is not None:
+            envelope = build_task_assignment_envelope(task, target_robot_id, secret_key=secret_key)
+            try:
+                self._send_envelope_to_robot(target_robot_id, envelope, transport_sender, ports, host)
+            except Exception as e:
+                log.error("DISPATCH_ERROR sending task %s to %s: %s", task.task_id, target_robot_id, e)
                 return None
 
-            # Filter truly IDLE robots
-            idle_robots = [
-                r for r in telemetry_data["robots"]
-                if str(r.get("state", "")).upper() in ("IDLE", "ROBOTSTATE.IDLE")
-            ]
-            if not idle_robots:
-                log.info("DISPATCH_WAIT: No idle robots available for task %s", task.task_id)
-                return None
+            task.status = TaskStatus.ASSIGNED
+            task.assigned_robot_id = target_robot_id
+            log.info(
+                "TASK_DISPATCHED task_id=%s robot=%s pickup=(%d,%d) dropoff=(%d,%d)",
+                task.task_id, target_robot_id, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
+            )
+            return target_robot_id
 
-            # Nearest idle assignment
-            best_dist = float("inf")
-            for r in idle_robots:
-                pos = r.get("position")
-                if isinstance(pos, dict):
-                    rx, ry = int(pos.get("x", 0)), int(pos.get("y", 0))
-                elif isinstance(pos, (list, tuple)):
-                    rx, ry = int(pos[0]), int(pos[1])
-                else:
-                    rx, ry = int(r.get("x", 0)), int(r.get("y", 0))
-                dist = abs(rx - task.pickup_x) + abs(ry - task.pickup_y)
-                if dist < best_dist:
-                    best_dist = dist
-                    best_robot_id = r.get("id") or r.get("robot_id")
+        # Decentralized Contract-Net: Broadcast signed TASK_ANNOUNCEMENT
+        envelope = build_task_announcement_envelope(task, secret_key=secret_key)
+        telemetry_data = read_latest_telemetry()
 
-        if not best_robot_id:
-            return None
+        # Select candidate robots: prefer currently IDLE robots from telemetry
+        target_rids = []
+        if telemetry_data and telemetry_data.get("robots"):
+            for r in telemetry_data["robots"]:
+                if str(r.get("state", "")).upper() in ("IDLE", "ROBOTSTATE.IDLE"):
+                    rid = r.get("id") or r.get("robot_id")
+                    if rid in ports:
+                        target_rids.append(rid)
 
-        envelope = build_task_assignment_envelope(task, best_robot_id, secret_key=secret_key)
+        # If telemetry unavailable or empty, broadcast to all fleet ports
+        if not target_rids:
+            target_rids = list(ports.keys())
 
-        try:
-            if callable(transport_sender):
-                transport_sender(best_robot_id, envelope)
-            elif transport_sender is not None and hasattr(transport_sender, "send"):
-                transport_sender.send(best_robot_id, envelope)
-            else:
-                ports = peer_ports or {}
-                target_port = ports.get(best_robot_id)
-                if not target_port:
-                    if "AMR-" in best_robot_id:
-                        target_port = 9000 + int(best_robot_id.replace("AMR-", ""))
-                    else:
-                        target_port = 9001
-                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                    raw = json.dumps(envelope).encode("utf-8")
-                    sock.sendto(raw, (host, target_port))
-        except Exception as e:
-            log.error("DISPATCH_ERROR sending task %s to %s: %s", task.task_id, best_robot_id, e)
-            return None
+        broadcast_count = 0
+        for rid in target_rids:
+            try:
+                self._send_envelope_to_robot(rid, envelope, transport_sender, ports, host)
+                broadcast_count += 1
+            except Exception as e:
+                log.debug("Failed sending TASK_ANNOUNCEMENT to %s: %s", rid, e)
 
-        task.status = TaskStatus.ASSIGNED
-        task.assigned_robot_id = best_robot_id
-        log.info(
-            "TASK_DISPATCHED task_id=%s robot=%s pickup=(%d,%d) dropoff=(%d,%d)",
-            task.task_id, best_robot_id, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
-        )
-        return best_robot_id
+        if broadcast_count > 0:
+            log.info(
+                "TASK_ANNOUNCED task_id=%s broadcasted to %d robots pickup=(%d,%d) dropoff=(%d,%d)",
+                task.task_id, broadcast_count, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
+            )
+            return f"ANNOUNCED_{broadcast_count}"
+
+        return None
+
 

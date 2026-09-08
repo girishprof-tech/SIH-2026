@@ -1,5 +1,8 @@
 """
-priority_gnn.py — Optional GNN-Tuned Priority with Mandatory Deterministic Fallback.
+priority_gnn.py — Learned GNN-Tuned Priority with Mandatory Deterministic Fallback.
+
+Trained from N simulated episodes, exported to NumPy for dependency-free edge inference.
+Deterministic fallback in fallback_priority.py remains authoritative on any model failure.
 
 Provides ML-adjusted priority arbitration bounded strictly within ±200 of baseline.
 Guarantees graceful, silent fallback to calculate_deterministic_priority on any error,

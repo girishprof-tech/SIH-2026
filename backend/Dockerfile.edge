@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile.edge — Standalone Edge Container for Single Autonomous AMR Node
+# Target Hardware: Raspberry Pi 4 (ARM64) / NVIDIA Jetson Nano (ARM64)
+# ─────────────────────────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 python:3.11-slim
+
+LABEL maintainer="SIH26123 Fleet Coordination Team"
+LABEL description="Edge-AI AMR Robot Node with Dependency-Free NumPy GNN Priority Engine"
+
+WORKDIR /app
+
+# 1. Install minimal OS utilities and Python runtime dependencies (No PyTorch/TensorFlow)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iproute2 \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install strictly edge-appropriate lightweight packages
+RUN pip install --no-cache-dir \
+    numpy>=1.26.0 \
+    networkx>=3.0 \
+    psutil>=5.9.0 \
+    pydantic>=2.7.0 \
+    pydantic-settings>=2.0.0 \
+    cryptography>=42.0.0
+
+# 2. Strict CI verification: Fail build immediately if torch or tensorflow are present
+RUN if pip list | grep -iE "torch|tensor"; then \
+        echo "BUILD FAILED: Heavy ML framework (torch/tensorflow) detected in edge container!"; \
+        exit 1; \
+    else \
+        echo "VERIFIED: Pure dependency-free edge container. Zero torch/tensorflow footprint."; \
+    fi
+
+# 3. Copy application code and trained NumPy GNN weights
+COPY backend/backend/app/ ./backend/app/
+COPY conflict-engine/ ./conflict-engine/
+COPY archive/pathfinding/ ./archive/pathfinding/
+COPY backend/backend/app/ml/priority_gnn_weights.npz ./backend/app/ml/priority_gnn_weights.npz
+
+ENV PYTHONPATH="/app/backend:/app/conflict-engine:/app/archive/pathfinding"
+ENV PYTHONUNBUFFERED=1
+
+# Default edge robot configuration (can be overridden via container environment)
+ENV ROBOT_ID="AMR-01"
+ENV ROBOT_PORT=9001
+ENV START_POS="2,4"
+ENV URGENCY=3
+ENV BATTERY_PCT=100.0
+ENV TICK_INTERVAL_S=0.1
+ENV COORDINATION_POLICY="decentralized"
+
+EXPOSE 9001/udp
+
+# Entrypoint runs the single autonomous robot node process
+ENTRYPOINT ["python", "-m", "app.services.robot_node"]
