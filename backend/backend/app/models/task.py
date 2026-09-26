@@ -52,6 +52,7 @@ class Task:
     sku_to_pick: Optional[str] = None
     quantity: int = 1
     destination_zone: Optional[str] = None
+    pick_station_id: Optional[str] = None
 
     # Internal tracking
     _pickup_done: bool = field(default=False, repr=False)

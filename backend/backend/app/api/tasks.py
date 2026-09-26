@@ -76,6 +76,21 @@ async def inject_task(
     if (body.pickup.x, body.pickup.y) == (body.dropoff.x, body.dropoff.y):
         raise HTTPException(400, "Pickup and dropoff cannot be the same cell")
 
+    # Operator Role Verification & Authorization (Step 4 RBAC)
+    op_role = request.headers.get("x-operator-role", "AUTHORITY").upper()
+    if op_role == "IMPORT":
+        if not (body.pickup.x <= 2 and 8 <= body.pickup.y <= 20):
+            raise HTTPException(
+                403,
+                f"STATION_AUTHORITY_VIOLATION: Operator with role 'IMPORT' cannot inject tasks outside West import dock (pickup=({body.pickup.x}, {body.pickup.y}))."
+            )
+    elif op_role == "EXPORT":
+        if body.pickup.x <= 2 and 8 <= body.pickup.y <= 20:
+            raise HTTPException(
+                403,
+                f"STATION_AUTHORITY_VIOLATION: Operator with role 'EXPORT' cannot inject tasks originating from West import dock (pickup=({body.pickup.x}, {body.pickup.y}))."
+            )
+
     # Create task and queue it into the simulation state
     task = task_manager.create_task(
         pickup_x=body.pickup.x,
@@ -257,6 +272,18 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
     from app.services.task_manager import get_fleet_peer_ports
     peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
 
+    op_role = request.headers.get("x-operator-role", "AUTHORITY").upper()
+    if op_role == "IMPORT" and body.job_type == "sort_batch":
+        raise HTTPException(
+            403,
+            "STATION_AUTHORITY_VIOLATION: Operator with role 'IMPORT' cannot issue 'sort_batch' jobs. Restricted to Export Station.",
+        )
+    if op_role == "EXPORT" and body.job_type == "fetch_item" and getattr(body, "zone", "") in ("IMPORT_DOCK", "IN-1", "IN-2", "IN-3"):
+        raise HTTPException(
+            403,
+            "STATION_AUTHORITY_VIOLATION: Operator with role 'EXPORT' cannot issue inbound 'fetch_item' jobs for import dock. Restricted to Import Station.",
+        )
+
     if body.job_type == "fetch_item":
         requested_sku = body.sku or body.item_id
         if requested_sku:
@@ -359,7 +386,12 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
                 tick=fleet.tick,
             )
 
-        task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
+        task_manager.dispatch_to_fleet(
+            task,
+            peer_ports=peer_ports,
+            target_robot_id=assigned_robot,
+            station_role=f"{op_role}_STATION",
+        )
         return JobOut(
             job_type=body.job_type,
             robot_type=robot_type.value,
@@ -403,7 +435,12 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
                 tick=fleet.tick,
             )
 
-        task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
+        task_manager.dispatch_to_fleet(
+            task,
+            peer_ports=peer_ports,
+            target_robot_id=assigned_robot,
+            station_role=f"{op_role}_STATION",
+        )
         return JobOut(
             job_type=body.job_type,
             robot_type=robot_type.value,

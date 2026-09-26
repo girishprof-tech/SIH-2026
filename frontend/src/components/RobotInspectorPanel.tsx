@@ -1,6 +1,27 @@
-import React, { useMemo } from 'react'
-import { Bot, Battery, Compass, Gauge, Target, Package, ShieldAlert, Crosshair, X, Zap, RotateCcw } from 'lucide-react'
-import type { Robot } from '../types'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
+import {
+  Bot,
+  Battery,
+  Compass,
+  Gauge,
+  Target,
+  Package,
+  ShieldAlert,
+  Crosshair,
+  X,
+  Zap,
+  RotateCcw,
+  Activity,
+  CheckCircle2,
+  Clock,
+  Layers,
+  Scan,
+  Cpu,
+  AlertTriangle,
+  ArrowRight,
+  ShieldCheck,
+} from 'lucide-react'
+import type { Robot, RobotState } from '../types'
 import { ROBOT_TYPE_COLORS, STATE_COLORS, STATE_LABELS } from '../state-meta'
 
 type Props = {
@@ -13,8 +34,15 @@ type Props = {
   onReset?: (robotId: string) => void
 }
 
+interface TransitionRecord {
+  from: string
+  to: string
+  tick: number
+}
+
 export function RobotInspectorPanel({
   robot,
+  tick,
   cameraFollow,
   onToggleCameraFollow,
   onClose,
@@ -23,7 +51,32 @@ export function RobotInspectorPanel({
 }: Props) {
   if (!robot) return null
 
-  // Calculate distance to goal if path exists
+  // Rolling state transition history
+  const [transitionHistory, setTransitionHistory] = useState<TransitionRecord[]>([])
+  const prevStateRef = useRef<RobotState>(robot.state)
+  const prevRobotIdRef = useRef<string>(robot.robot_id)
+
+  useEffect(() => {
+    // If inspecting a different robot, reset history
+    if (prevRobotIdRef.current !== robot.robot_id) {
+      prevRobotIdRef.current = robot.robot_id
+      prevStateRef.current = robot.state
+      setTransitionHistory([])
+      return
+    }
+
+    if (prevStateRef.current !== robot.state) {
+      const newRecord: TransitionRecord = {
+        from: prevStateRef.current,
+        to: robot.state,
+        tick,
+      }
+      setTransitionHistory((prev) => [newRecord, ...prev].slice(0, 4))
+      prevStateRef.current = robot.state
+    }
+  }, [robot.state, robot.robot_id, tick])
+
+  // Distance to Goal & ETA
   const goalPoint = robot.path && robot.path.length > 0 ? robot.path[robot.path.length - 1] : null
   const distanceToGoal = useMemo(() => {
     if (!goalPoint) return 0
@@ -32,57 +85,165 @@ export function RobotInspectorPanel({
 
   const estTicksToGoal = robot.path ? robot.path.length : 0
 
+  // Task Progress Calculation (0 - 100%)
+  const taskProgress = useMemo(() => {
+    switch (robot.state) {
+      case 'IDLE':
+        return robot.current_task_id ? 100 : 0
+      case 'ASSIGNED':
+        return 10
+      case 'EN_ROUTE_PICKUP': {
+        const remaining = robot.path ? robot.path.length : 0
+        const progress = Math.max(15, Math.min(45, 45 - remaining * 2))
+        return progress
+      }
+      case 'PICKING':
+        return 48
+      case 'EN_ROUTE_DROPOFF': {
+        const remaining = robot.path ? robot.path.length : 0
+        const progress = Math.max(55, Math.min(90, 90 - remaining * 2))
+        return progress
+      }
+      case 'DROPPING':
+        return 95
+      case 'CHARGING':
+        return Math.round(robot.battery_pct)
+      case 'AUDITING':
+        return 65
+      case 'CONFLICT_NEGOTIATING':
+        return 50
+      case 'FAILSAFE_HOLD':
+      case 'EMERGENCY_STOP':
+        return 0
+      default:
+        return 30
+    }
+  }, [robot.state, robot.current_task_id, robot.path, robot.battery_pct])
+
   const typeColor = ROBOT_TYPE_COLORS[robot.robot_type] || '#3b82f6'
   const stateColor = STATE_COLORS[robot.state] || '#94a3b8'
 
+  // Type Icon
+  const TypeIcon =
+    robot.robot_type === 'GOODS_TO_PERSON'
+      ? Layers
+      : robot.robot_type === 'SORTING'
+      ? Cpu
+      : Scan
+
+  const isFailsafe = robot.state === 'FAILSAFE_HOLD' || robot.state === 'EMERGENCY_STOP'
+
   return (
-    <aside className="robot-detail panel" style={{ width: '320px', zIndex: 40 }}>
-      <button className="close-detail" onClick={onClose} aria-label="Close inspector">
-        <X size={16} />
+    <aside
+      className="robot-detail panel"
+      style={{
+        width: '340px',
+        maxHeight: '92vh',
+        overflowY: 'auto',
+        zIndex: 40,
+        background: 'rgba(15, 23, 42, 0.88)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '12px',
+        padding: '16px',
+        boxShadow: '0 20px 35px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.08)',
+        color: '#f1f5f9',
+      }}
+    >
+      {/* Close button */}
+      <button
+        className="close-detail"
+        onClick={onClose}
+        aria-label="Close inspector"
+        style={{
+          position: 'absolute',
+          top: '12px',
+          right: '12px',
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          color: '#94a3b8',
+          borderRadius: '6px',
+          padding: '4px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <X size={15} />
       </button>
 
       {/* Header with Type & ID */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <div
           style={{
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            backgroundColor: typeColor,
-            boxShadow: `0 0 8px ${typeColor}`,
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            backgroundColor: `${typeColor}22`,
+            border: `1px solid ${typeColor}55`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: `0 0 12px ${typeColor}33`,
           }}
-        />
-        <h2 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Bot size={18} color={typeColor} /> {robot.robot_id}
-        </h2>
+        >
+          <TypeIcon size={18} color={typeColor} />
+        </div>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+            {robot.robot_id}
+          </h2>
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            {robot.robot_type.replace(/_/g, ' ')}
+          </div>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '12px' }}>
+      {/* State & Activity Badge */}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '14px' }}>
         <span
           className="state-badge"
           style={{
-            backgroundColor: `${stateColor}22`,
+            backgroundColor: `${stateColor}1c`,
             color: stateColor,
             border: `1px solid ${stateColor}44`,
             fontSize: '0.75rem',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontWeight: 600,
+            padding: '3px 10px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
+          <span
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: stateColor,
+              boxShadow: `0 0 6px ${stateColor}`,
+            }}
+          />
           {STATE_LABELS[robot.state] ?? robot.state.replace(/_/g, ' ')}
         </span>
-        <span
-          style={{
-            fontSize: '0.7rem',
-            background: 'rgba(255,255,255,0.06)',
-            padding: '2px 6px',
-            borderRadius: '3px',
-            color: '#94a3b8',
-          }}
-        >
-          {robot.robot_type}
-        </span>
+
+        {robot.action && (
+          <span
+            style={{
+              fontSize: '0.7rem',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              color: '#cbd5e1',
+              fontWeight: 500,
+            }}
+          >
+            {robot.action}
+          </span>
+        )}
       </div>
 
       {/* Camera Follow Mode Button */}
@@ -95,44 +256,69 @@ export function RobotInspectorPanel({
           justifyContent: 'center',
           gap: '8px',
           padding: '8px 12px',
-          marginBottom: '12px',
-          borderRadius: '6px',
-          border: cameraFollow ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.15)',
-          background: cameraFollow ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255,255,255,0.05)',
+          marginBottom: '14px',
+          borderRadius: '8px',
+          border: cameraFollow ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.12)',
+          background: cameraFollow
+            ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.15))'
+            : 'rgba(255,255,255,0.04)',
           color: cameraFollow ? '#38bdf8' : '#e2e8f0',
           cursor: 'pointer',
           fontWeight: 600,
-          fontSize: '0.85rem',
+          fontSize: '0.82rem',
           transition: 'all 0.2s ease',
+          boxShadow: cameraFollow ? '0 0 14px rgba(56, 189, 248, 0.2)' : 'none',
         }}
       >
-        <Crosshair size={15} />
+        <Crosshair size={14} />
         {cameraFollow ? 'Camera Following AMR (Active)' : 'Follow AMR in 3D View'}
       </button>
 
-      {/* Battery Gauge */}
-      <div className="detail-battery" style={{ marginBottom: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8' }}>
-            <Battery size={14} /> Battery
+      {/* Dynamic Task Progress Bar */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '8px',
+          padding: '10px 12px',
+          marginBottom: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Activity size={13} color="#38bdf8" /> Mission Lifecycle
           </span>
-          <strong style={{ color: robot.battery_pct < 25 ? '#ef4444' : '#22c55e' }}>
-            {robot.battery_pct.toFixed(1)}%
-          </strong>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: taskProgress === 100 ? '#22c55e' : '#38bdf8' }}>
+            {taskProgress}%
+          </span>
         </div>
-        <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+
+        {/* Progress track */}
+        <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
           <div
             style={{
-              width: `${robot.battery_pct}%`,
+              width: `${taskProgress}%`,
               height: '100%',
-              backgroundColor: robot.battery_pct < 25 ? '#ef4444' : '#22c55e',
-              transition: 'width 0.3s ease',
+              background:
+                isFailsafe
+                  ? '#ef4444'
+                  : taskProgress === 100
+                  ? '#22c55e'
+                  : 'linear-gradient(90deg, #38bdf8, #6366f1)',
+              transition: 'width 0.4s ease',
             }}
           />
         </div>
+
+        {/* Milestone Steps */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b' }}>
+          <span style={{ color: taskProgress >= 20 ? '#cbd5e1' : '#64748b' }}>1. Pickup</span>
+          <span style={{ color: taskProgress >= 50 ? '#cbd5e1' : '#64748b' }}>2. Transit</span>
+          <span style={{ color: taskProgress >= 90 ? '#cbd5e1' : '#64748b' }}>3. Dropoff</span>
+        </div>
       </div>
 
-      {/* Telemetry Metrics Grid */}
+      {/* Telemetry Metrics 2x2 Grid */}
       <div
         style={{
           display: 'grid',
@@ -142,71 +328,190 @@ export function RobotInspectorPanel({
           fontSize: '0.8rem',
         }}
       >
-        <div style={{ background: 'rgba(255,255,255,0.04)', padding: '6px 8px', borderRadius: '4px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Compass size={13} /> Coordinates
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
+            <Compass size={13} color="#38bdf8" /> Position
           </div>
-          <strong style={{ color: '#f1f5f9' }}>
+          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>
             ({robot.position.x}, {robot.position.y})
           </strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', padding: '6px 8px', borderRadius: '4px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Gauge size={13} /> Heading
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
+            <Gauge size={13} color="#a855f7" /> Heading
           </div>
-          <strong style={{ color: '#f1f5f9' }}>{robot.heading}</strong>
+          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>{robot.heading}</strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', padding: '6px 8px', borderRadius: '4px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Target size={13} /> Distance to Goal
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
+            <Target size={13} color="#10b981" /> Goal Dist / ETA
           </div>
-          <strong style={{ color: '#f1f5f9' }}>
-            {distanceToGoal} cells ({estTicksToGoal} ticks)
+          <strong style={{ color: '#f8fafc', fontSize: '0.85rem' }}>
+            {distanceToGoal} cells <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>({estTicksToGoal}t)</span>
           </strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', padding: '6px 8px', borderRadius: '4px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Zap size={13} /> Priority Score
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
+            <Zap size={13} color="#f59e0b" /> Priority Score
           </div>
-          <strong style={{ color: '#f1f5f9' }}>{robot.priority_score.toFixed(1)}</strong>
+          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>
+            {robot.priority_score.toFixed(1)}{' '}
+            <span style={{ fontSize: '0.7rem', color: robot.priority_score > 3.0 ? '#ef4444' : '#22c55e' }}>
+              ({robot.priority_score > 3.0 ? 'HIGH' : robot.priority_score > 1.5 ? 'MED' : 'NORM'})
+            </span>
+          </strong>
         </div>
       </div>
 
-      {/* Payload Indicator */}
+      {/* Battery Gauge */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.04)',
-          padding: '8px 10px',
-          borderRadius: '6px',
-          marginBottom: '12px',
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          padding: '10px 12px',
+          borderRadius: '8px',
+          marginBottom: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#94a3b8' }}>
+            <Battery size={14} color={robot.battery_pct < 25 ? '#ef4444' : '#22c55e'} /> Battery Charge
+          </span>
+          <strong style={{ color: robot.battery_pct < 25 ? '#ef4444' : '#22c55e', fontSize: '0.85rem' }}>
+            {robot.battery_pct.toFixed(1)}%
+          </strong>
+        </div>
+        <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+          <div
+            style={{
+              width: `${robot.battery_pct}%`,
+              height: '100%',
+              backgroundColor: robot.battery_pct < 25 ? '#ef4444' : robot.battery_pct < 50 ? '#f59e0b' : '#22c55e',
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Active Payload / Carrier Card */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          padding: '10px 12px',
+          borderRadius: '8px',
+          marginBottom: '14px',
           fontSize: '0.8rem',
         }}
       >
-        <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}>
-          <Package size={14} /> Active Payload
+        <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontSize: '0.75rem' }}>
+          <Package size={14} color="#38bdf8" /> Physical Load / Cargo
         </div>
         {robot.carrying_pod_id ? (
-          <div style={{ color: '#38bdf8', fontWeight: 600 }}>
-            Lifting Pod: {robot.carrying_pod_id}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.88rem' }}>
+              Pod: {robot.carrying_pod_id}
+            </span>
+            <span style={{ fontSize: '0.7rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+              LOADED
+            </span>
           </div>
         ) : robot.robot_type === 'SORTING' && robot.state === 'EN_ROUTE_DROPOFF' ? (
-          <div style={{ color: '#f59e0b', fontWeight: 600 }}>
-            Carrying Sortation Carton
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.88rem' }}>
+              Sortation Carton
+            </span>
+            <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+              IN TRANSIT
+            </span>
           </div>
         ) : (
-          <div style={{ color: '#64748b' }}>None (Unladen)</div>
+          <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.78rem' }}>
+            Unladen (No active payload attached)
+          </div>
         )}
       </div>
 
-      {/* Mission Task */}
-      <div style={{ fontSize: '0.8rem', marginBottom: '14px' }}>
-        <span style={{ color: '#94a3b8' }}>Mission: </span>
-        <strong style={{ color: robot.current_task_id ? '#38bdf8' : '#64748b' }}>
-          {robot.current_task_id ?? 'None (Patrolling / Ready)'}
-        </strong>
+      {/* Real-time Conflict Arbitration Status Badge */}
+      <div
+        style={{
+          background: robot.conflict ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.05)',
+          border: robot.conflict ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(34, 197, 94, 0.15)',
+          padding: '10px 12px',
+          borderRadius: '8px',
+          marginBottom: '14px',
+          fontSize: '0.78rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          {robot.conflict ? (
+            <>
+              <AlertTriangle size={14} color="#ef4444" />
+              <strong style={{ color: '#ef4444' }}>Contention / Arbitration Active</strong>
+            </>
+          ) : (
+            <>
+              <ShieldCheck size={14} color="#22c55e" />
+              <strong style={{ color: '#22c55e' }}>Traffic Nominal (No Conflicts)</strong>
+            </>
+          )}
+        </div>
+        {robot.conflict ? (
+          <div style={{ color: '#cbd5e1', fontSize: '0.72rem' }}>
+            Contending at cell ({robot.conflict.cell.x}, {robot.conflict.cell.y}) | Action:{' '}
+            <span style={{ color: '#f8fafc', fontWeight: 600 }}>{robot.conflict.action ?? 'RESOLVING'}</span>
+          </div>
+        ) : (
+          <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
+            Clear path reservation registered on peer UDP mesh
+          </div>
+        )}
+      </div>
+
+      {/* Recent FSM Transitions Log */}
+      <div
+        style={{
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          padding: '10px 12px',
+          borderRadius: '8px',
+          marginBottom: '16px',
+        }}
+      >
+        <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.75rem' }}>
+          <Clock size={13} color="#a855f7" /> Recent FSM Transitions
+        </div>
+        {transitionHistory.length === 0 ? (
+          <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.72rem' }}>
+            Steady state: {robot.state} (Tick {tick})
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {transitionHistory.map((rec, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.7rem',
+                  color: '#cbd5e1',
+                  background: 'rgba(255,255,255,0.02)',
+                  padding: '3px 6px',
+                  borderRadius: '4px',
+                }}
+              >
+                <span style={{ color: '#64748b' }}>T{rec.tick}:</span>
+                <span style={{ color: '#94a3b8' }}>{rec.from}</span>
+                <ArrowRight size={11} color="#64748b" />
+                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{rec.to}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Individual Robot Emergency Controls */}
@@ -219,14 +524,15 @@ export function RobotInspectorPanel({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            padding: '6px 10px',
-            borderRadius: '4px',
+            padding: '8px 12px',
+            borderRadius: '6px',
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.4)',
             color: '#ef4444',
-            fontSize: '0.75rem',
-            fontWeight: 600,
+            fontSize: '0.78rem',
+            fontWeight: 700,
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
         >
           <ShieldAlert size={14} /> E-Stop AMR
@@ -240,14 +546,15 @@ export function RobotInspectorPanel({
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            padding: '6px 10px',
-            borderRadius: '4px',
+            padding: '8px 12px',
+            borderRadius: '6px',
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(255, 255, 255, 0.15)',
             color: '#e2e8f0',
-            fontSize: '0.75rem',
-            fontWeight: 600,
+            fontSize: '0.78rem',
+            fontWeight: 700,
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
         >
           <RotateCcw size={14} /> Reset AMR

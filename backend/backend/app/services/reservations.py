@@ -199,6 +199,23 @@ def prune_stale_pod_claims(
         return stale
 
 
+def record_peer_pod_claim(
+    shelf_id: str,
+    robot_id: str,
+    current_tick: int,
+    lease_ticks: int = DEFAULT_POD_LEASE_TICKS,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> None:
+    """Updates local pod claims cache with an authenticated claim from a peer AMR."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        target[str(shelf_id)] = {
+            "robot_id": str(robot_id),
+            "claimed_tick": current_tick,
+            "expires_tick": current_tick + lease_ticks,
+        }
+
+
 def reserve_pod_slot(
     slot_pos: Tuple[int, int],
     robot_id: str,
@@ -317,6 +334,24 @@ def prune_stale_charger_claims(
         for pos in stale:
             del target[pos]
         return stale
+
+
+def record_peer_charger_claim(
+    station_pos: Tuple[int, int],
+    robot_id: str,
+    current_tick: int,
+    lease_ticks: int = DEFAULT_CHARGER_LEASE_TICKS,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> None:
+    """Updates local charger claims cache with an authenticated claim from a peer AMR."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    pos = (int(station_pos[0]), int(station_pos[1]))
+    with _charger_lock:
+        target[pos] = {
+            "robot_id": str(robot_id),
+            "claimed_tick": current_tick,
+            "expires_tick": current_tick + lease_ticks,
+        }
 
 
 def clear_all_claims() -> None:

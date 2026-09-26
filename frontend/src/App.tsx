@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Battery, Bot, X, Package, Activity, Radio, Layers, ShieldCheck, Box, Sliders } from 'lucide-react'
-import { api } from './api'
+import { api, setApiOperatorRole } from './api'
 import { useFleetSocket } from './hooks/useFleetSocket'
 import { ControlBar } from './components/ControlBar'
+import { RoleSelectionModal, type OperatorRole } from './components/RoleSelectionModal'
 import { GridCanvas } from './components/GridCanvas'
 import { FleetSidebar } from './components/FleetSidebar'
 import { TaskPanel } from './components/TaskPanel'
@@ -75,6 +76,38 @@ export default function App() {
   const [fleetMode, setFleetMode] = useState<string>('Autonomous (10 AMRs)')
   const [lastSyncedTick, setLastSyncedTick] = useState<number>(0)
   const [cameraFollow, setCameraFollow] = useState<boolean>(true)
+
+  const [operatorRole, setOperatorRole] = useState<OperatorRole | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sih_operator_role')
+      if (saved === 'IMPORT' || saved === 'EXPORT' || saved === 'AUTHORITY') {
+        setApiOperatorRole(saved)
+        return saved as OperatorRole
+      }
+    }
+    return null
+  })
+  const [showRoleModal, setShowRoleModal] = useState<boolean>(false)
+
+  const handleSelectRole = (role: OperatorRole) => {
+    setOperatorRole(role)
+    setApiOperatorRole(role)
+    try {
+      localStorage.setItem('sih_operator_role', role)
+    } catch {
+      // ignore
+    }
+    setShowRoleModal(false)
+    setToast(
+      `Active station: ${
+        role === 'AUTHORITY'
+          ? 'Authority Station (Full Control)'
+          : role === 'IMPORT'
+          ? 'Import Station (Inbound)'
+          : 'Export Station (Outbound)'
+      }`
+    )
+  }
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -368,6 +401,8 @@ export default function App() {
         onToggleTheme={toggleTheme}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
+        operatorRole={operatorRole ?? 'AUTHORITY'}
+        onOpenRoleModal={() => setShowRoleModal(true)}
         onAction={(action) => {
           if (action === 'start') {
             setStatus((prev) => ({ ...prev, running: true }))
@@ -498,10 +533,12 @@ export default function App() {
                 filter={filter}
                 onFilter={setFilter}
                 onSelect={(robot) => setSelected(robot.robot_id)}
+                operatorRole={operatorRole ?? 'AUTHORITY'}
               />
               <TaskPanel
                 tasks={tasks}
                 busy={busy}
+                operatorRole={operatorRole ?? 'AUTHORITY'}
                 onJob={(body) =>
                   run(() => api.submitJob(body), 'Mission queued').then((res) => {
                     void api.tasks().then(setTasks)
@@ -584,6 +621,13 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <RoleSelectionModal
+        isOpen={showRoleModal || operatorRole === null}
+        currentRole={operatorRole}
+        onSelectRole={handleSelectRole}
+        onClose={operatorRole !== null ? () => setShowRoleModal(false) : undefined}
+      />
 
       <footer className="system-footer">
         <span>{socket === 'connected' ? 'Connected to fleet coordinator' : 'Awaiting fleet link'}</span>

@@ -90,6 +90,7 @@ class TelemetryBus:
                 "goal": s["goal"],
                 "conflict": s.get("conflict"),
                 "planner_latency_ms": s.get("planner_latency_ms", 0.0),
+                "carrying_pod_id": s.get("carrying_pod_id"),
             })
 
         return {

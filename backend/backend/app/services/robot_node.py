@@ -61,7 +61,14 @@ from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
 from app.transport.base import Transport
 from app.transport.udp_transport import UdpTransport
 from app.transport.halow_transport import HaLowTransport
-from app.security.hmac_envelope import sign_payload, verify_envelope, build_inventory_update_envelope
+from app.security.hmac_envelope import (
+    sign_payload,
+    verify_envelope,
+    build_inventory_update_envelope,
+    build_resource_claim_envelope,
+    build_resource_release_envelope,
+    build_pod_occupancy_envelope,
+)
 from app.security.replay_guard import ReplayGuard
 from app.services.degraded_mode import DegradedModeDetector
 from app.services.audit_mission import AuditMission
@@ -89,6 +96,7 @@ class PeerSnapshot:
     last_seen_tick: int
     charger_target: Optional[Tuple[int, int]] = None
     robot_type: Optional[str] = None
+    occupied_slot: Optional[Tuple[int, int]] = None
 
 
 class RobotNode:
@@ -119,6 +127,7 @@ class RobotNode:
         ledger: Optional[InventoryLedger] = None,
         fleet_roster: Optional[Dict[str, str]] = None,
         world: Optional[WorldConfig] = None,
+        proximity_radius: Optional[float] = None,
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -144,6 +153,7 @@ class RobotNode:
         self.dropoff_stations: Set[Tuple[int, int]] = set(default_world.dropoff_stations)
         self.pickup_stations: Set[Tuple[int, int]] = set(default_world.pickup_stations)
         self.charger_target: Optional[Tuple[int, int]] = None
+        self.active_claimed_pods: Set[str] = set()
         self.robot_type = robot_type
         self.enable_idle_audit = enable_idle_audit
 
@@ -246,6 +256,20 @@ class RobotNode:
         self.energy_per_cell: float = 0.25
         self.charging_safety_margin: float = 1.5
         self.charging_reserve_pct: float = 10.0
+
+        # 15. Fixed Station Command Authorization & Rejection Audit
+        self.rejected_station_commands: List[Dict[str, Any]] = []
+
+        # 16. ARCH-01 Authority Station Heartbeat & Interim Coordinator
+        self.authority_last_seen_tick: int = 0
+        self.is_interim_coordinator: bool = False
+        self.interim_coordinator_id: Optional[str] = None
+        self.resolved_escalated_faults: List[Dict[str, Any]] = []
+
+        # 17. NET-01 Proximity Filtering for Routine Broadcasts
+        self.proximity_radius: Optional[float] = proximity_radius
+        self.packets_sent_count: int = 0
+        self.packets_filtered_count: int = 0
 
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
         if self.goal_pos is not None:
@@ -377,6 +401,8 @@ class RobotNode:
         dest_zone = item.get("destination_zone", "OVERFLOW")
         chute_id = self.world.chute_for_destination(dest_zone)
         self.chute_occupancy[chute_id] = self.chute_occupancy.get(chute_id, 0) + 1
+        if hasattr(self, "world") and chute_id in getattr(self.world, "sortation_chutes", {}):
+            self.world.sortation_chutes[chute_id]["current_count"] = self.world.sortation_chutes[chute_id].get("current_count", 0) + 1
         self.log(f"[Tick {tick}] SORTING Robot decanted item {item.get('item_id', 'ITEM')} (dest={dest_zone}) into {chute_id} (count={self.chute_occupancy[chute_id]}).")
 
         # Check full threshold
@@ -407,11 +433,16 @@ class RobotNode:
 
     def close(self) -> None:
         try:
+            curr_t = getattr(self.robot, "last_updated_tick", 0) if hasattr(self, "robot") else 0
+            for pid in list(getattr(self, "active_claimed_pods", [])):
+                self.release_pod_resource(pid, curr_t)
+            if getattr(self, "charger_target", None):
+                self.release_charger_resource(self.charger_target, curr_t)
             from app.services.reservations import release_robot_pod_claims, release_robot_charger_claims
             release_robot_pod_claims(self.robot_id)
             release_robot_charger_claims(self.robot_id)
-            if hasattr(self, "grid") and hasattr(self.grid, "set_pod_slot_occupant") and hasattr(self, "robot"):
-                self.grid.set_pod_slot_occupant(self.robot.position, None)
+            if hasattr(self, "robot"):
+                self.set_pod_slot_occupant(self.robot.position, None, tick=curr_t)
         except Exception:
             pass
         try:
@@ -569,6 +600,7 @@ class RobotNode:
         if is_audit:
             record.last_audited_tick = current_tick
             record.last_audited_by = self.robot.robot_id
+            record.version = getattr(record, "version", 1) + 1
         self.local_inventory_cache[shelf_id] = record
 
         # 1. Peer Mesh UDP Broadcast: filtered only to GOODS_TO_PERSON peers (Phase 1.5 Fix 6)
@@ -585,6 +617,7 @@ class RobotNode:
             secret_key=self.secret_key,
             seq=self.seq,
             channel="MESH",
+            version=getattr(record, "version", 1),
         )
         for peer_id in self.peer_ports.keys():
             if peer_id != self.robot.robot_id:
@@ -623,10 +656,190 @@ class RobotNode:
             secret_key=self.secret_key,
             seq=self.seq,
             channel="HALOW",
+            version=getattr(record, "version", 1),
         )
         self.halow_transport.send("DASHBOARD", halow_env)
-        self.log(f"[Tick {current_tick}] Broadcasted INVENTORY_UPDATE for {shelf_id} (count={total_boxes}) over Mesh + HaLow.")
+        self.log(f"[Tick {current_tick}] Broadcasted INVENTORY_UPDATE for {shelf_id} (v={getattr(record, 'version', 1)}, count={total_boxes}) over Mesh + HaLow.")
 
+    def broadcast_resource_claim(
+        self,
+        resource_type: str,
+        resource_id: Any,
+        current_tick: int,
+        lease_ticks: int = 40,
+    ) -> None:
+        """Broadcasts signed RESOURCE_CLAIM envelope to all peer AMRs."""
+        if not hasattr(self, "transport") or not hasattr(self, "peer_ports"):
+            return
+        self.seq += 1
+        env = build_resource_claim_envelope(
+            resource_type=resource_type,
+            resource_id=resource_id,
+            robot_id=self.robot.robot_id,
+            tick=current_tick,
+            lease_ticks=lease_ticks,
+            priority_score=getattr(self.robot, "priority_score", 0.0),
+            secret_key=self.secret_key,
+            seq=self.seq,
+        )
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, env)
+                self.packets_sent_count += 1
+
+    def broadcast_resource_release(
+        self,
+        resource_type: str,
+        resource_id: Any,
+        current_tick: int,
+    ) -> None:
+        """Broadcasts signed RESOURCE_RELEASE envelope to all peer AMRs."""
+        if not hasattr(self, "transport") or not hasattr(self, "peer_ports"):
+            return
+        self.seq += 1
+        env = build_resource_release_envelope(
+            resource_type=resource_type,
+            resource_id=resource_id,
+            robot_id=self.robot.robot_id,
+            tick=current_tick,
+            secret_key=self.secret_key,
+            seq=self.seq,
+        )
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, env)
+                self.packets_sent_count += 1
+
+    def claim_pod_resource(
+        self,
+        shelf_id: str,
+        current_tick: int,
+        lease_ticks: int = 40,
+    ) -> bool:
+        """Atomically claims a pod locally and broadcasts the claim to all peer AMRs."""
+        from app.services.reservations import claim_pod
+        ok = claim_pod(shelf_id, self.robot.robot_id, current_tick=current_tick, lease_ticks=lease_ticks)
+        if ok:
+            self.active_claimed_pods.add(shelf_id)
+            self.broadcast_resource_claim("POD", shelf_id, current_tick, lease_ticks)
+        return ok
+
+    def release_pod_resource(
+        self,
+        shelf_id: str,
+        current_tick: int,
+    ) -> None:
+        """Releases a pod claim locally and broadcasts the release to all peer AMRs."""
+        from app.services.reservations import release_pod
+        release_pod(shelf_id, self.robot.robot_id)
+        self.active_claimed_pods.discard(shelf_id)
+        self.broadcast_resource_release("POD", shelf_id, current_tick)
+
+    def claim_charger_resource(
+        self,
+        station_pos: Tuple[int, int],
+        current_tick: int,
+        lease_ticks: int = 40,
+    ) -> bool:
+        """Atomically claims a charging station locally and broadcasts the claim to all peer AMRs."""
+        from app.services.reservations import claim_charger
+        pos = (int(station_pos[0]), int(station_pos[1]))
+        ok = claim_charger(pos, self.robot.robot_id, current_tick=current_tick, lease_ticks=lease_ticks)
+        if ok:
+            self.charger_target = pos
+            self.broadcast_resource_claim("CHARGER", [pos[0], pos[1]], current_tick, lease_ticks)
+        return ok
+
+    def release_charger_resource(
+        self,
+        station_pos: Tuple[int, int],
+        current_tick: int,
+    ) -> None:
+        """Releases a charging station claim locally and broadcasts the release to all peer AMRs."""
+        from app.services.reservations import release_charger
+        pos = (int(station_pos[0]), int(station_pos[1]))
+        release_charger(pos, self.robot.robot_id)
+        if self.charger_target == pos:
+            self.charger_target = None
+        self.broadcast_resource_release("CHARGER", [pos[0], pos[1]], current_tick)
+
+    def _resolve_resource_contention(
+        self,
+        res_type: str,
+        res_id: Any,
+        peer_id: str,
+        peer_priority: float,
+        current_tick: int,
+        lease_ticks: int = 40,
+    ) -> bool:
+        """
+        Resolves contention when both self and peer_id claim the same resource.
+        Returns True if self wins and retains claim, False if peer wins and self yields.
+        """
+        my_priority = getattr(self.robot, "priority_score", 0.0)
+        peer_wins = (peer_priority > my_priority) or (
+            peer_priority == my_priority and str(peer_id) < str(self.robot.robot_id)
+        )
+        if peer_wins:
+            self.log(f"[Tick {current_tick}] Contention lost on {res_type} {res_id} to higher-priority {peer_id}. Yielding.")
+            if res_type == "POD":
+                s_id = str(res_id)
+                self.active_claimed_pods.discard(s_id)
+                if self.fsm.state in (RobotState.PICKING, RobotState.LIFTING, RobotState.EN_ROUTE_PICKUP):
+                    if getattr(self.task, "target_shelf_id", None) == s_id:
+                        self.fsm.state = RobotState.FAILSAFE_HOLD
+                        self.robot.state = self.fsm.state
+                from app.services.reservations import record_peer_pod_claim
+                record_peer_pod_claim(s_id, peer_id, current_tick, lease_ticks)
+            elif res_type == "CHARGER":
+                c_pos = (int(res_id[0]), int(res_id[1]))
+                if self.charger_target == c_pos:
+                    self.charger_target = None
+                from app.services.reservations import record_peer_charger_claim
+                record_peer_charger_claim(c_pos, peer_id, current_tick, lease_ticks)
+            return False
+        else:
+            self.log(f"[Tick {current_tick}] Contention won on {res_type} {res_id} against {peer_id}. Maintaining claim.")
+            self.broadcast_resource_claim(res_type, res_id, current_tick, lease_ticks)
+            return True
+
+    def broadcast_pod_slot_occupancy(
+        self,
+        pos: Tuple[int, int],
+        occupant: Optional[str],
+        shelf_id: Optional[str] = None,
+        tick: int = 0,
+    ) -> None:
+        """Broadcasts signed POD_SLOT_OCCUPANCY envelope to all peer AMRs."""
+        if not hasattr(self, "transport") or not hasattr(self, "peer_ports"):
+            return
+        self.seq += 1
+        env = build_pod_occupancy_envelope(
+            pos=pos,
+            occupant=occupant,
+            shelf_id=shelf_id,
+            tick=tick,
+            source_robot_id=self.robot.robot_id,
+            secret_key=self.secret_key,
+            seq=self.seq,
+        )
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, env)
+                self.packets_sent_count += 1
+
+    def set_pod_slot_occupant(
+        self,
+        pos: Tuple[int, int],
+        occupant: Optional[str],
+        shelf_id: Optional[str] = None,
+        tick: int = 0,
+    ) -> None:
+        """Updates local grid pod-slot occupancy and broadcasts event to peer AMRs."""
+        int_pos = (int(pos[0]), int(pos[1]))
+        if hasattr(self, "grid") and hasattr(self.grid, "set_pod_slot_occupant"):
+            self.grid.set_pod_slot_occupant(int_pos, occupant)
+        self.broadcast_pod_slot_occupancy(int_pos, occupant, shelf_id=shelf_id, tick=tick)
 
     def step(self, tick: int) -> Dict[str, Any]:
         """
@@ -658,6 +871,7 @@ class RobotNode:
 
         # 2. Drain incoming transport messages & resolve contract-net bids
         self._drain_inbox(tick)
+        self._update_interim_coordinator_election(tick)
         self._resolve_contract_net_bids(tick)
 
         # Phase 1.5 Fix 3: Flush pending HaLow outbound queue every tick
@@ -673,7 +887,13 @@ class RobotNode:
         prune_stale_charger_claims(current_tick=tick)
         if self.charger_target:
             renew_charger_claim(self.charger_target, self.robot.robot_id, current_tick=tick)
-        if self.robot.carrying_pod_id:
+            if tick % 2 == 0:
+                self.broadcast_resource_claim("CHARGER", [self.charger_target[0], self.charger_target[1]], tick, lease_ticks=20)
+        for p in list(self.active_claimed_pods):
+            renew_pod_claim(p, self.robot.robot_id, current_tick=tick)
+            if tick % 2 == 0:
+                self.broadcast_resource_claim("POD", p, tick, lease_ticks=20)
+        if self.robot.carrying_pod_id and self.robot.carrying_pod_id not in self.active_claimed_pods:
             renew_pod_claim(self.robot.carrying_pod_id, self.robot.robot_id, current_tick=tick)
         elif self.task and getattr(self.task, "target_shelf_id", None) and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.LIFTING):
             renew_pod_claim(self.task.target_shelf_id, self.robot.robot_id, current_tick=tick)
@@ -682,8 +902,13 @@ class RobotNode:
         if tick % 20 == 0 and self.inventory_ledger is not None:
             for s in self.inventory_ledger.get_all_shelves(current_tick=tick):
                 local = self.local_inventory_cache.get(s.shelf_id)
-                if local is None or s.last_audited_tick > local.last_audited_tick:
+                if local is None:
                     self.local_inventory_cache[s.shelf_id] = s
+                else:
+                    curr_ver = getattr(local, "version", 1)
+                    s_ver = getattr(s, "version", 1)
+                    if (s_ver > curr_ver) or (s_ver == curr_ver and s.confidence > local.confidence) or (s_ver == curr_ver and s.confidence == local.confidence and s.last_audited_tick > local.last_audited_tick):
+                        self.local_inventory_cache[s.shelf_id] = s
 
         # 2.5. Dynamic Dock Re-targeting (avoid queuing on occupied docks)
         if self.goal_pos and self.goal_pos in self.dropoff_stations and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF):
@@ -779,9 +1004,8 @@ class RobotNode:
                 from app.services.reservations import renew_charger_claim
                 renew_charger_claim(self.charger_target, self.robot.robot_id, tick)
             if self.robot.battery_pct >= 95.0:
-                from app.services.reservations import release_charger
                 if self.charger_target:
-                    release_charger(self.charger_target, self.robot.robot_id)
+                    self.release_charger_resource(self.charger_target, tick)
                 self.fsm.transition(RobotEvent.CHARGE_COMPLETE)
                 self.robot.state = self.fsm.state
                 self.charger_target = None
@@ -889,17 +1113,15 @@ class RobotNode:
                     if nearby:
                         shelf_id = nearby[0]
                 if shelf_id:
-                    # Phase 1.5 Fix 1: Atomically claim shelf before lifting
-                    from app.services.reservations import claim_pod
-                    if not claim_pod(shelf_id, self.robot.robot_id, current_tick=tick):
+                    # Atomically claim shelf before lifting and broadcast to peers
+                    if not self.claim_pod_resource(shelf_id, tick):
                         self.log(f"[Tick {tick}] POD CLAIM REJECTED: Shelf {shelf_id} is already claimed by another robot. Transitioning to FAILSAFE_HOLD.")
                         self.fsm.state = RobotState.FAILSAFE_HOLD
                         self.robot.state = self.fsm.state
                         return self._build_telemetry_frame(tick, "POD_CLAIM_REJECTED", None)
 
                     self.robot.carrying_pod_id = shelf_id
-                    if hasattr(self.grid, "set_pod_slot_occupant"):
-                        self.grid.set_pod_slot_occupant(self.robot.position, self.robot.robot_id)
+                    self.set_pod_slot_occupant(self.robot.position, self.robot.robot_id, shelf_id=shelf_id, tick=tick)
                     shelf_rec = self.local_inventory_cache.get(shelf_id) or self.inventory_ledger.get_shelf(shelf_id)
                     if shelf_rec:
                         self.robot.carrying_sku_manifest = dict(shelf_rec.sku_manifest)
@@ -1023,11 +1245,9 @@ class RobotNode:
                     )
                     self.log(f"[Tick {tick}] Pick operation completed on pod {pod_id} (picked {qty} units of {picked_sku}).")
 
-                # Phase 1.5 Fix 1: Release pod claim and clear slot occupancy
-                from app.services.reservations import release_pod
-                release_pod(pod_id, self.robot.robot_id)
-                if hasattr(self.grid, "set_pod_slot_occupant"):
-                    self.grid.set_pod_slot_occupant(self.robot.position, None)
+                # Release pod claim and broadcast release to peers
+                self.release_pod_resource(pod_id, tick)
+                self.set_pod_slot_occupant(self.robot.position, None, shelf_id=pod_id, tick=tick)
 
                 self.robot.carrying_pod_id = None
                 self.robot.carrying_sku_manifest = {}
@@ -1136,6 +1356,7 @@ class RobotNode:
 
         # 7. Broadcast Reservation Claim & Intention via Transport with HMAC
         self.seq += 1
+        claimed_pod = self.robot.carrying_pod_id or (getattr(self.task, "target_shelf_id", None) if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.PICKING, RobotState.LIFTING) else None)
         claim_payload = {
             "type": "RESERVATION_CLAIM",
             "robot_id": self.robot.robot_id,
@@ -1149,11 +1370,18 @@ class RobotNode:
             "wait_ticks": self.robot.wait_ticks_so_far,
             "path": list(self.robot.path[:8]),
             "charger_target": list(self.charger_target) if self.charger_target else None,
+            "claimed_pod_id": claimed_pod,
+            "active_claimed_pods": list(self.active_claimed_pods),
+            "occupied_slot": [self.robot.position[0], self.robot.position[1]] if (self.robot.carrying_pod_id or self.fsm.state in (RobotState.PICKING, RobotState.LIFTING)) else None,
         }
         envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
         for peer_id in self.peer_ports.keys():
             if peer_id != self.robot.robot_id:
-                self.transport.send(peer_id, envelope)
+                if self.is_peer_in_proximity(peer_id):
+                    self.transport.send(peer_id, envelope)
+                    self.packets_sent_count += 1
+                else:
+                    self.packets_filtered_count += 1
 
         # 8. Drain inbox again for peer responses
         wait_start = time.time()
@@ -1416,7 +1644,18 @@ class RobotNode:
                         break
 
         # 10. Check Degraded Mode speed throttle
-        if intended_pos != prev_pos and not self.degraded_detector.should_move_this_tick(tick):
+        # If proximity filtering is active, only peers expected to be in proximity can trigger degraded mode
+        is_net_degraded = False
+        if self.degraded_detector.forced_degraded:
+            is_net_degraded = True
+        elif self.degraded_detector.peer_last_ticks:
+            for peer_id, last_t in self.degraded_detector.peer_last_ticks.items():
+                if self.is_peer_in_proximity(peer_id):
+                    if (tick - last_t) >= self.degraded_detector.threshold_missing_ticks:
+                        is_net_degraded = True
+                        break
+
+        if intended_pos != prev_pos and is_net_degraded and (tick % 2 != 0):
             intended_pos = prev_pos
             action_taken = "DEGRADED_SPEED_PAUSE"
             self.log(f"[Tick {tick}] Degraded network throttle: pausing movement on alternate tick.")
@@ -1519,14 +1758,12 @@ class RobotNode:
                         if nearby:
                             shelf_id = nearby[0]
                     if shelf_id:
-                        from app.services.reservations import claim_pod
-                        if not claim_pod(shelf_id, self.robot.robot_id, current_tick=tick):
+                        if not self.claim_pod_resource(shelf_id, tick):
                             self.log(f"[Tick {tick}] POD CLAIM REJECTED at pickup: {shelf_id} already claimed by another robot. Transitioning to FAILSAFE_HOLD.")
                             self.fsm.state = RobotState.FAILSAFE_HOLD
                             self.robot.state = self.fsm.state
                             return self._build_telemetry_frame(tick, "POD_CLAIM_CONFLICT", None)
-                        if hasattr(self.grid, "set_pod_slot_occupant"):
-                            self.grid.set_pod_slot_occupant(self.robot.position, self.robot.robot_id)
+                        self.set_pod_slot_occupant(self.robot.position, self.robot.robot_id, shelf_id=shelf_id, tick=tick)
 
                 self.fsm.transition(RobotEvent.PICKUP_REACHED)
                 self.robot.state = self.fsm.state
@@ -1653,7 +1890,7 @@ class RobotNode:
 
         if claim:
             for dist, station in candidates:
-                if claim_charger(station, self.robot.robot_id, current_tick=tick):
+                if self.claim_charger_resource(station, tick):
                     return station
             return None
 
@@ -1682,6 +1919,11 @@ class RobotNode:
             "local_inventory_count": len(self.local_inventory_cache),
             "carrying_pod_id": self.robot.carrying_pod_id,
             "halow_status": self.halow_transport.get_status() if hasattr(self, "halow_transport") else None,
+            "is_interim_coordinator": self.is_interim_coordinator,
+            "interim_coordinator_id": self.interim_coordinator_id,
+            "proximity_radius": self.proximity_radius,
+            "packets_sent_count": self.packets_sent_count,
+            "packets_filtered_count": self.packets_filtered_count,
         }
         if self.telemetry_queue is not None:
             try:
@@ -1690,10 +1932,142 @@ class RobotNode:
                 pass
         return frame
 
+    def _validate_station_command_authorization(
+        self,
+        actual_msg: Dict[str, Any],
+        sender: str,
+        is_signed: bool,
+        envelope: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[bool, str]:
+        """
+        Receiving-end zero-trust authorization boundary for station commands.
+        Validates Ed25519 cryptographic envelope, station_role claim, and task scope allowlist.
+        ImportStation commands are rejected if outside import scope; ExportStation commands
+        are rejected if outside export/sortation scope; AuthorityStation is unrestricted.
+        """
+        station_role = actual_msg.get("station_role")
+
+        # If not claiming to be a station and sender is not a station node, pass through to normal peer handling
+        if not station_role and sender not in ("IMPORT_STATION", "EXPORT_STATION", "AUTHORITY_STATION"):
+            return True, ""
+
+        # Zero-Trust Check 1: Must be cryptographically signed
+        if not is_signed:
+            reason = (
+                f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected station command "
+                f"from '{sender}' because message lacks a valid HMAC-SHA256 signature envelope."
+            )
+            return False, reason
+
+        # Zero-Trust Check 1b: Station directives must be asymmetrically signed with Ed25519 (SEC-01)
+        algo = envelope.get("algorithm") if isinstance(envelope, dict) else None
+        if envelope is not None and algo != "ed25519":
+            reason = (
+                f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected station command "
+                f"from '{sender}' because message was signed with symmetric HMAC '{algo}' rather than "
+                f"Station Ed25519 private key. Shared symmetric HMAC signatures are forbidden for stations."
+            )
+            return False, reason
+
+        # Zero-Trust Check 2: station_role must be provided
+        if not station_role:
+            reason = (
+                f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected command from "
+                f"station '{sender}' because message lacks required 'station_role' claim."
+            )
+            return False, reason
+
+        t_dict = actual_msg.get("task", {})
+        task_type = str(t_dict.get("task_type", "")).upper()
+        tid = t_dict.get("task_id", "UNKNOWN")
+        source_gate = str(t_dict.get("source_gate", "")).upper()
+        destination_gate = str(t_dict.get("destination_gate", "")).upper()
+        pickup = t_dict.get("pickup")
+        dropoff = t_dict.get("dropoff")
+
+        # Zero-Trust Check 3: Role Allowlist
+        if station_role == "IMPORT_STATION":
+            is_allowed = False
+            if task_type in ("INDUCT_BATCH", "IMPORT_UNLOAD"):
+                is_allowed = True
+            elif source_gate in ("IN-1", "IN-2", "IN-3"):
+                is_allowed = True
+            elif pickup and isinstance(pickup, (list, tuple)) and len(pickup) >= 2:
+                if int(pickup[0]) <= 2 and 8 <= int(pickup[1]) <= 20:
+                    is_allowed = True
+
+            if not is_allowed:
+                reason = (
+                    f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected command from "
+                    f"IMPORT_STATION for out-of-scope task '{tid}' (task_type='{task_type}', "
+                    f"source_gate='{source_gate}', destination_gate='{destination_gate}'). "
+                    f"ImportStation has no authority over export/general tasks."
+                )
+                return False, reason
+
+        elif station_role == "EXPORT_STATION":
+            is_allowed = False
+            if task_type in ("CONSOLIDATE_EXPORT", "TRANSFER_TO_SORTATION", "DECANT_TO_CHUTE"):
+                is_allowed = True
+            elif destination_gate in ("OUT-1", "OUT-2", "OUT-3"):
+                is_allowed = True
+            elif dropoff and isinstance(dropoff, (list, tuple)) and len(dropoff) >= 2:
+                dx, dy = int(dropoff[0]), int(dropoff[1])
+                if (dx >= 27 and 8 <= dy <= 20) or (21 <= dx <= 27 and 2 <= dy <= 5):
+                    is_allowed = True
+
+            if not is_allowed:
+                reason = (
+                    f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected command from "
+                    f"EXPORT_STATION for out-of-scope task '{tid}' (task_type='{task_type}', "
+                    f"source_gate='{source_gate}', destination_gate='{destination_gate}'). "
+                    f"ExportStation has no authority over import/general tasks."
+                )
+                return False, reason
+
+        elif station_role == "AUTHORITY_STATION":
+            return True, ""
+
+        else:
+            reason = (
+                f"STATION_AUTHORITY_VIOLATION: Robot {self.robot.robot_id} rejected command with "
+                f"unrecognized station_role '{station_role}' from sender '{sender}'."
+            )
+            return False, reason
+
+        return True, ""
+
+    def is_peer_in_proximity(self, peer_id: str) -> bool:
+        """
+        NET-01 Proximity Filter: Checks whether peer_id is within self.proximity_radius.
+        Returns True if:
+        1. proximity_radius is disabled (None or <= 0).
+        2. peer position is unknown (allows initial discovery).
+        3. peer is a fixed infrastructure station (ensures station observability).
+        4. Euclidean distance to peer <= self.proximity_radius.
+        """
+        if self.proximity_radius is None or self.proximity_radius <= 0:
+            return True
+
+        # Non-AMR nodes (fixed stations) are never filtered out by proximity
+        if not peer_id.startswith("AMR-") and peer_id in ("IMPORT_STATION", "EXPORT_STATION", "AUTHORITY_STATION"):
+            return True
+
+        peer_snap = self.peers.get(peer_id)
+        if peer_snap is None or peer_snap.position is None:
+            # Unknown peer position: allow broadcast for initial discovery
+            return True
+
+        px, py = peer_snap.position
+        rx, ry = self.robot.position
+        dist = ((rx - px) ** 2 + (ry - py) ** 2) ** 0.5
+        return dist <= self.proximity_radius
+
     def _drain_inbox(self, current_tick: int) -> None:
         """Drains incoming transport messages, verifies security envelopes, updates peer snapshots."""
         raw_messages = self.transport.recv_all()
         for msg in raw_messages:
+            is_signed = False
             # Verify security envelope if present
             if "signature" in msg and "body" in msg:
                 valid, payload, err = verify_envelope(msg, secret_key=self.secret_key)
@@ -1701,7 +2075,14 @@ class RobotNode:
                     self.log(f"Security envelope verification failed: {err}")
                     continue
                 body = msg.get("body", {})
-                sender = payload.get("sender_id") or payload.get("robot_id") or payload.get("bidder_id") or payload.get("winner_id") or body.get("sender_id", "unknown")
+                sender = (
+                    payload.get("sender_id")
+                    or payload.get("robot_id")
+                    or payload.get("station_id")
+                    or payload.get("bidder_id")
+                    or payload.get("winner_id")
+                    or body.get("sender_id", "unknown")
+                )
                 seq = body.get("seq")
                 ts = body.get("timestamp", time.time())
                 r_valid, r_err = self.replay_guard.validate(sender, seq, ts)
@@ -1709,10 +2090,34 @@ class RobotNode:
                     self.log(f"Security replay guard rejected packet from {sender}: {r_err}")
                     continue
                 actual_msg = payload
+                is_signed = True
             else:
                 actual_msg = msg
+                sender = (
+                    actual_msg.get("sender_id")
+                    or actual_msg.get("robot_id")
+                    or actual_msg.get("station_id", "unknown")
+                )
+                is_signed = False
 
             m_type = actual_msg.get("type")
+
+            # Zero-Trust Station Command Authorization Enforcement on Receiving End
+            if m_type in ("TASK_ASSIGNMENT", "TASK_ANNOUNCEMENT", "TASK_REROUTE", "STATION_COMMAND"):
+                auth_ok, auth_err = self._validate_station_command_authorization(
+                    actual_msg, sender, is_signed, envelope=msg if "signature" in msg else None
+                )
+                if not auth_ok:
+                    self.rejected_station_commands.append({
+                        "tick": current_tick,
+                        "sender": sender,
+                        "message_type": m_type,
+                        "reason": auth_err,
+                        "task": actual_msg.get("task"),
+                    })
+                    self.log(f"[Tick {current_tick}] {auth_err}")
+                    continue
+
             if m_type == "RESERVATION_CLAIM":
                 sender_id = actual_msg["robot_id"]
                 p_pos = tuple(actual_msg["position"])
@@ -1734,9 +2139,46 @@ class RobotNode:
                 c_target = actual_msg.get("charger_target")
                 charger_target_tuple = (int(c_target[0]), int(c_target[1])) if c_target else None
 
+                old_snap = self.peers.get(sender_id)
+                if old_snap and old_snap.charger_target and old_snap.charger_target != charger_target_tuple:
+                    from app.services.reservations import release_charger
+                    release_charger(old_snap.charger_target, sender_id)
+                if charger_target_tuple:
+                    if self.charger_target == charger_target_tuple:
+                        self._resolve_resource_contention("CHARGER", [charger_target_tuple[0], charger_target_tuple[1]], sender_id, float(actual_msg.get("priority_score", 0.0)), msg_tick)
+                    else:
+                        from app.services.reservations import record_peer_charger_claim
+                        record_peer_charger_claim(charger_target_tuple, sender_id, msg_tick)
+
+                peer_claimed_pods = set()
+                claimed_pod = actual_msg.get("claimed_pod_id")
+                if claimed_pod:
+                    peer_claimed_pods.add(str(claimed_pod))
+                for pid in actual_msg.get("active_claimed_pods", []):
+                    peer_claimed_pods.add(str(pid))
+
+                for pid in peer_claimed_pods:
+                    if pid in self.active_claimed_pods:
+                        self._resolve_resource_contention("POD", pid, sender_id, float(actual_msg.get("priority_score", 0.0)), msg_tick)
+                    else:
+                        from app.services.reservations import record_peer_pod_claim
+                        record_peer_pod_claim(pid, sender_id, msg_tick)
+
                 peer_rt = actual_msg.get("robot_type")
                 if peer_rt:
                     self.fleet_roster[sender_id] = peer_rt
+
+                peer_occ = actual_msg.get("occupied_slot")
+                peer_occ_tuple = (int(peer_occ[0]), int(peer_occ[1])) if peer_occ else None
+
+                if old_snap and old_snap.occupied_slot and old_snap.occupied_slot != peer_occ_tuple:
+                    if hasattr(self.grid, "set_pod_slot_occupant"):
+                        cur_occ = getattr(self.grid, "pod_slot_occupants", {}).get(old_snap.occupied_slot)
+                        if cur_occ == sender_id:
+                            self.grid.set_pod_slot_occupant(old_snap.occupied_slot, None)
+                if peer_occ_tuple:
+                    if hasattr(self.grid, "set_pod_slot_occupant"):
+                        self.grid.set_pod_slot_occupant(peer_occ_tuple, sender_id)
 
                 snap = PeerSnapshot(
                     robot_id=sender_id,
@@ -1750,6 +2192,7 @@ class RobotNode:
                     last_seen_tick=msg_tick,
                     charger_target=charger_target_tuple,
                     robot_type=peer_rt,
+                    occupied_slot=peer_occ_tuple,
                 )
                 self.peers[sender_id] = snap
 
@@ -1891,20 +2334,94 @@ class RobotNode:
                     src_bot = str(actual_msg.get("source_robot_id") or actual_msg.get("sender_id") or "UNKNOWN")
                     sx = int(actual_msg.get("x", 0))
                     sy = int(actual_msg.get("y", 0))
+                    incoming_ver = int(actual_msg.get("version", 1))
 
-                    rec = ShelfRecord(
-                        shelf_id=shelf_id,
-                        x=sx,
-                        y=sy,
-                        capacity_boxes=80,
-                        current_box_count=box_count,
-                        sku_manifest=dict(manifest),
-                        last_audited_tick=tick_val,
-                        last_audited_by=src_bot,
-                        confidence=conf,
-                    )
-                    self.local_inventory_cache[shelf_id] = rec
-                    self.log(f"[Tick {current_tick}] Decentralized INVENTORY_UPDATE applied for {shelf_id} (count={box_count}, conf={conf:.2f}) from peer {src_bot}.")
+                    existing = self.local_inventory_cache.get(shelf_id)
+                    should_apply = True
+                    if existing is not None:
+                        curr_ver = getattr(existing, "version", 1)
+                        curr_conf = existing.confidence
+                        curr_tick = existing.last_audited_tick
+
+                        if incoming_ver > curr_ver:
+                            should_apply = True
+                        elif incoming_ver == curr_ver:
+                            if conf > curr_conf:
+                                should_apply = True
+                            elif conf == curr_conf and tick_val > curr_tick:
+                                should_apply = True
+                            else:
+                                should_apply = False
+                        else:
+                            should_apply = False
+
+                    if should_apply:
+                        rec = ShelfRecord(
+                            shelf_id=shelf_id,
+                            x=sx,
+                            y=sy,
+                            capacity_boxes=80,
+                            current_box_count=box_count,
+                            sku_manifest=dict(manifest),
+                            last_audited_tick=tick_val,
+                            last_audited_by=src_bot,
+                            confidence=conf,
+                            version=incoming_ver,
+                        )
+                        self.local_inventory_cache[shelf_id] = rec
+                        if getattr(self, "inventory_ledger", None):
+                            self.inventory_ledger.upsert_shelf(rec)
+                        self.log(f"[Tick {current_tick}] Decentralized INVENTORY_UPDATE applied for {shelf_id} (v={incoming_ver}, count={box_count}, conf={conf:.2f}) from peer {src_bot}.")
+                    else:
+                        self.log(f"[Tick {current_tick}] Decentralized INVENTORY_UPDATE discarded for {shelf_id} (v={incoming_ver} <= local v={getattr(existing, 'version', 1)}).")
+
+            elif m_type == "RESOURCE_CLAIM":
+                res_type = actual_msg.get("resource_type")
+                res_id = actual_msg.get("resource_id")
+                claiming_bot = str(actual_msg.get("robot_id") or actual_msg.get("sender_id") or "UNKNOWN")
+                c_tick = int(actual_msg.get("tick", current_tick))
+                l_ticks = int(actual_msg.get("lease_ticks", 40))
+                peer_priority = float(actual_msg.get("priority_score", 0.0))
+
+                if claiming_bot != self.robot.robot_id:
+                    if res_type == "POD" and res_id:
+                        shelf_str = str(res_id)
+                        if shelf_str in self.active_claimed_pods:
+                            self._resolve_resource_contention("POD", shelf_str, claiming_bot, peer_priority, c_tick, l_ticks)
+                        else:
+                            from app.services.reservations import record_peer_pod_claim
+                            record_peer_pod_claim(shelf_str, claiming_bot, c_tick, l_ticks)
+
+                    elif res_type == "CHARGER" and res_id:
+                        station_tuple = (int(res_id[0]), int(res_id[1]))
+                        if self.charger_target == station_tuple:
+                            self._resolve_resource_contention("CHARGER", [station_tuple[0], station_tuple[1]], claiming_bot, peer_priority, c_tick, l_ticks)
+                        else:
+                            from app.services.reservations import record_peer_charger_claim
+                            record_peer_charger_claim(station_tuple, claiming_bot, c_tick, l_ticks)
+
+            elif m_type == "RESOURCE_RELEASE":
+                res_type = actual_msg.get("resource_type")
+                res_id = actual_msg.get("resource_id")
+                releasing_bot = str(actual_msg.get("robot_id") or actual_msg.get("sender_id") or "UNKNOWN")
+
+                if res_type == "POD" and res_id:
+                    from app.services.reservations import release_pod
+                    release_pod(str(res_id), releasing_bot)
+                    self.log(f"[Tick {current_tick}] Released peer pod claim {res_id} by {releasing_bot}.")
+                elif res_type == "CHARGER" and res_id:
+                    from app.services.reservations import release_charger
+                    release_charger((int(res_id[0]), int(res_id[1])), releasing_bot)
+                    self.log(f"[Tick {current_tick}] Released peer charger claim {res_id} by {releasing_bot}.")
+
+            elif m_type == "POD_SLOT_OCCUPANCY":
+                pos_list = actual_msg.get("pos")
+                occupant = actual_msg.get("occupant")
+                src_bot = actual_msg.get("source_robot_id") or actual_msg.get("robot_id") or actual_msg.get("sender_id") or "PEER"
+                if pos_list and hasattr(self.grid, "set_pod_slot_occupant"):
+                    pos_tuple = (int(pos_list[0]), int(pos_list[1]))
+                    self.grid.set_pod_slot_occupant(pos_tuple, occupant)
+                    self.log(f"[Tick {current_tick}] Updated pod slot occupancy at {pos_tuple} -> {occupant} from peer {src_bot}.")
 
             elif m_type == "EMERGENCY_STOP":
                 self.log(f"[Tick {current_tick}] Control command received: EMERGENCY_STOP.")
@@ -1915,6 +2432,95 @@ class RobotNode:
             elif m_type in ("RESET", "RESET_FAILSAFE"):
                 self.log(f"[Tick {current_tick}] Control command received: {m_type}.")
                 self.reset_failsafe()
+
+            elif m_type in ("TASK_REROUTE", "STATION_COMMAND"):
+                target_robot = actual_msg.get("target_robot_id") or actual_msg.get("target_peer_id")
+                if not target_robot or target_robot == self.robot.robot_id:
+                    t_dict = actual_msg.get("task", {})
+                    tid = t_dict.get("task_id")
+                    if tid and self.fsm.state == RobotState.IDLE:
+                        dropoff_pos = tuple(t_dict.get("dropoff", self.robot.position))
+                        pickup_pos = tuple(t_dict.get("pickup", self.robot.position))
+                        self._assign_initial_task(
+                            goal_pos=dropoff_pos,
+                            urgency=int(t_dict.get("urgency", 3)),
+                            payload_weight_kg=float(t_dict.get("payload_weight_kg", 0.0)),
+                            task_id=tid,
+                            pickup_pos=pickup_pos,
+                            task_type=t_dict.get("task_type", "STANDARD"),
+                            target_shelf_id=t_dict.get("target_shelf_id"),
+                            sku_to_pick=t_dict.get("sku_to_pick"),
+                            quantity=int(t_dict.get("quantity", 1)),
+                            destination_zone=t_dict.get("destination_zone"),
+                            pick_station_id=t_dict.get("pick_station_id"),
+                        )
+                        self.log(f"[Tick {current_tick}] Executed authorized station directive {tid} from {sender}.")
+
+            elif m_type == "STATION_HEARTBEAT":
+                sender_station = actual_msg.get("station_id")
+                sender_role = actual_msg.get("station_role")
+                if sender_station == "AUTHORITY_STATION" or sender_role == "AUTHORITY_STATION":
+                    self.authority_last_seen_tick = current_tick
+                    if self.is_interim_coordinator or self.interim_coordinator_id is not None:
+                        self.log(f"[Tick {current_tick}] AuthorityStation heartbeat received. Stepping down from interim coordinator.")
+                        self.is_interim_coordinator = False
+                        self.interim_coordinator_id = None
+
+            elif m_type == "FAULT_ESCALATION":
+                f_data = actual_msg.get("fault", {})
+                fault_id = f_data.get("fault_id", "UNKNOWN")
+                st_id = actual_msg.get("station_id", sender)
+                if self.is_interim_coordinator:
+                    resolution_record = {
+                        "fault_id": fault_id,
+                        "station_id": st_id,
+                        "resolved_by": self.robot.robot_id,
+                        "status": "APPROVED_BY_INTERIM_COORDINATOR",
+                        "tick": current_tick,
+                        "fault": f_data,
+                    }
+                    self.resolved_escalated_faults.append(resolution_record)
+                    self.log(
+                        f"[Tick {current_tick}] Interim Coordinator {self.robot.robot_id} "
+                        f"approved escalated fault {fault_id} from {st_id}."
+                    )
+                else:
+                    self.log(
+                        f"[Tick {current_tick}] Received FAULT_ESCALATION {fault_id} from {st_id} "
+                        f"(not interim coordinator, standing by)."
+                    )
+
+    def _update_interim_coordinator_election(self, current_tick: int) -> None:
+        """
+        ARCH-01: Elects a temporary interim coordinator among AMRs if AuthorityStation
+        misses 5 consecutive heartbeats.
+        Reuses the (priority_score, robot_id) deterministic tie-break already established for claims.
+        Drops interim coordinator role immediately when AuthorityStation heartbeats resume.
+        """
+        authority_offline = (current_tick - self.authority_last_seen_tick) >= 5
+        if not authority_offline:
+            if self.is_interim_coordinator or self.interim_coordinator_id is not None:
+                self.is_interim_coordinator = False
+                self.interim_coordinator_id = None
+            return
+
+        candidates = [(float(self.robot.priority_score), str(self.robot.robot_id))]
+        for p in self.peers.values():
+            if p.last_seen_tick >= current_tick - 5:
+                candidates.append((float(p.priority_score), str(p.robot_id)))
+
+        candidates.sort(key=lambda c: (-c[0], c[1]))
+        winner_score, winner_id = candidates[0]
+
+        was_interim = self.is_interim_coordinator
+        self.interim_coordinator_id = winner_id
+        self.is_interim_coordinator = (winner_id == self.robot.robot_id)
+
+        if not was_interim and self.is_interim_coordinator:
+            self.log(
+                f"[Tick {current_tick}] AuthorityStation offline (missed {current_tick - self.authority_last_seen_tick} ticks). "
+                f"Elected {self.robot.robot_id} as Interim Coordinator (priority={winner_score:.2f})."
+            )
 
     def _resolve_contract_net_bids(self, current_tick: int) -> None:
         """
@@ -1957,8 +2563,7 @@ class RobotNode:
                     )
                     target_shelf = t_dict.get("target_shelf_id")
                     if target_shelf:
-                        from app.services.reservations import claim_pod
-                        claim_pod(target_shelf, self.robot.robot_id, current_tick=current_tick)
+                        self.claim_pod_resource(target_shelf, current_tick)
 
                     self.log(
                         f"[Tick {current_tick}] CONTRACT-NET WON: Task {tid} claimed by self (bid={winning_score:.1f}). "

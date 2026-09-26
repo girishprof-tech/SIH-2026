@@ -13,12 +13,15 @@ export function TaskPanel({
   tasks,
   onJob,
   busy,
+  operatorRole = 'AUTHORITY',
 }: {
   tasks: Task[]
   onJob: (body: JobRequest) => Promise<JobResponse>
   busy: boolean
+  operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
 }) {
-  const [jobType, setJobType] = useState<JobType>('fetch_item')
+  const initialJob: JobType = operatorRole === 'EXPORT' ? 'sort_batch' : 'fetch_item'
+  const [jobType, setJobType] = useState<JobType>(initialJob)
   const [itemId, setItemId] = useState('')
   const [sku, setSku] = useState('')
   const [quantity, setQuantity] = useState(1)
@@ -27,7 +30,17 @@ export function TaskPanel({
   const [jobs, setJobs] = useState<JobResponse[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  const isOptionDisabled = (value: JobType) => {
+    if (operatorRole === 'IMPORT' && value === 'sort_batch') return true
+    if (operatorRole === 'EXPORT' && value === 'fetch_item') return true
+    return false
+  }
+
   const submit = async () => {
+    if (isOptionDisabled(jobType)) {
+      setError(`STATION_AUTHORITY_VIOLATION: ${jobType} is outside the command scope of ${operatorRole} role.`)
+      return
+    }
     const body: JobRequest = { job_type: jobType, urgency }
     if (jobType === 'fetch_item') {
       const targetSku = sku.trim() || itemId.trim()
@@ -87,21 +100,31 @@ export function TaskPanel({
         <h2>
           Submit job <em>{jobs.length + tasks.length}</em>
         </h2>
-        <PackageCheck size={16} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: operatorRole === 'IMPORT' ? 'rgba(16,185,129,0.2)' : operatorRole === 'EXPORT' ? 'rgba(56,189,248,0.2)' : 'rgba(168,85,247,0.2)', color: operatorRole === 'IMPORT' ? '#34d399' : operatorRole === 'EXPORT' ? '#38bdf8' : '#c084fc' }}>
+            {operatorRole}
+          </span>
+          <PackageCheck size={16} />
+        </div>
       </div>
 
       <div className="job-type-grid">
-        {jobOptions.map((option) => (
-          <button
-            type="button"
-            key={option.value}
-            className={jobType === option.value ? 'selected' : ''}
-            onClick={() => setJobType(option.value)}
-          >
-            <strong>{option.label}</strong>
-            <small>{option.type}</small>
-          </button>
-        ))}
+        {jobOptions.map((option) => {
+          const disabled = isOptionDisabled(option.value)
+          return (
+            <button
+              type="button"
+              key={option.value}
+              className={`${jobType === option.value ? 'selected' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+              onClick={() => !disabled && setJobType(option.value)}
+              disabled={disabled}
+              title={disabled ? `Restricted to ${option.value === 'sort_batch' ? 'Export' : 'Import'} Station` : undefined}
+            >
+              <strong>{option.label}</strong>
+              <small>{disabled ? '(Scope Restricted)' : option.type}</small>
+            </button>
+          )
+        })}
       </div>
 
       <form
@@ -112,12 +135,21 @@ export function TaskPanel({
       >
         <label>
           Job type
-          <select value={jobType} onChange={(event) => setJobType(event.target.value as JobType)}>
-            {jobOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label} ({option.type})
-              </option>
-            ))}
+          <select
+            value={jobType}
+            onChange={(event) => {
+              const val = event.target.value as JobType
+              if (!isOptionDisabled(val)) setJobType(val)
+            }}
+          >
+            {jobOptions.map((option) => {
+              const disabled = isOptionDisabled(option.value)
+              return (
+                <option key={option.value} value={option.value} disabled={disabled}>
+                  {option.label} ({option.type}){disabled ? ' — RESTRICTED' : ''}
+                </option>
+              )
+            })}
           </select>
         </label>
 

@@ -13,12 +13,14 @@ export function FleetSidebar({
   filter,
   onFilter,
   onSelect,
+  operatorRole = 'AUTHORITY',
 }: {
   robots: Robot[]
   selected: string | null
   filter: string
   onFilter: (value: string) => void
   onSelect: (robot: Robot) => void
+  operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
 }) {
   const [initialRobots, setInitialRobots] = useState<Robot[]>([])
 
@@ -44,7 +46,7 @@ export function FleetSidebar({
     <aside className="panel fleet-panel">
       <div className="panel-heading">
         <h2>
-          Fleet status <em>{filtered.length}/{displayedRobots.length}</em>
+          Fleet status {operatorRole !== 'AUTHORITY' ? <small style={{ fontSize: '11px', color: operatorRole === 'IMPORT' ? '#34d399' : '#38bdf8' }}>({operatorRole})</small> : ''} <em>{filtered.length}/{displayedRobots.length}</em>
         </h2>
         <Filter size={16} />
       </div>

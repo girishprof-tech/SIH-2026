@@ -39,12 +39,14 @@ def build_task_assignment_envelope(
     target_robot_id: str,
     secret_key: str = DEFAULT_SECRET_KEY,
     seq: Optional[int] = None,
+    station_role: Optional[str] = None,
+    station_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Constructs a signed cryptographic HMAC envelope for TASK_ASSIGNMENT."""
     task_type_val = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
     payload = {
         "type": "TASK_ASSIGNMENT",
-        "sender_id": "DISPATCHER",
+        "sender_id": station_id or "DISPATCHER",
         "robot_id": target_robot_id,
         "task": {
             "task_id": task.task_id,
@@ -58,6 +60,9 @@ def build_task_assignment_envelope(
             "quantity": getattr(task, "quantity", 1),
         },
     }
+    if station_role:
+        payload["station_role"] = station_role
+        payload["station_id"] = station_id or station_role
     return sign_payload(payload, secret_key=secret_key, seq=seq)
 
 
@@ -65,12 +70,14 @@ def build_task_announcement_envelope(
     task: Task,
     secret_key: str = DEFAULT_SECRET_KEY,
     seq: Optional[int] = None,
+    station_role: Optional[str] = None,
+    station_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Constructs a signed cryptographic HMAC envelope for TASK_ANNOUNCEMENT."""
     task_type_val = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
     payload = {
         "type": "TASK_ANNOUNCEMENT",
-        "sender_id": "DISPATCHER",
+        "sender_id": station_id or "DISPATCHER",
         "task": {
             "task_id": task.task_id,
             "pickup": [task.pickup_x, task.pickup_y],
@@ -83,6 +90,9 @@ def build_task_announcement_envelope(
             "quantity": getattr(task, "quantity", 1),
         },
     }
+    if station_role:
+        payload["station_role"] = station_role
+        payload["station_id"] = station_id or station_role
     return sign_payload(payload, secret_key=secret_key, seq=seq)
 
 
@@ -376,6 +386,8 @@ class TaskManager:
         target_robot_id: Optional[str] = None,
         host: str = "127.0.0.1",
         secret_key: str = DEFAULT_SECRET_KEY,
+        station_role: Optional[str] = None,
+        station_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         Assigns/dispatches a pending task.
@@ -386,7 +398,13 @@ class TaskManager:
 
         # Backward compatibility unicast if explicit robot specified
         if target_robot_id is not None:
-            envelope = build_task_assignment_envelope(task, target_robot_id, secret_key=secret_key)
+            envelope = build_task_assignment_envelope(
+                task,
+                target_robot_id,
+                secret_key=secret_key,
+                station_role=station_role,
+                station_id=station_id,
+            )
             try:
                 self._send_envelope_to_robot(target_robot_id, envelope, transport_sender, ports, host)
             except Exception as e:
@@ -402,7 +420,12 @@ class TaskManager:
             return target_robot_id
 
         # Decentralized Contract-Net: Broadcast signed TASK_ANNOUNCEMENT
-        envelope = build_task_announcement_envelope(task, secret_key=secret_key)
+        envelope = build_task_announcement_envelope(
+            task,
+            secret_key=secret_key,
+            station_role=station_role,
+            station_id=station_id,
+        )
         telemetry_data = read_latest_telemetry()
 
         # Select candidate robots: prefer currently IDLE robots from telemetry

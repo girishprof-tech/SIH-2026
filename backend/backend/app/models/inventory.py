@@ -23,6 +23,7 @@ class ShelfRecord:
     last_audited_tick: int = 0
     last_audited_by: Optional[str] = None
     confidence: float = 1.0  # 0.0 to 1.0
+    version: int = 1
 
     def compute_decayed_confidence(self, current_tick: int, decay_rate: float = 0.002) -> float:
         """
@@ -44,6 +45,7 @@ class ShelfRecord:
             "last_audited_tick": self.last_audited_tick,
             "last_audited_by": self.last_audited_by,
             "confidence": round(self.confidence, 4),
+            "version": self.version,
         }
 
     @classmethod
@@ -58,4 +60,5 @@ class ShelfRecord:
             last_audited_tick=int(data.get("last_audited_tick", 0)),
             last_audited_by=data.get("last_audited_by"),
             confidence=float(data.get("confidence", 1.0)),
+            version=int(data.get("version", 1)),
         )

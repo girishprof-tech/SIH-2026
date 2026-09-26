@@ -32,6 +32,8 @@ type Props = {
   onToggleTheme: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
+  operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
+  onOpenRoleModal?: () => void
   onAction: (action: 'start' | 'pause' | 'reset') => void
   onChaos: (enabled: boolean, loss: number) => void
   onDemo: () => void
@@ -54,6 +56,8 @@ export function ControlBar({
   onToggleTheme,
   isFullscreen = false,
   onToggleFullscreen,
+  operatorRole = 'AUTHORITY',
+  onOpenRoleModal,
   onAction,
   onChaos,
   onDemo,
@@ -189,6 +193,40 @@ export function ControlBar({
           )}
           <b>{loss}%</b>
         </div>
+
+        {operatorRole && (
+          <button
+            type="button"
+            className="station-role-indicator"
+            onClick={onOpenRoleModal}
+            title="Click to switch Station Console"
+          >
+            <span
+              className="station-role-tag"
+              style={{
+                background:
+                  operatorRole === 'IMPORT'
+                    ? 'rgba(16,185,129,0.2)'
+                    : operatorRole === 'EXPORT'
+                    ? 'rgba(56,189,248,0.2)'
+                    : 'rgba(168,85,247,0.2)',
+                color:
+                  operatorRole === 'IMPORT'
+                    ? '#34d399'
+                    : operatorRole === 'EXPORT'
+                    ? '#38bdf8'
+                    : '#c084fc',
+              }}
+            >
+              {operatorRole === 'IMPORT'
+                ? 'IMPORT 9601'
+                : operatorRole === 'EXPORT'
+                ? 'EXPORT 9602'
+                : 'AUTHORITY 9603'}
+            </span>
+            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Switch</span>
+          </button>
+        )}
 
         <button
           className="icon-button"

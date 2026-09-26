@@ -12,6 +12,8 @@ import logging
 import os
 import random
 import sqlite3
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -34,25 +36,84 @@ class InventoryLedger:
     """
     SQLite-backed persistent inventory ledger.
     Safe for concurrent access across multiple robot OS processes.
+    Manages connections with explicit context manager closures to eliminate
+    Windows SQLite WAL lock contention and WinError 32 leaks.
     """
 
     def __init__(self, db_path: str | Path = DEFAULT_DB_PATH) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._is_memory = (str(db_path) == ":memory:")
+        if self._is_memory:
+            self.db_path = Path(":memory:")
+            self._mem_lock: Optional[threading.Lock] = threading.Lock()
+            self._mem_conn: Optional[sqlite3.Connection] = sqlite3.connect(
+                ":memory:",
+                timeout=10.0,
+                isolation_level=None,
+            )
+            self._mem_conn.row_factory = sqlite3.Row
+            self._mem_conn.execute("PRAGMA busy_timeout=5000;")
+        else:
+            self.db_path = Path(db_path)
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self._mem_lock = None
+            self._mem_conn = None
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        """Create a connection with WAL mode and sensible timeout."""
-        conn = sqlite3.connect(
-            str(self.db_path),
-            timeout=10.0,
-            isolation_level=None,  # We manage transactions explicitly
-        )
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
-        return conn
+    @contextmanager
+    def _get_connection(self):
+        """
+        Yield a managed SQLite connection.
+        Guarantees that on block exit (normal or exception), the connection is explicitly closed
+        for disk databases, preventing Windows WinError 32 file-locking leaks.
+        For in-memory instances, yields the persistent connection under a thread lock.
+        """
+        if self._is_memory:
+            if self._mem_conn is None:
+                raise RuntimeError("InventoryLedger in-memory database is closed.")
+            with self._mem_lock:
+                try:
+                    yield self._mem_conn
+                except Exception:
+                    try:
+                        self._mem_conn.execute("ROLLBACK;")
+                    except Exception:
+                        pass
+                    raise
+        else:
+            conn = sqlite3.connect(
+                str(self.db_path),
+                timeout=15.0,
+                isolation_level=None,  # Transactions managed explicitly
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA busy_timeout=10000;")
+            try:
+                yield conn
+            except Exception:
+                try:
+                    conn.execute("ROLLBACK;")
+                except Exception:
+                    pass
+                raise
+            finally:
+                conn.close()
+
+    def close(self) -> None:
+        """Explicitly release all connection handles and resources."""
+        if self._is_memory and self._mem_conn is not None:
+            try:
+                self._mem_conn.close()
+            except Exception:
+                pass
+            self._mem_conn = None
+
+    def __enter__(self) -> InventoryLedger:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def _init_db(self) -> None:
         """Initialize ledger tables if they do not exist."""
@@ -70,10 +131,17 @@ class InventoryLedger:
                     last_audited_tick INTEGER NOT NULL DEFAULT 0,
                     last_audited_by TEXT,
                     confidence REAL NOT NULL DEFAULT 1.0,
+                    version INTEGER NOT NULL DEFAULT 1,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """
             )
+            # Ensure version column exists for pre-existing tables without schema migration
+            cursor = conn.execute("PRAGMA table_info(shelves);")
+            cols = [col["name"] for col in cursor.fetchall()]
+            if "version" not in cols:
+                conn.execute("ALTER TABLE shelves ADD COLUMN version INTEGER NOT NULL DEFAULT 1;")
+
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -105,17 +173,45 @@ class InventoryLedger:
             )
             conn.execute("COMMIT;")
 
-    def upsert_shelf(self, shelf: ShelfRecord) -> None:
-        """Insert or update a shelf record in an atomic transaction."""
+    def upsert_shelf(self, shelf: ShelfRecord) -> bool:
+        """
+        Insert or update a shelf record in an atomic transaction.
+        Applies deterministic conflict resolution:
+        Accepts update if:
+          1. new.version > current.version
+          2. new.version == current.version AND new.confidence > current.confidence
+          3. new.version == current.version AND new.confidence == current.confidence AND new.last_audited_tick > current.last_audited_tick
+        Returns True if inserted or updated, False if discarded as superseded.
+        """
         manifest_json = json.dumps(shelf.sku_manifest)
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE;")
+            cursor = conn.execute(
+                "SELECT version, confidence, last_audited_tick FROM shelves WHERE shelf_id = ?",
+                (shelf.shelf_id,),
+            )
+            row = cursor.fetchone()
+            if row is not None:
+                curr_ver = row["version"] if "version" in row.keys() else 1
+                curr_conf = row["confidence"]
+                curr_tick = row["last_audited_tick"]
+                new_ver = getattr(shelf, "version", 1)
+
+                new_is_better = (
+                    (new_ver > curr_ver)
+                    or (new_ver == curr_ver and shelf.confidence > curr_conf)
+                    or (new_ver == curr_ver and shelf.confidence == curr_conf and shelf.last_audited_tick > curr_tick)
+                )
+                if not new_is_better:
+                    conn.execute("COMMIT;")
+                    return False
+
             conn.execute(
                 """
                 INSERT INTO shelves (
                     shelf_id, x, y, capacity_boxes, current_box_count,
-                    sku_manifest, last_audited_tick, last_audited_by, confidence, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    sku_manifest, last_audited_tick, last_audited_by, confidence, version, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(shelf_id) DO UPDATE SET
                     x=excluded.x,
                     y=excluded.y,
@@ -125,6 +221,7 @@ class InventoryLedger:
                     last_audited_tick=excluded.last_audited_tick,
                     last_audited_by=excluded.last_audited_by,
                     confidence=excluded.confidence,
+                    version=excluded.version,
                     updated_at=CURRENT_TIMESTAMP;
                 """,
                 (
@@ -137,9 +234,11 @@ class InventoryLedger:
                     shelf.last_audited_tick,
                     shelf.last_audited_by,
                     shelf.confidence,
+                    getattr(shelf, "version", 1),
                 ),
             )
             conn.execute("COMMIT;")
+            return True
 
     def record_audit_scan(
         self,
@@ -151,7 +250,7 @@ class InventoryLedger:
     ) -> ShelfRecord:
         """
         Record a verified audit scan for a shelf, updating its manifest, count,
-        last_audited metadata, and logging an audit event.
+        last_audited metadata, incrementing version counter, and logging an audit event.
         """
         box_count = sum(sku_counts.values())
         manifest_json = json.dumps(sku_counts)
@@ -159,28 +258,32 @@ class InventoryLedger:
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE;")
             # Fetch existing coordinates or default to (0, 0)
-            cursor = conn.execute("SELECT x, y, capacity_boxes FROM shelves WHERE shelf_id = ?", (shelf_id,))
+            cursor = conn.execute("SELECT x, y, capacity_boxes, version FROM shelves WHERE shelf_id = ?", (shelf_id,))
             row = cursor.fetchone()
             if row:
                 x, y, cap = row["x"], row["y"], row["capacity_boxes"]
+                curr_version = row["version"] if "version" in row.keys() else 1
+                new_version = curr_version + 1
             else:
                 x, y, cap = 0, 0, 100
+                new_version = 1
 
             conn.execute(
                 """
                 INSERT INTO shelves (
                     shelf_id, x, y, capacity_boxes, current_box_count,
-                    sku_manifest, last_audited_tick, last_audited_by, confidence, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    sku_manifest, last_audited_tick, last_audited_by, confidence, version, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(shelf_id) DO UPDATE SET
                     current_box_count=excluded.current_box_count,
                     sku_manifest=excluded.sku_manifest,
                     last_audited_tick=excluded.last_audited_tick,
                     last_audited_by=excluded.last_audited_by,
                     confidence=excluded.confidence,
+                    version=excluded.version,
                     updated_at=CURRENT_TIMESTAMP;
                 """,
-                (shelf_id, x, y, cap, box_count, manifest_json, tick, robot_id, confidence),
+                (shelf_id, x, y, cap, box_count, manifest_json, tick, robot_id, confidence, new_version),
             )
 
             conn.execute(
@@ -202,6 +305,7 @@ class InventoryLedger:
             last_audited_tick=tick,
             last_audited_by=robot_id,
             confidence=confidence,
+            version=new_version,
         )
 
     def record_pick(
@@ -215,7 +319,7 @@ class InventoryLedger:
     ) -> Optional[ShelfRecord]:
         """
         Record a pick transaction for a shelf.
-        Updates sku_manifest and current_box_count in shelves table.
+        Updates sku_manifest, current_box_count, and increments version counter.
         Crucially: DOES NOT touch last_audited_tick, last_audited_by, or confidence.
         Logs to transaction_logs rather than audit_logs.
         If manifest_override is provided, uses that manifest directly (for decentralized mesh sync).
@@ -227,6 +331,9 @@ class InventoryLedger:
             if not row:
                 conn.execute("ROLLBACK;")
                 return None
+
+            curr_version = row["version"] if "version" in row.keys() else 1
+            new_version = curr_version + 1
 
             if manifest_override is not None:
                 manifest = dict(manifest_override)
@@ -244,10 +351,11 @@ class InventoryLedger:
                 UPDATE shelves SET
                     current_box_count = ?,
                     sku_manifest = ?,
+                    version = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE shelf_id = ?;
                 """,
-                (new_box_count, manifest_json, shelf_id),
+                (new_box_count, manifest_json, new_version, shelf_id),
             )
 
             conn.execute(
@@ -270,6 +378,7 @@ class InventoryLedger:
             last_audited_tick=row["last_audited_tick"],
             last_audited_by=row["last_audited_by"],
             confidence=row["confidence"],
+            version=new_version,
         )
 
     def get_shelves_for_sku(
@@ -295,6 +404,7 @@ class InventoryLedger:
                         last_audited_tick=row["last_audited_tick"],
                         last_audited_by=row["last_audited_by"],
                         confidence=row["confidence"],
+                        version=row["version"] if "version" in row.keys() else 1,
                     )
                     if current_tick is not None:
                         rec.confidence = rec.compute_decayed_confidence(current_tick)
@@ -319,6 +429,7 @@ class InventoryLedger:
                 last_audited_tick=row["last_audited_tick"],
                 last_audited_by=row["last_audited_by"],
                 confidence=row["confidence"],
+                version=row["version"] if "version" in row.keys() else 1,
             )
             if current_tick is not None:
                 record.confidence = record.compute_decayed_confidence(current_tick)
@@ -362,6 +473,7 @@ class InventoryLedger:
                     last_audited_tick=row["last_audited_tick"],
                     last_audited_by=row["last_audited_by"],
                     confidence=row["confidence"],
+                    version=row["version"] if "version" in row.keys() else 1,
                 )
                 if current_tick is not None:
                     rec.confidence = rec.compute_decayed_confidence(current_tick)
@@ -388,6 +500,7 @@ class InventoryLedger:
                         last_audited_tick=row["last_audited_tick"],
                         last_audited_by=row["last_audited_by"],
                         confidence=row["confidence"],
+                        version=row["version"] if "version" in row.keys() else 1,
                     )
                 )
             return records

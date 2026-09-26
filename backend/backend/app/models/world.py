@@ -24,6 +24,39 @@ DEFAULT_IMPORT_GATES: Dict[str, List[Tuple[int, int]]] = {
     "IN-3": [(0, 18), (0, 19), (0, 20)],
 }
 
+DEFAULT_FIXED_STATIONS: Dict[str, Dict[str, Any]] = {
+    "IMPORT_STATION": {
+        "id": "IMPORT_STATION",
+        "name": "Import Station Alpha",
+        "role": "IMPORT_STATION",
+        "x": 1,
+        "y": 14,
+        "zone": "IMPORT_DOCK",
+        "port": 9601,
+        "description": "Fixed command node covering West import dock gates IN-1..3",
+    },
+    "EXPORT_STATION": {
+        "id": "EXPORT_STATION",
+        "name": "Export Station Omega",
+        "role": "EXPORT_STATION",
+        "x": 28,
+        "y": 14,
+        "zone": "EXPORT_DOCK",
+        "port": 9602,
+        "description": "Fixed command node covering East shipping dock gates OUT-1..3 and sortation",
+    },
+    "AUTHORITY_STATION": {
+        "id": "AUTHORITY_STATION",
+        "name": "Central Authority Station",
+        "role": "AUTHORITY_STATION",
+        "x": 15,
+        "y": 14,
+        "zone": "TRANSIT_HIGHWAY",
+        "port": 9603,
+        "description": "Single point of authority for fault escalations and global overrides (out of normal critical path)",
+    },
+}
+
 
 @dataclass
 class WorldConfig:
@@ -47,6 +80,7 @@ class WorldConfig:
     sortation_zone: Dict[str, Any] = field(default_factory=dict)
     export_gates: Dict[str, List[Tuple[int, int]]] = field(default_factory=lambda: dict(DEFAULT_EXPORT_GATES))
     import_gates: Dict[str, List[Tuple[int, int]]] = field(default_factory=lambda: dict(DEFAULT_IMPORT_GATES))
+    fixed_stations: Dict[str, Dict[str, Any]] = field(default_factory=lambda: dict(DEFAULT_FIXED_STATIONS))
 
     # Precomputed set of all walkable cells (no static obstacle)
     walkable_cells: FrozenSet[Tuple[int, int]] = field(init=False)
@@ -319,4 +353,5 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
         sortation_zone=sortation_zone,
         export_gates=dict(DEFAULT_EXPORT_GATES),
         import_gates=dict(DEFAULT_IMPORT_GATES),
+        fixed_stations=dict(DEFAULT_FIXED_STATIONS),
     )

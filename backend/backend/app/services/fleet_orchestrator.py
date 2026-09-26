@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT_DIR / "backend" / "backend"))
 sys.path.insert(0, str(ROOT_DIR / "testing"))
 
 from app.services.robot_node import run_robot_process
+from app.services.station_node import DEFAULT_STATION_PORTS, run_station_process
 from app.services.telemetry_bus import TelemetryBus
 from app.models.world import build_default_world
 
@@ -87,16 +88,18 @@ class FleetOrchestrator:
         self.telemetry_queue: mp.Queue = mp.Queue()
         self.stop_event: mp.Event = mp.Event()
         self.pause_event: mp.Event = mp.Event()
-        # Distinct UDP ports for real decentralized networking (e.g. 9000 + N)
+        # Distinct UDP ports for real decentralized networking (e.g. 9000 + N for robots, 9601..9603 for stations)
         self.peer_ports: Dict[str, int] = {
             cfg["robot_id"]: 9000 + i for i, cfg in enumerate(self.robots_config, start=1)
         }
+        self.peer_ports.update(DEFAULT_STATION_PORTS)
         self.processes: List[mp.Process] = []
+        self.station_processes: List[mp.Process] = []
         self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
         self._bus_thread: Optional[threading.Thread] = None
 
-    def start(self) -> None:
-        """Starts all independent robot processes and the telemetry aggregator."""
+    def start(self, enable_stations: bool = True) -> None:
+        """Starts all independent robot processes, fixed station processes, and the telemetry aggregator."""
         print(f"[FleetOrchestrator] Spawning {len(self.robots_config)} independent robot processes...")
 
         # 1. Start Telemetry Bus collector thread
@@ -136,7 +139,34 @@ class FleetOrchestrator:
             self.processes.append(p)
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")
 
-        print("[FleetOrchestrator] All robot processes successfully running!")
+        # 3. Spawn 3 fixed-infrastructure Station processes if enabled
+        if enable_stations:
+            print("[FleetOrchestrator] Spawning 3 fixed station processes (Import, Export, Authority)...")
+            station_specs = [
+                ("IMPORT_STATION", "IMPORT_STATION", (1, 14), DEFAULT_STATION_PORTS["IMPORT_STATION"]),
+                ("EXPORT_STATION", "EXPORT_STATION", (28, 14), DEFAULT_STATION_PORTS["EXPORT_STATION"]),
+                ("AUTHORITY_STATION", "AUTHORITY_STATION", (15, 14), DEFAULT_STATION_PORTS["AUTHORITY_STATION"]),
+            ]
+            for st_id, st_role, st_pos, st_port in station_specs:
+                sp = mp.Process(
+                    target=run_station_process,
+                    name=f"Process-{st_id}",
+                    args=(
+                        st_id,
+                        st_role,
+                        st_pos,
+                        st_port,
+                        self.peer_ports,
+                        self.stop_event,
+                        str(self.log_dir),
+                        self.tick_interval_s,
+                    ),
+                )
+                sp.start()
+                self.station_processes.append(sp)
+                print(f"  -> Spawned Station Process for {st_id} (PID={sp.pid}) on UDP port {st_port}")
+
+        print("[FleetOrchestrator] All robot and station processes successfully running!")
 
     def pause(self) -> None:
         """Pauses ticking and logging across all robot processes."""
@@ -229,7 +259,7 @@ class FleetOrchestrator:
 
     def stop(self) -> None:
         """Signals all processes to stop and forcefully joins/terminates them."""
-        print("[FleetOrchestrator] Stopping all robot processes...")
+        print("[FleetOrchestrator] Stopping all robot and station processes...")
         self.stop_event.set()
         if self._bus_thread and self._bus_thread.is_alive():
             self._bus_thread.join(timeout=1.0)
@@ -250,6 +280,24 @@ class FleetOrchestrator:
                     pass
                 p.join(timeout=0.2)
         self.processes.clear()
+
+        for sp in self.station_processes:
+            sp.join(timeout=0.2)
+            if sp.is_alive() and sp.pid:
+                try:
+                    if sys.platform == "win32":
+                        import subprocess
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(sp.pid)],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        sp.terminate()
+                except Exception:
+                    pass
+                sp.join(timeout=0.2)
+        self.station_processes.clear()
 
         # Clean any zombie processes holding AMR UDP ports
         if sys.platform == "win32":
