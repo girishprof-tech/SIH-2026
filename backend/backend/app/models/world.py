@@ -8,7 +8,7 @@ NEVER re-derived inside the simulation hot-path.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import FrozenSet, Set, Tuple
+from typing import Any, Dict, FrozenSet, Optional, Set, Tuple
 
 
 @dataclass
@@ -27,9 +27,13 @@ class WorldConfig:
     charging_stations: FrozenSet[Tuple[int, int]]
     pickup_stations: FrozenSet[Tuple[int, int]]
     dropoff_stations: FrozenSet[Tuple[int, int]]
+    pod_slots: Dict[str, Tuple[int, int]] = field(default_factory=dict)
+    sortation_chutes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     # Precomputed set of all walkable cells (no static obstacle)
     walkable_cells: FrozenSet[Tuple[int, int]] = field(init=False)
+    _coords_to_pod: Dict[Tuple[int, int], str] = field(init=False, repr=False)
+    _coords_to_chute: Dict[Tuple[int, int], str] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         all_cells = frozenset(
@@ -38,6 +42,35 @@ class WorldConfig:
             for y in range(self.height)
         )
         object.__setattr__(self, "walkable_cells", all_cells - self.static_obstacles)
+        object.__setattr__(
+            self,
+            "_coords_to_pod",
+            {pos: shelf_id for shelf_id, pos in self.pod_slots.items()}
+        )
+        object.__setattr__(
+            self,
+            "_coords_to_chute",
+            {(info["x"], info["y"]): chute_id for chute_id, info in self.sortation_chutes.items()}
+        )
+
+    def shelf_at(self, x: int, y: int) -> Optional[str]:
+        """Return shelf_id of pod slot at (x, y), or None if not a pod slot."""
+        return self._coords_to_pod.get((x, y))
+
+    def chute_at(self, x: int, y: int) -> Optional[str]:
+        """Return chute_id of sortation chute at (x, y), or None."""
+        return self._coords_to_chute.get((x, y))
+
+    def chute_for_destination(self, destination_zone: str) -> str:
+        """
+        Returns chute_id matching destination_zone.
+        If no matching chute is found, defaults to the designated OVERFLOW chute (CHUTE-08).
+        """
+        for chute_id, info in self.sortation_chutes.items():
+            if info.get("destination_zone") == destination_zone:
+                return chute_id
+        # Fallback overflow chute
+        return "CHUTE-08"
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
@@ -66,7 +99,7 @@ class WorldConfig:
         if (x, y) in self.charging_stations:
             return "CHARGING_BAY"
 
-        # Storage racking zone
+        # Storage pod yard zone
         if 4 <= x <= 25 and 6 <= y <= 22:
             return "GOODS_TO_PERSON_ZONE"
 
@@ -84,20 +117,45 @@ class WorldConfig:
 def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
     """
     Build a realistic automated fulfillment warehouse layout with:
-      - 4 modular storage pod banks (double-deep racks) separated by wide pick aisles,
+      - 4 modular storage pod banks (Pod Yard with 176 addressable pod slots POD-A01..POD-D44)
+        laid out as accessible double-deep pods with North/South aisle entries,
+      - 8 dedicated Sortation Chutes along North/South perimeter sorting staging lanes,
       - 2 vertical cross-highways (x=10, x=19) eliminating bottlenecks,
       - 8 dedicated perimeter charging alcoves (top and bottom),
       - multi-cell inbound receiving docks (West) and outbound shipping docks (East).
     """
-    static_obstacles: Set[Tuple[int, int]] = set()
+    pod_slots: Dict[str, Tuple[int, int]] = {}
 
-    # 4 Modular Storage Pod Banks (double-deep racks)
-    # Bank 1: y=6, 7 | Bank 2: y=11, 12 | Bank 3: y=16, 17 | Bank 4: y=21, 22
-    for rack_y in (6, 7, 11, 12, 16, 17, 21, 22):
-        for rack_x in range(4, 26):
-            # Two main vertical cross-highways at x=10 and x=19
-            if rack_x not in (10, 19):
-                static_obstacles.add((rack_x, rack_y))
+    # Pod Yard Layout: 4 Banks (A, B, C, D)
+    # Bank A: rows 6, 7 | Bank B: rows 11, 12 | Bank C: rows 16, 17 | Bank D: rows 21, 22
+    bank_rows = [
+        ("A", (6, 7)),
+        ("B", (11, 12)),
+        ("C", (16, 17)),
+        ("D", (21, 22)),
+    ]
+
+    for bank_letter, rows in bank_rows:
+        slot_idx = 1
+        for rack_y in rows:
+            for rack_x in range(4, 26):
+                # Two main vertical cross-highways at x=10 and x=19
+                if rack_x not in (10, 19):
+                    shelf_id = f"POD-{bank_letter}{slot_idx:02d}"
+                    pod_slots[shelf_id] = (rack_x, rack_y)
+                    slot_idx += 1
+
+    # 8 Dedicated Sortation Chutes (Put-Wall) along North & South staging lanes
+    sortation_chutes: Dict[str, Dict[str, Any]] = {
+        "CHUTE-01": {"name": "CHUTE-01", "x": 1, "y": 3, "destination_zone": "ZONE_NORTH", "capacity": 10, "current_count": 0},
+        "CHUTE-02": {"name": "CHUTE-02", "x": 2, "y": 3, "destination_zone": "ZONE_EAST", "capacity": 10, "current_count": 0},
+        "CHUTE-03": {"name": "CHUTE-03", "x": 3, "y": 3, "destination_zone": "ZONE_SOUTH", "capacity": 10, "current_count": 0},
+        "CHUTE-04": {"name": "CHUTE-04", "x": 4, "y": 3, "destination_zone": "ZONE_WEST", "capacity": 10, "current_count": 0},
+        "CHUTE-05": {"name": "CHUTE-05", "x": 1, "y": 25, "destination_zone": "ZONE_EXPRESS", "capacity": 10, "current_count": 0},
+        "CHUTE-06": {"name": "CHUTE-06", "x": 2, "y": 25, "destination_zone": "ZONE_REGIONAL", "capacity": 10, "current_count": 0},
+        "CHUTE-07": {"name": "CHUTE-07", "x": 3, "y": 25, "destination_zone": "ZONE_INTERNATIONAL", "capacity": 10, "current_count": 0},
+        "CHUTE-08": {"name": "CHUTE-08", "x": 4, "y": 25, "destination_zone": "OVERFLOW", "capacity": 20, "current_count": 0},
+    }
 
     # 8 Distributed Perimeter Charging Stations (4 North alcoves, 4 South alcoves)
     charging_stations = frozenset({
@@ -123,8 +181,12 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
         width=width,
         height=height,
         cell_size_m=1.0,
-        static_obstacles=frozenset(static_obstacles),
+        static_obstacles=frozenset(),  # Pod slots are enterable by robots; no fixed interior obstacles
         charging_stations=charging_stations,
         pickup_stations=import_dock,
         dropoff_stations=export_dock,
+        pod_slots=pod_slots,
+        sortation_chutes=sortation_chutes,
     )
+
+

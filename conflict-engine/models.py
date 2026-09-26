@@ -45,6 +45,8 @@ class Robot:
     wait_ticks_so_far: int = 0
     last_updated_tick: int = 0
     robot_type: Any = "GOODS_TO_PERSON"
+    carrying_pod_id: Optional[str] = None
+    carrying_sku_manifest: dict = field(default_factory=dict)
 
     @property
     def x(self) -> int:
@@ -77,19 +79,39 @@ class Task:
     assigned_robot_id: Optional[str] = None
     status: str = "PENDING"  # PENDING, ASSIGNED, IN_PROGRESS, COMPLETED
     payload_weight_kg: float = 0.0
+    task_type: str = "STANDARD"
+    target_shelf_id: Optional[str] = None
+    sku_to_pick: Optional[str] = None
+    quantity: int = 1
 
     @property
     def pickup_x(self) -> int:
         return self.pickup[0]
 
+    @pickup_x.setter
+    def pickup_x(self, val: int) -> None:
+        self.pickup = (val, self.pickup[1])
+
     @property
     def pickup_y(self) -> int:
         return self.pickup[1]
+
+    @pickup_y.setter
+    def pickup_y(self, val: int) -> None:
+        self.pickup = (self.pickup[0], val)
 
     @property
     def dropoff_x(self) -> int:
         return self.dropoff[0]
 
+    @dropoff_x.setter
+    def dropoff_x(self, val: int) -> None:
+        self.dropoff = (val, self.dropoff[1])
+
     @property
     def dropoff_y(self) -> int:
         return self.dropoff[1]
+
+    @dropoff_y.setter
+    def dropoff_y(self, val: int) -> None:
+        self.dropoff = (self.dropoff[0], val)

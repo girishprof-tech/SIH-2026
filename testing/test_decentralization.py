@@ -61,12 +61,16 @@ def main():
     # Clean old logs and telemetry file to ensure a clean test run
     for f in log_dir.glob("*.log"):
         try:
+            with open(f, "w", encoding="utf-8") as fp:
+                fp.truncate(0)
             f.unlink()
         except Exception:
             pass
     telemetry_file = log_dir / "telemetry_state.json"
     if telemetry_file.exists():
         try:
+            with open(telemetry_file, "w", encoding="utf-8") as fp:
+                fp.truncate(0)
             telemetry_file.unlink()
         except Exception:
             pass

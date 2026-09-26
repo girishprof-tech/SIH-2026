@@ -23,8 +23,8 @@ export function useFleetSocket(onTick: (tick: TickUpdate) => void) {
       socket.onopen = () => { retry = 0; setStatus('connected') }
       socket.onmessage = event => {
         try {
-          const update = JSON.parse(event.data) as TickUpdate
-          if (update.type && update.type !== 'TICK_UPDATE') return
+          const update = JSON.parse(event.data) as any
+          if (update.type && update.type !== 'TICK_UPDATE' && update.type !== 'INVENTORY_SYNC') return
           if (update.robots && Array.isArray(update.robots)) {
             update.robots = update.robots.map((r: any) => ({
               ...r,

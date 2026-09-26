@@ -56,13 +56,17 @@ from conflict_detector import detect_peer_conflict
 from arbitration import resolve_peer_conflict
 from models import Heading, Robot, Task
 from app.models.robot import AMRType
+from app.models.task import TaskType
 from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
 from app.transport.base import Transport
 from app.transport.udp_transport import UdpTransport
-from app.security.hmac_envelope import sign_payload, verify_envelope
+from app.transport.halow_transport import HaLowTransport
+from app.security.hmac_envelope import sign_payload, verify_envelope, build_inventory_update_envelope
 from app.security.replay_guard import ReplayGuard
 from app.services.degraded_mode import DegradedModeDetector
 from app.services.audit_mission import AuditMission
+from app.services.inventory_ledger import InventoryLedger
+from app.models.inventory import ShelfRecord
 from app.ml.priority_gnn import compute_priority
 from app.ml.priority_gnn_infer import get_priority_gnn_model
 from app.core.config import get_settings
@@ -111,6 +115,7 @@ class RobotNode:
         charging_stations: Optional[Set[Tuple[int, int]]] = None,
         robot_type: str = "GOODS_TO_PERSON",
         enable_idle_audit: bool = True,
+        ledger: Optional[InventoryLedger] = None,
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -153,6 +158,12 @@ class RobotNode:
                 peer_ports=self.peer_ports,
                 host=host,
             )
+        self.halow_transport = HaLowTransport(
+            node_id=robot_id,
+            dashboard_port=9099,
+            host=host,
+            packet_loss_pct=getattr(self.transport, "packet_loss_pct", 0.0),
+        )
 
         # 3. Security & Replay Guard
         self.seq = 0
@@ -168,7 +179,12 @@ class RobotNode:
         self.pre_conflict_activity: Optional[RobotState] = None
         self.failsafe_hold_ticks = 0
 
-        # 6. Mission & Task Management
+        # 6. Mission & Task Management & Local Inventory Cache
+        self.world = build_default_world()
+        self.inventory_ledger = ledger or InventoryLedger()
+        self.local_inventory_cache: Dict[str, ShelfRecord] = {
+            s.shelf_id: s for s in self.inventory_ledger.get_all_shelves()
+        }
         self.task: Optional[Task] = None
         self.completed_task_ids: Set[str] = set()
         self.active_audit_mission: Optional[AuditMission] = None
@@ -211,9 +227,78 @@ class RobotNode:
         self.active_bids: Dict[str, Dict[str, Any]] = {}
         self.known_task_claims: Set[str] = set()
 
+        # 13. SORTING AMR Batch & Chute Occupancy Tracking
+        self.carrying_batch: List[Dict[str, Any]] = []
+        self.chute_occupancy: Dict[str, int] = {c_id: 0 for c_id in self.world.sortation_chutes}
+        self.chute_full_threshold: int = 5
+
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
         if self.goal_pos is not None:
             self._assign_initial_task(self.goal_pos, self.urgency)
+
+    def trigger_autonomous_consolidation(self, chute_id: str, current_tick: int) -> Optional[Task]:
+        """
+        Autonomously spawns and broadcasts a CONSOLIDATE_EXPORT task when a sortation chute is full.
+        """
+        chute_info = self.world.sortation_chutes.get(chute_id)
+        if not chute_info:
+            return None
+
+        chute_pos = (chute_info["x"], chute_info["y"])
+        export_dock_pos = (29, 14)  # East perimeter export dock
+
+        consolidation_task_id = f"CONSOLIDATE-{chute_id}-{current_tick}"
+        if consolidation_task_id in self.known_task_claims:
+            return None
+
+        self.log(f"[Tick {current_tick}] Chute {chute_id} reached full capacity ({self.chute_occupancy.get(chute_id, 0)} items). Autonomously triggering {consolidation_task_id}!")
+
+        # Broadcast decentralized TASK_ANNOUNCEMENT to all peers
+        self.seq += 1
+        t_dict = {
+            "task_id": consolidation_task_id,
+            "task_type": "CONSOLIDATE_EXPORT",
+            "pickup": list(chute_pos),
+            "dropoff": list(export_dock_pos),
+            "urgency": 5,
+            "payload_weight_kg": float(self.chute_occupancy.get(chute_id, 5) * 2.0),
+        }
+        announcement_payload = {
+            "type": "TASK_ANNOUNCEMENT",
+            "sender_id": self.robot.robot_id,
+            "task": t_dict,
+            "tick": current_tick,
+        }
+        envelope = sign_payload(announcement_payload, secret_key=self.secret_key, seq=self.seq)
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, envelope)
+
+        # Reset chute occupancy count once scheduled
+        self.chute_occupancy[chute_id] = 0
+        return Task(
+            task_id=consolidation_task_id,
+            pickup=chute_pos,
+            dropoff=export_dock_pos,
+            urgency=5,
+            created_tick=current_tick,
+            task_type=TaskType.CONSOLIDATE_EXPORT,
+        )
+
+    def decant_batch_item(self, item: Dict[str, Any], tick: int) -> str:
+        """
+        Decants a single item into the appropriate sortation chute based on its destination zone.
+        """
+        dest_zone = item.get("destination_zone", "OVERFLOW")
+        chute_id = self.world.chute_for_destination(dest_zone)
+        self.chute_occupancy[chute_id] = self.chute_occupancy.get(chute_id, 0) + 1
+        self.log(f"[Tick {tick}] SORTING Robot decanted item {item.get('item_id', 'ITEM')} (dest={dest_zone}) into {chute_id} (count={self.chute_occupancy[chute_id]}).")
+
+        # Check full threshold
+        if self.chute_occupancy[chute_id] >= self.chute_full_threshold:
+            self.trigger_autonomous_consolidation(chute_id, tick)
+
+        return chute_id
 
     def _timed_find_path(self, *args, **kwargs) -> List[Dict[str, Any]]:
         t0 = time.perf_counter()
@@ -312,6 +397,87 @@ class RobotNode:
         """Manual operator override command to recover from FAILSAFE_HOLD or EMERGENCY_STOP to IDLE."""
         self._recover_from_failsafe(tick=0)
 
+    def get_local_inventory(self, shelf_id: Optional[str] = None) -> Any:
+        """Returns in-memory decentralized inventory cache without querying server."""
+        if shelf_id:
+            return self.local_inventory_cache.get(shelf_id)
+        return dict(self.local_inventory_cache)
+
+    def broadcast_inventory_update(
+        self,
+        shelf_id: str,
+        current_tick: int,
+        sku_manifest: Optional[Dict[str, int]] = None,
+        box_count: Optional[int] = None,
+        confidence: float = 1.0,
+    ) -> None:
+        """
+        Broadcasts signed INVENTORY_UPDATE over peer mesh to GOODS_TO_PERSON / FETCH peers,
+        and mirrors copy to DASHBOARD over HaLowTransport channel.
+        """
+        record = self.local_inventory_cache.get(shelf_id) or self.inventory_ledger.get_shelf(shelf_id)
+        if record is None:
+            # Fallback creation
+            record = ShelfRecord(
+                shelf_id=shelf_id,
+                x=0,
+                y=0,
+                capacity_boxes=80,
+                current_box_count=box_count or 0,
+                sku_manifest=sku_manifest or {},
+                last_audited_tick=current_tick,
+                last_audited_by=self.robot.robot_id,
+                confidence=confidence,
+            )
+
+        manifest = dict(sku_manifest) if sku_manifest is not None else dict(record.sku_manifest)
+        total_boxes = box_count if box_count is not None else sum(manifest.values())
+        conf = confidence if confidence is not None else record.confidence
+
+        # Update local cache immediately
+        record.sku_manifest = manifest
+        record.current_box_count = total_boxes
+        record.confidence = conf
+        record.last_audited_tick = current_tick
+        record.last_audited_by = self.robot.robot_id
+        self.local_inventory_cache[shelf_id] = record
+
+        # 1. Peer Mesh UDP Broadcast to all peers (especially GOODS_TO_PERSON fetch robots)
+        self.seq += 1
+        mesh_env = build_inventory_update_envelope(
+            shelf_id=shelf_id,
+            x=record.x,
+            y=record.y,
+            sku_manifest=manifest,
+            current_box_count=total_boxes,
+            confidence=conf,
+            tick=current_tick,
+            source_robot_id=self.robot.robot_id,
+            secret_key=self.secret_key,
+            seq=self.seq,
+            channel="MESH",
+        )
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, mesh_env)
+
+        # 2. Simulated WiFi HaLow Mirror Broadcast (DASHBOARD uplink)
+        halow_env = build_inventory_update_envelope(
+            shelf_id=shelf_id,
+            x=record.x,
+            y=record.y,
+            sku_manifest=manifest,
+            current_box_count=total_boxes,
+            confidence=conf,
+            tick=current_tick,
+            source_robot_id=self.robot.robot_id,
+            secret_key=self.secret_key,
+            seq=self.seq,
+            channel="HALOW",
+        )
+        self.halow_transport.send("DASHBOARD", halow_env)
+        self.log(f"[Tick {current_tick}] Broadcasted INVENTORY_UPDATE for {shelf_id} (count={total_boxes}) over Mesh + HaLow.")
+
     def step(self, tick: int) -> Dict[str, Any]:
         """
         Executes one autonomous tick loop step for this robot.
@@ -343,6 +509,13 @@ class RobotNode:
         # 2. Drain incoming transport messages & resolve contract-net bids
         self._drain_inbox(tick)
         self._resolve_contract_net_bids(tick)
+
+        # 2.1. Periodic Anti-Entropy Gossip & Ledger Resync (Every 20 ticks)
+        if tick % 20 == 0 and self.inventory_ledger is not None:
+            for s in self.inventory_ledger.get_all_shelves(current_tick=tick):
+                local = self.local_inventory_cache.get(s.shelf_id)
+                if local is None or s.last_audited_tick > local.last_audited_tick:
+                    self.local_inventory_cache[s.shelf_id] = s
 
         # 2.5. Dynamic Dock Re-targeting (avoid queuing on occupied docks)
         if self.goal_pos and self.goal_pos in self.dropoff_stations and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.EN_ROUTE_DROPOFF):
@@ -492,10 +665,29 @@ class RobotNode:
         else:
             self.idle_ticks = 0
 
-        # 3. Handle Atomic PICKING / DROPPING ticks
-        if self.fsm.state == RobotState.PICKING:
-            self.log(f"[Tick {tick}] Executing atomic pickup at {self.robot.position}...")
-            self.fsm.transition(RobotEvent.PICKUP_COMPLETE)
+        # 3. Handle Atomic PICKING / DROPPING / LIFTING / LOWERING ticks
+        if self.fsm.state in (RobotState.PICKING, RobotState.LIFTING):
+            self.log(f"[Tick {tick}] Executing pickup/lift at {self.robot.position}...")
+            
+            # If G2P robot, lift shelf pod
+            if self.robot_type == "GOODS_TO_PERSON":
+                shelf_id = getattr(self.task, "target_shelf_id", None) or self.world.shelf_at(self.robot.position[0], self.robot.position[1])
+                if not shelf_id:
+                    nearby = [sid for sid, pos in self.world.pod_slots.items() if abs(pos[0] - self.robot.position[0]) + abs(pos[1] - self.robot.position[1]) <= 1]
+                    if nearby:
+                        shelf_id = nearby[0]
+                if shelf_id:
+                    self.robot.carrying_pod_id = shelf_id
+                    shelf_rec = self.local_inventory_cache.get(shelf_id) or self.inventory_ledger.get_shelf(shelf_id)
+                    if shelf_rec:
+                        self.robot.carrying_sku_manifest = dict(shelf_rec.sku_manifest)
+                    self.log(f"[Tick {tick}] G2P Robot lifted pod {shelf_id} at {self.robot.position}.")
+
+            if self.fsm.can_transition(RobotEvent.LIFT_COMPLETE):
+                self.fsm.transition(RobotEvent.LIFT_COMPLETE)
+            else:
+                self.fsm.transition(RobotEvent.PICKUP_COMPLETE)
+
             if self.task:
                 self.task.status = "IN_PROGRESS"
                 # Plan route to dropoff
@@ -510,10 +702,46 @@ class RobotNode:
                     self.robot.path = p_drop
                     reserve_path(p_drop, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
             self.robot.state = self.fsm.state
-            return self._build_telemetry_frame(tick, "PICKING_COMPLETE", None)
+            return self._build_telemetry_frame(tick, "LIFTING_COMPLETE", None)
 
-        if self.fsm.state == RobotState.DROPPING:
-            self.log(f"[Tick {tick}] Executing atomic dropoff at {self.robot.position}...")
+        if self.fsm.state in (RobotState.DROPPING, RobotState.LOWERING):
+            self.log(f"[Tick {tick}] Executing dropoff/lowering at {self.robot.position}...")
+            
+            # If carrying pod, handle item pick decrement and lower pod
+            if self.robot.carrying_pod_id:
+                pod_id = self.robot.carrying_pod_id
+                sku_to_pick = getattr(self.task, "sku_to_pick", None) if self.task else None
+                qty = getattr(self.task, "quantity", 1) if self.task else 1
+                
+                shelf_rec = self.local_inventory_cache.get(pod_id) or self.inventory_ledger.get_shelf(pod_id)
+                if shelf_rec:
+                    current_manifest = dict(shelf_rec.sku_manifest)
+                    if sku_to_pick and sku_to_pick in current_manifest:
+                        current_manifest[sku_to_pick] = max(0, current_manifest[sku_to_pick] - qty)
+                    elif current_manifest:
+                        first_sku = max(current_manifest.keys(), key=lambda k: current_manifest[k])
+                        current_manifest[first_sku] = max(0, current_manifest[first_sku] - qty)
+                    
+                    new_box_count = sum(current_manifest.values())
+                    self.inventory_ledger.record_audit_scan(
+                        shelf_id=pod_id,
+                        sku_counts=current_manifest,
+                        robot_id=self.robot.robot_id,
+                        tick=tick,
+                        confidence=1.0,
+                    )
+                    self.broadcast_inventory_update(
+                        shelf_id=pod_id,
+                        current_tick=tick,
+                        sku_manifest=current_manifest,
+                        box_count=new_box_count,
+                        confidence=1.0,
+                    )
+                    self.log(f"[Tick {tick}] Pick operation completed on pod {pod_id} (picked {qty} units).")
+
+                self.robot.carrying_pod_id = None
+                self.robot.carrying_sku_manifest = {}
+
             if self.task:
                 self.completed_task_ids.add(self.task.task_id)
                 self.task.status = "COMPLETED"
@@ -521,7 +749,10 @@ class RobotNode:
             self.goal_pos = None
             self.robot.path = []
             self.load_move_steps = 0
-            self.fsm.transition(RobotEvent.MISSION_COMPLETE)
+            if self.fsm.can_transition(RobotEvent.LOWER_COMPLETE):
+                self.fsm.transition(RobotEvent.LOWER_COMPLETE)
+            else:
+                self.fsm.transition(RobotEvent.MISSION_COMPLETE)
             self.robot.state = self.fsm.state
             self.pre_conflict_activity = None
             return self._build_telemetry_frame(tick, "MISSION_COMPLETED", None)
@@ -990,16 +1221,33 @@ class RobotNode:
             self.log(f"[Tick {tick}] Arrived at charger {self.charger_target}; charging.")
         elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
             if self.robot.position == self.active_audit_mission.checkpoint:
-                scan_msg = self.active_audit_mission.record_scan(self.robot.position)
+                scan_res = self.active_audit_mission.record_scan(
+                    cell=self.robot.position,
+                    robot_id=self.robot.robot_id,
+                    tick=tick,
+                    ledger=self.inventory_ledger,
+                    world=self.world,
+                )
                 self.fsm.transition(RobotEvent.AUDIT_CHECKPOINT_LOGGED)
                 self.robot.state = self.fsm.state
+                
+                # Broadcast inventory update to all peers + HaLow dashboard channel
+                if scan_res.get("shelf_id"):
+                    self.broadcast_inventory_update(
+                        shelf_id=scan_res["shelf_id"],
+                        current_tick=tick,
+                        sku_manifest=scan_res.get("sku_manifest"),
+                        box_count=scan_res.get("box_count"),
+                        confidence=scan_res.get("confidence", 1.0),
+                    )
+
                 if self.active_audit_mission.audit_id:
                     self.completed_task_ids.add(self.active_audit_mission.audit_id)
                 self.active_audit_mission = None
                 self.goal_pos = None
                 self.robot.path = []
                 action_taken = "COMPLETED"
-                self.log(f"[Tick {tick}] {scan_msg}")
+                self.log(f"[Tick {tick}] {scan_res['message']}")
         elif (
             self.goal_pos is not None
             and self.task is not None
@@ -1071,6 +1319,9 @@ class RobotNode:
             "path": [{"x": p["x"], "y": p["y"]} for p in self.robot.path[:8]],
             "goal": list(self.goal_pos) if self.goal_pos else list(self.robot.position),
             "conflict": conflict,
+            "local_inventory_count": len(self.local_inventory_cache),
+            "carrying_pod_id": self.robot.carrying_pod_id,
+            "halow_status": self.halow_transport.get_status() if hasattr(self, "halow_transport") else None,
         }
         if self.telemetry_queue is not None:
             try:
@@ -1183,6 +1434,18 @@ class RobotNode:
                 # Handle decentralized contract-net announcement broadcast
                 t_dict = actual_msg.get("task", {})
                 tid = t_dict.get("task_id")
+                task_type_str = t_dict.get("task_type", "STANDARD")
+
+                # Explicit decoupled robot eligibility matching
+                if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT"):
+                    is_eligible = (self.robot_type == "SORTING")
+                elif task_type_str in ("RETRIEVE_POD", "RETURN_POD", "PICK_ITEM"):
+                    is_eligible = (self.robot_type == "GOODS_TO_PERSON")
+                elif task_type_str == "AUDIT":
+                    is_eligible = (self.robot_type == "SCANNING_AUDIT")
+                else:
+                    is_eligible = (self.robot_type in ("GOODS_TO_PERSON", "SORTING"))
+
                 if (
                     tid
                     and tid not in self.completed_task_ids
@@ -1190,7 +1453,7 @@ class RobotNode:
                     and tid not in self.active_bids
                     and self.fsm.state == RobotState.IDLE
                     and not self.task
-                    and self.robot_type in ("GOODS_TO_PERSON", "SORTING")
+                    and is_eligible
                 ):
                     pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
                     dist_to_pickup = abs(self.robot.position[0] - pickup_pos[0]) + abs(self.robot.position[1] - pickup_pos[1])
@@ -1240,6 +1503,31 @@ class RobotNode:
                     self.active_bids[tid]["claimed"] = True
                     if winner != self.robot.robot_id:
                         self.log(f"[Tick {current_tick}] Contract-Net: Peer {winner} claimed task {tid}. Standing down.")
+
+            elif m_type == "INVENTORY_UPDATE":
+                shelf_id = actual_msg.get("shelf_id")
+                if shelf_id:
+                    manifest = actual_msg.get("sku_manifest", {})
+                    box_count = int(actual_msg.get("current_box_count", sum(manifest.values())))
+                    conf = float(actual_msg.get("confidence", 1.0))
+                    tick_val = int(actual_msg.get("tick", current_tick))
+                    src_bot = str(actual_msg.get("source_robot_id") or actual_msg.get("sender_id") or "UNKNOWN")
+                    sx = int(actual_msg.get("x", 0))
+                    sy = int(actual_msg.get("y", 0))
+
+                    rec = ShelfRecord(
+                        shelf_id=shelf_id,
+                        x=sx,
+                        y=sy,
+                        capacity_boxes=80,
+                        current_box_count=box_count,
+                        sku_manifest=dict(manifest),
+                        last_audited_tick=tick_val,
+                        last_audited_by=src_bot,
+                        confidence=conf,
+                    )
+                    self.local_inventory_cache[shelf_id] = rec
+                    self.log(f"[Tick {current_tick}] Decentralized INVENTORY_UPDATE applied for {shelf_id} (count={box_count}, conf={conf:.2f}) from peer {src_bot}.")
 
             elif m_type == "EMERGENCY_STOP":
                 self.log(f"[Tick {current_tick}] Control command received: EMERGENCY_STOP.")

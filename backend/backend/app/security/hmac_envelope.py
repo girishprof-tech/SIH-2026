@@ -75,3 +75,32 @@ def verify_envelope(
         return False, None, "Envelope body missing valid payload dict"
 
     return True, payload, ""
+
+
+def build_inventory_update_envelope(
+    shelf_id: str,
+    x: int,
+    y: int,
+    sku_manifest: Dict[str, int],
+    current_box_count: int,
+    confidence: float,
+    tick: int,
+    source_robot_id: str,
+    secret_key: str = DEFAULT_SECRET_KEY,
+    seq: Optional[int] = None,
+    channel: str = "MESH",
+) -> Dict[str, Any]:
+    """Constructs a signed cryptographic HMAC envelope for INVENTORY_UPDATE."""
+    payload = {
+        "type": "INVENTORY_UPDATE",
+        "shelf_id": shelf_id,
+        "x": x,
+        "y": y,
+        "sku_manifest": sku_manifest,
+        "current_box_count": current_box_count,
+        "confidence": round(confidence, 4),
+        "tick": tick,
+        "source_robot_id": source_robot_id,
+        "channel": channel,
+    }
+    return sign_payload(payload, secret_key=secret_key, seq=seq)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Battery, Bot, X } from 'lucide-react'
+import { AlertCircle, Battery, Bot, X, Package, Activity, Radio, Layers, ShieldCheck, Box, Sliders } from 'lucide-react'
 import { api } from './api'
 import { useFleetSocket } from './hooks/useFleetSocket'
 import { ControlBar } from './components/ControlBar'
@@ -9,8 +9,23 @@ import { TaskPanel } from './components/TaskPanel'
 import { ObstaclePanel } from './components/ObstaclePanel'
 import { MetricsPanel } from './components/MetricsPanel'
 import { LoadingScreen } from './components/LoadingScreen'
+import { InventoryPanel } from './components/InventoryPanel'
+import { TransferLogPanel } from './components/TransferLogPanel'
+import { HaLowStatusWidget } from './components/HaLowStatusWidget'
 import { STATE_LABELS } from './state-meta'
-import type { Metrics, Point, Robot, SimulationStatus, Task, TempObstacle, TickUpdate, World } from './types'
+import type {
+  HaLowStatus,
+  InventoryUpdateEvent,
+  Metrics,
+  Point,
+  Robot,
+  ShelfRecord,
+  SimulationStatus,
+  Task,
+  TempObstacle,
+  TickUpdate,
+  World,
+} from './types'
 
 const emptyWorld: World = {
   width: 30,
@@ -27,6 +42,16 @@ export default function App() {
   const [robots, setRobots] = useState<Robot[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [obstacles, setObstacles] = useState<TempObstacle[]>([])
+  const [inventory, setInventory] = useState<ShelfRecord[]>([])
+  const [transferLogs, setTransferLogs] = useState<InventoryUpdateEvent[]>([])
+  const [haLowStatus, setHaLowStatus] = useState<HaLowStatus>({
+    connected: true,
+    last_msg_timestamp_ms: Date.now(),
+    throttle_utilization: 0.12,
+    bitrate_kbps: 150,
+    packets_received: 0,
+  })
+  const [activeTab, setActiveTab] = useState<'fleet' | 'inventory' | 'sync_log' | 'obstacles'>('fleet')
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [status, setStatus] = useState<SimulationStatus>({
     running: false,
@@ -119,14 +144,61 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
-  const { status: socket, skippedTicks } = useFleetSocket((update) => {
-    setRobots(update.robots)
-    setConflicts(update.active_conflicts)
-    setObstacles(update.temporary_obstacles)
-    setLastSyncedTick(update.tick)
+  const { status: socket, skippedTicks } = useFleetSocket((update: any) => {
+    if (update.type === 'INVENTORY_SYNC') {
+      const newEvent: InventoryUpdateEvent = {
+        id: `SYNC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        shelf_id: update.shelf_id || 'UNKNOWN',
+        source_robot_id: update.last_audited_by || 'AMR-NODE',
+        source: update.source || 'audit_scan',
+        channel: update.channel || 'HALOW',
+        tick: update.last_audited_tick || status.tick,
+        box_count: update.current_box_count || 0,
+        confidence: update.confidence ?? 1.0,
+        sku_manifest: update.sku_manifest || {},
+        timestamp_ms: update.timestamp_ms || Date.now(),
+      }
+      setTransferLogs((prev) => [newEvent, ...prev].slice(0, 100))
+
+      setInventory((prev) => {
+        const idx = prev.findIndex((s) => s.shelf_id === update.shelf_id)
+        if (idx >= 0) {
+          const updated = [...prev]
+          updated[idx] = {
+            ...updated[idx],
+            current_box_count: update.current_box_count ?? updated[idx].current_box_count,
+            sku_manifest: update.sku_manifest ?? updated[idx].sku_manifest,
+            confidence: update.confidence ?? updated[idx].confidence,
+            last_audited_tick: update.last_audited_tick ?? updated[idx].last_audited_tick,
+            last_audited_by: update.last_audited_by ?? updated[idx].last_audited_by,
+          }
+          return updated
+        }
+        return prev
+      })
+
+      setHaLowStatus((prev) => ({
+        ...prev,
+        last_msg_timestamp_ms: Date.now(),
+        packets_received: prev.packets_received + 1,
+      }))
+      return
+    }
+
+    if (update.robots) setRobots(update.robots)
+    if (update.active_conflicts) setConflicts(update.active_conflicts)
+    if (update.temporary_obstacles) setObstacles(update.temporary_obstacles)
+    if (update.tick !== undefined) setLastSyncedTick(update.tick)
     setStatus((old) => ({ ...old, tick: update.tick, timestamp_ms: update.timestamp_ms }))
     if (update.tasks) setTasks(update.tasks)
     if (update.metrics) setMetrics(update.metrics)
+    if (update.inventory) setInventory(update.inventory)
+    if (update.sortation_chutes) {
+      setWorld((prev) => ({ ...prev, sortation_chutes: update.sortation_chutes }))
+    }
+    if (update.halow_status) {
+      setHaLowStatus(update.halow_status)
+    }
     if (update.fleet_status) {
       setStatus((old) => ({
         ...old,
@@ -144,7 +216,7 @@ export default function App() {
           tick: update.tick,
           process: update.metrics?.last_tick_processing_ms ?? metrics?.last_tick_processing_ms ?? 0,
           planner: update.metrics?.planner_latency_ms ?? metrics?.planner_latency_ms ?? 0,
-          conflicts: update.active_conflicts.length,
+          conflicts: (update.active_conflicts || []).length,
           replans: update.metrics?.replans ?? metrics?.replans ?? 0,
         },
       ].slice(-50)
@@ -184,6 +256,7 @@ export default function App() {
           api.tasks().then(setTasks),
           api.obstacles().then(setObstacles),
           api.status().then(setStatus),
+          api.inventory().then((inv) => setInventory(inv.shelves)).catch(() => undefined),
           api.health().then((h) => {
             if (h.fleet_mode) setFleetMode(h.fleet_mode)
           }),
@@ -378,38 +451,103 @@ export default function App() {
         </section>
 
         <section className="side-column">
-          <FleetSidebar
-            robots={robots}
-            selected={selected}
-            filter={filter}
-            onFilter={setFilter}
-            onSelect={(robot) => setSelected(robot.robot_id)}
-          />
-          <TaskPanel
-            tasks={tasks}
-            busy={busy}
-            onJob={(body) =>
-              run(() => api.submitJob(body), 'Mission queued').then((res) => {
-                void api.tasks().then(setTasks)
-                return res
-              })
-            }
-          />
-          <ObstaclePanel
-            obstacles={obstacles}
-            tick={status.tick}
-            busy={busy}
-            onAdd={(body) =>
-              run(() => api.addObstacle(body), 'Temporary obstacle deployed').then(() =>
-                api.obstacles().then(setObstacles)
-              )
-            }
-            onRemove={(id) =>
-              run(() => api.removeObstacle(id), 'Obstacle removed').then(() =>
-                api.obstacles().then(setObstacles)
-              )
-            }
-          />
+          <nav className="side-tabs-nav" aria-label="Dashboard Views">
+            <button
+              className={`side-tab-btn ${activeTab === 'fleet' ? 'active' : ''}`}
+              onClick={() => setActiveTab('fleet')}
+              title="Fleet Status & Mission Queue"
+            >
+              <Bot size={13} />
+              <span>Fleet & Tasks</span>
+            </button>
+            <button
+              className={`side-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => setActiveTab('inventory')}
+              title="Decentralized Inventory Ledger"
+            >
+              <Package size={13} />
+              <span>Inventory</span>
+            </button>
+            <button
+              className={`side-tab-btn ${activeTab === 'sync_log' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sync_log')}
+              title="Dual-Channel Sync & Audit Feed"
+            >
+              <Activity size={13} />
+              <span>Sync Log</span>
+            </button>
+            <button
+              className={`side-tab-btn ${activeTab === 'obstacles' ? 'active' : ''}`}
+              onClick={() => setActiveTab('obstacles')}
+              title="Temporary Dynamic Hazards"
+            >
+              <Sliders size={13} />
+              <span>Hazards</span>
+            </button>
+          </nav>
+
+          {activeTab === 'fleet' && (
+            <>
+              <FleetSidebar
+                robots={robots}
+                selected={selected}
+                filter={filter}
+                onFilter={setFilter}
+                onSelect={(robot) => setSelected(robot.robot_id)}
+              />
+              <TaskPanel
+                tasks={tasks}
+                busy={busy}
+                onJob={(body) =>
+                  run(() => api.submitJob(body), 'Mission queued').then((res) => {
+                    void api.tasks().then(setTasks)
+                    return res
+                  })
+                }
+              />
+            </>
+          )}
+
+          {activeTab === 'inventory' && (
+            <>
+              <HaLowStatusWidget status={haLowStatus} currentTick={status.tick} />
+              <InventoryPanel
+                inventory={inventory}
+                currentTick={status.tick}
+                onSelectShelf={(shelfId) => {
+                  setToast(`Selected Shelf Pod: ${shelfId}`)
+                }}
+              />
+            </>
+          )}
+
+          {activeTab === 'sync_log' && (
+            <>
+              <HaLowStatusWidget status={haLowStatus} currentTick={status.tick} />
+              <TransferLogPanel
+                logs={transferLogs}
+                onClearLogs={() => setTransferLogs([])}
+              />
+            </>
+          )}
+
+          {activeTab === 'obstacles' && (
+            <ObstaclePanel
+              obstacles={obstacles}
+              tick={status.tick}
+              busy={busy}
+              onAdd={(body) =>
+                run(() => api.addObstacle(body), 'Temporary obstacle deployed').then(() =>
+                  api.obstacles().then(setObstacles)
+                )
+              }
+              onRemove={(id) =>
+                run(() => api.removeObstacle(id), 'Obstacle removed').then(() =>
+                  api.obstacles().then(setObstacles)
+                )
+              }
+            />
+          )}
         </section>
       </main>
 

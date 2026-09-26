@@ -96,10 +96,18 @@ class FleetState:
         while len(desired_types) > cfg.FLEET_SIZE:
             desired_types.pop()
 
-        # Spread robots along bottom row away from obstacles/chargers
+        # Canonical staging bays matching FleetOrchestrator
         start_positions = [
-            (1, 28), (3, 28), (5, 28), (7, 28), (9, 28),
-            (11, 28), (13, 28), (15, 28), (17, 28), (19, 28),
+            (2, 4),   # AMR-01: West highway staging bay 1
+            (2, 9),   # AMR-02: West highway staging bay 2
+            (2, 15),  # AMR-03: West highway staging bay 3
+            (2, 24),  # AMR-04: West highway staging bay 4
+            (27, 4),  # AMR-05: East highway staging bay 1
+            (27, 12), # AMR-06: East highway staging bay 2
+            (27, 18), # AMR-07: East highway staging bay 3
+            (27, 24), # AMR-08: East highway staging bay 4
+            (10, 3),  # AMR-09: North central cross-highway (x=10)
+            (19, 3),  # AMR-10: North central cross-highway (x=19)
         ]
         # Extend if fleet_size > 10
         for i in range(10, cfg.FLEET_SIZE):
@@ -108,8 +116,6 @@ class FleetState:
         for i in range(cfg.FLEET_SIZE):
             robot_id = f"{cfg.ROBOT_PREFIX}-{i + 1:02d}"
             sx, sy = start_positions[i % len(start_positions)]
-            while self.world.is_static_blocked(sx, sy):
-                sy -= 1
 
             robot_type = desired_types[i]
             capacity = 1 if robot_type in (AMRType.GOODS_TO_PERSON, AMRType.SCANNING_AUDIT) else 3

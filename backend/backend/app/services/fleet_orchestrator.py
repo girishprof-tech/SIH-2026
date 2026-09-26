@@ -225,20 +225,56 @@ class FleetOrchestrator:
         return any(p.is_alive() for p in self.processes)
 
     def stop(self) -> None:
-        """Signals all processes to stop and joins them."""
+        """Signals all processes to stop and forcefully joins/terminates them."""
         print("[FleetOrchestrator] Stopping all robot processes...")
         self.stop_event.set()
         if self._bus_thread and self._bus_thread.is_alive():
             self._bus_thread.join(timeout=1.0)
         for p in self.processes:
-            p.join(timeout=0.5)
-            if p.is_alive():
+            p.join(timeout=0.2)
+            if p.is_alive() and p.pid:
                 try:
-                    p.terminate()
+                    if sys.platform == "win32":
+                        import subprocess
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(p.pid)],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    else:
+                        p.terminate()
                 except Exception:
                     pass
-                p.join(timeout=0.5)
+                p.join(timeout=0.2)
         self.processes.clear()
+
+        # Clean any zombie processes holding AMR UDP ports
+        if sys.platform == "win32":
+            import subprocess
+            try:
+                out = subprocess.check_output(["netstat", "-ano", "-p", "udp"], text=True)
+                my_pid = os.getpid()
+                ports = list(self.peer_ports.values())
+                for line in out.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 4 and parts[0].upper() == "UDP":
+                        addr = parts[1]
+                        pid_str = parts[-1]
+                        for port in ports:
+                            if f":{port}" in addr:
+                                try:
+                                    pid = int(pid_str)
+                                    if pid != my_pid and pid > 0:
+                                        subprocess.run(
+                                            ["taskkill", "/F", "/T", "/PID", str(pid)],
+                                            stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL,
+                                        )
+                                except Exception:
+                                    pass
+            except Exception:
+                pass
+
         print("[FleetOrchestrator] All robot processes stopped.")
 
 

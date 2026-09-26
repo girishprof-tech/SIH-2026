@@ -19,8 +19,10 @@ class RobotState(str, enum.Enum):
     EN_ROUTE = "EN_ROUTE"
     EN_ROUTE_PICKUP = "EN_ROUTE_PICKUP"
     PICKING = "PICKING"
+    LIFTING = "LIFTING"
     EN_ROUTE_DROPOFF = "EN_ROUTE_DROPOFF"
     DROPPING = "DROPPING"
+    LOWERING = "LOWERING"
     CONFLICT_NEGOTIATING = "CONFLICT_NEGOTIATING"
     AUDITING = "AUDITING"
     CHARGING = "CHARGING"
@@ -97,6 +99,8 @@ class Robot:
     last_updated_tick: int
     robot_type: AMRType = AMRType.GOODS_TO_PERSON
     capacity: int = 1
+    carrying_pod_id: Optional[str] = None
+    carrying_sku_manifest: dict = field(default_factory=dict)
 
     # Planned path — list of PathNode
     path: List[PathNode] = field(default_factory=list)

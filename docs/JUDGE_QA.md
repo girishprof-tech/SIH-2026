@@ -77,3 +77,26 @@ Collision freedom is mathematically guaranteed through a multi-tier reservation 
 2. **Failsafe Proximity Hold:** If a peer within 2 cells drops out for `> 2 ticks`, the AMR halts immediately until communication is confirmed or the path is clear.
 3. **Replay Guard:** Monotonic sequence counters and HMAC-SHA256 signatures reject delayed, replayed, or spoofed packets.
 4. **Live Chaos Injection:** The UI and backend include chaos testing endpoints (`/api/chaos/packet-loss`) demonstrating continuous collision freedom even under 30% packet drop rates.
+
+---
+
+### Q8: How is warehouse inventory managed across the decentralized fleet?
+**Answer:**  
+1. **Persistent SQLite WAL Ledger (`data/inventory.db`):** Shelf pod inventory is persisted across crashes via SQLite Write-Ahead Logging (WAL mode), allowing safe concurrent multi-process writes with zero torn pages.
+2. **Edge Perception Noise & Decay:** Auditing AMRs perform real proximity scans against nearby shelf slots with realistic perception noise ($90\text{--}98\%$ accuracy). Confidence decays exponentially over uninspected ticks ($C(t) = C_0 e^{-\lambda \Delta t}$), driving autonomous re-inspection.
+3. **Decentralized Peer Gossip Sync:** Whenever an audit scan or item pick occurs, the acting robot broadcasts an HMAC-signed `INVENTORY_UPDATE` envelope across the peer UDP mesh. Live fetch robots (`GOODS_TO_PERSON`) immediately hydrate their in-memory local cache, enabling autonomous picking decisions without server queries.
+
+---
+
+### Q9: How do Goods-to-Person (G2P) Pod Movers and Sortation AMRs differ in your fleet?
+**Answer:**  
+1. **Goods-to-Person (G2P) AMRs:** Navigate to addressable pod yard slots (`POD-A01`..`POD-D44`), perform a physical `LIFTING` pause, carry entire mobile shelf pods to pick faces, execute picks with ledger decrements, and lower (`LOWERING`) pods back to storage.
+2. **Sortation AMRs:** Induct item batches from import docks, route items into destination sortation chutes (`CHUTE-01`..`CHUTE-08`), and autonomously trigger decentralized `CONSOLIDATE_EXPORT` tasks when chute capacity reaches full thresholds without central dispatcher intervention.
+
+---
+
+### Q10: What is the purpose of the simulated WiFi HaLow (802.11ah) channel?
+**Answer:**  
+1. **Dual-Channel Redundancy:** In addition to high-frequency peer-to-peer mesh UDP traffic, AMRs maintain a dedicated low-frequency, long-range WiFi HaLow uplink to the central dashboard.
+2. **Bandwidth Throttling & Coalescing:** The simulated HaLow transport incorporates a token-bucket rate limiter ($\sim 150\text{ kbps}$) and snapshot coalescing under burst load to realistically demonstrate resilient long-range warehouse telemetry without saturating industrial radio channels.
+

@@ -99,6 +99,7 @@ async def get_world(request: Request) -> dict:
         "charging_stations": [{"x": x, "y": y} for x, y in sorted(w.charging_stations)],
         "pickup_stations": [{"x": x, "y": y, "dock_type": "import"} for x, y in sorted(w.pickup_stations)],
         "dropoff_stations": [{"x": x, "y": y, "dock_type": "export"} for x, y in sorted(w.dropoff_stations)],
+        "pod_slots": [{"shelf_id": sid, "x": pos[0], "y": pos[1]} for sid, pos in sorted(w.pod_slots.items())],
     }
 
 
@@ -106,3 +107,29 @@ async def get_world(request: Request) -> dict:
 async def get_metrics(request: Request) -> dict:
     tel = request.app.state.telemetry
     return tel.snapshot()
+
+
+@router.get("/api/inventory", summary="Get all warehouse pod shelves and inventory status")
+async def get_inventory(request: Request) -> dict:
+    from app.services.inventory_ledger import InventoryLedger
+    ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+    fleet = request.app.state.fleet_state
+    shelves = ledger.get_all_shelves(current_tick=fleet.tick)
+    return {
+        "tick": fleet.tick,
+        "total_shelves": len(shelves),
+        "total_boxes": sum(s.current_box_count for s in shelves),
+        "shelves": [s.to_dict() for s in shelves],
+    }
+
+
+@router.get("/api/inventory/{shelf_id}", summary="Get inventory details for a specific shelf")
+async def get_shelf_inventory(shelf_id: str, request: Request) -> dict:
+    from app.services.inventory_ledger import InventoryLedger
+    from fastapi import HTTPException
+    ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+    fleet = request.app.state.fleet_state
+    shelf = ledger.get_shelf(shelf_id, current_tick=fleet.tick)
+    if not shelf:
+        raise HTTPException(status_code=404, detail=f"Shelf '{shelf_id}' not found")
+    return shelf.to_dict()

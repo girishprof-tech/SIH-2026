@@ -24,11 +24,12 @@ def test_audit_mission_scan():
     assert mission.is_completed is False
     assert mission.logged_items_count == 0
 
-    log_msg = mission.record_scan(checkpoint)
+    scan_res = mission.record_scan(checkpoint)
     assert mission.is_completed is True
     assert mission.logged_items_count > 0
-    assert "[AUDIT SIMULATED]" in log_msg
-    assert str(checkpoint) in log_msg
+    msg_str = scan_res["message"] if isinstance(scan_res, dict) else str(scan_res)
+    assert "[AUDIT VERIFIED]" in msg_str
+    assert str(checkpoint) in msg_str
 
 
 def test_idle_robot_audit_loop():

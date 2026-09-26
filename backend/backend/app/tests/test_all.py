@@ -426,9 +426,11 @@ class TestTaskManager:
         for robot in fleet.robots.values():
             if robot.robot_type == AMRType.SCANNING_AUDIT:
                 robot.state = RobotState.IDLE
+        from app.services.audit_mission import DEFAULT_CHECKPOINTS
+        cp = DEFAULT_CHECKPOINTS[0]
         selected = min(
             [r for r in fleet.robots.values() if r.robot_type == AMRType.SCANNING_AUDIT],
-            key=lambda r: abs(r.x - 15) + abs(r.y - 15),
+            key=lambda r: abs(r.x - cp[0]) + abs(r.y - cp[1]),
         )
         task_manager = TaskManager()
         from app.api.tasks import create_job
@@ -440,6 +442,7 @@ class TestTaskManager:
         assert result.robot_type == "SCANNING_AUDIT"
         assert result.audit_id is not None
         assert result.robot_id == selected.robot_id
+
 
     def test_job_missing_robot_returns_409(self):
         fleet = FleetState()

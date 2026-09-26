@@ -174,3 +174,13 @@ def test_resume_decision_logic_for_auditing_vs_pickup():
     # Clean up
     pre_conflict_activity = None
     assert pre_conflict_activity is None
+
+
+def test_g2p_lifting_lowering_transitions():
+    """Verifies the G2P Pod Transport FSM states LIFTING and LOWERING."""
+    fsm = RobotFSM(RobotState.IDLE)
+    fsm.state = RobotState.LIFTING
+    assert fsm.transition(RobotEvent.LIFT_COMPLETE) == RobotState.EN_ROUTE_DROPOFF
+
+    fsm.state = RobotState.LOWERING
+    assert fsm.transition(RobotEvent.LOWER_COMPLETE) == RobotState.IDLE

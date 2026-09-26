@@ -1,5 +1,5 @@
 """
-Task / Order model — SCHEMA.md §5.
+Task / Order model — SCHEMA.md §5 & G2P Pod Missions.
 """
 
 from __future__ import annotations
@@ -18,12 +18,22 @@ class TaskStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
 
 
+class TaskType(str, enum.Enum):
+    """Specific task mission types for G2P Pod transport, Sortation, and Auditing."""
+    STANDARD = "STANDARD"                    # Generic point-to-point movement
+    RETRIEVE_POD = "RETRIEVE_POD"            # Pod slot -> Pick face (Lift pod)
+    PICK_ITEM = "PICK_ITEM"                  # Item pick operation at pick face
+    RETURN_POD = "RETURN_POD"                # Pick face -> Pod slot (Lower pod)
+    AUDIT = "AUDIT"                          # Checkpoint perception patrol
+    INDUCT_BATCH = "INDUCT_BATCH"            # Import dock -> Sorting zone batch induction
+    DECANT_TO_CHUTE = "DECANT_TO_CHUTE"      # Sorting zone -> Target chute decant
+    CONSOLIDATE_EXPORT = "CONSOLIDATE_EXPORT"# Chute -> Export dock batch consolidation
+
+
 @dataclass
 class Task:
     """
-    Represents a warehouse task (pickup → dropoff).
-
-    Fields are identical to SCHEMA.md §5.
+    Represents a warehouse task with full backward compatibility and G2P pod support.
     """
 
     task_id: str
@@ -36,6 +46,10 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     assigned_robot_id: Optional[str] = None
     payload_weight_kg: float = 0.0
+    task_type: TaskType = TaskType.STANDARD
+    target_shelf_id: Optional[str] = None
+    sku_to_pick: Optional[str] = None
+    quantity: int = 1
 
     # Internal tracking
     _pickup_done: bool = field(default=False, repr=False)
@@ -46,10 +60,18 @@ class Task:
     def pickup(self) -> Tuple[int, int]:
         return (self.pickup_x, self.pickup_y)
 
+    @pickup.setter
+    def pickup(self, val: Tuple[int, int]) -> None:
+        self.pickup_x, self.pickup_y = val
+
     @property
     def dropoff(self) -> Tuple[int, int]:
         return (self.dropoff_x, self.dropoff_y)
 
+    @dropoff.setter
+    def dropoff(self, val: Tuple[int, int]) -> None:
+        self.dropoff_x, self.dropoff_y = val
+
     @staticmethod
-    def generate_id() -> str:
-        return f"TASK-{uuid.uuid4().hex[:6].upper()}"
+    def generate_id(prefix: str = "TASK") -> str:
+        return f"{prefix}-{uuid.uuid4().hex[:6].upper()}"

@@ -1,8 +1,8 @@
 """
 robot_fsm.py — Explicit Deterministic Finite State Machine for Autonomous AMRs.
 
-Unified single source of truth for robot states and transitions.
-Any undefined transition deterministically maps to RobotState.FAILSAFE_HOLD.
+Unified single source of truth for robot states and transitions, supporting
+G2P Pod Transport (LIFTING, LOWERING), Sortation AMRs, Auditing, and Failsafe recovery.
 """
 
 from __future__ import annotations
@@ -20,8 +20,10 @@ class RobotState(str, enum.Enum):
     ASSIGNED = "ASSIGNED"
     EN_ROUTE_PICKUP = "EN_ROUTE_PICKUP"
     PICKING = "PICKING"
+    LIFTING = "LIFTING"
     EN_ROUTE_DROPOFF = "EN_ROUTE_DROPOFF"
     DROPPING = "DROPPING"
+    LOWERING = "LOWERING"
     CONFLICT_NEGOTIATING = "CONFLICT_NEGOTIATING"
     AUDITING = "AUDITING"
     CHARGING = "CHARGING"
@@ -40,8 +42,10 @@ class RobotEvent(str, enum.Enum):
     PICKUP_REACHED = "PICKUP_REACHED"
     CONFLICT_LOST = "CONFLICT_LOST"
     PICKUP_COMPLETE = "PICKUP_COMPLETE"
+    LIFT_COMPLETE = "LIFT_COMPLETE"
     DROPOFF_REACHED = "DROPOFF_REACHED"
     MISSION_COMPLETE = "MISSION_COMPLETE"
+    LOWER_COMPLETE = "LOWER_COMPLETE"
     AUDIT_CHECKPOINT_LOGGED = "AUDIT_CHECKPOINT_LOGGED"
     RESUME_PICKUP = "RESUME_PICKUP"
     RESUME_DROPOFF = "RESUME_DROPOFF"
@@ -55,16 +59,24 @@ class RobotEvent(str, enum.Enum):
 
 # Exact transition dictionary: (Current State, Event) -> Next State
 TRANSITIONS: Dict[Tuple[RobotState, RobotEvent], RobotState] = {
-    # Mission lifecycle
+    # Standard Mission lifecycle
     (RobotState.IDLE, RobotEvent.TASK_RECEIVED): RobotState.ASSIGNED,
     (RobotState.IDLE, RobotEvent.START_AUDIT): RobotState.AUDITING,
     (RobotState.ASSIGNED, RobotEvent.PATH_PLANNED): RobotState.EN_ROUTE_PICKUP,
     (RobotState.EN_ROUTE_PICKUP, RobotEvent.PICKUP_REACHED): RobotState.PICKING,
     (RobotState.EN_ROUTE_PICKUP, RobotEvent.CONFLICT_LOST): RobotState.CONFLICT_NEGOTIATING,
     (RobotState.PICKING, RobotEvent.PICKUP_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.PICKING, RobotEvent.LIFT_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
     (RobotState.EN_ROUTE_DROPOFF, RobotEvent.DROPOFF_REACHED): RobotState.DROPPING,
     (RobotState.EN_ROUTE_DROPOFF, RobotEvent.CONFLICT_LOST): RobotState.CONFLICT_NEGOTIATING,
     (RobotState.DROPPING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
+    (RobotState.DROPPING, RobotEvent.LOWER_COMPLETE): RobotState.IDLE,
+
+    # G2P Pod Transport Lifecycle
+    (RobotState.LIFTING, RobotEvent.LIFT_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.LIFTING, RobotEvent.PICKUP_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.LOWERING, RobotEvent.LOWER_COMPLETE): RobotState.IDLE,
+    (RobotState.LOWERING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
 
     # Audit lifecycle
     (RobotState.AUDITING, RobotEvent.AUDIT_CHECKPOINT_LOGGED): RobotState.IDLE,
@@ -91,6 +103,13 @@ GLOBAL_EVENTS: Dict[RobotEvent, RobotState] = {
 }
 
 
+def get_next_state(current_state: RobotState, event: RobotEvent) -> RobotState:
+    """Pure function returning next state or FAILSAFE_HOLD."""
+    if event in GLOBAL_EVENTS:
+        return GLOBAL_EVENTS[event]
+    return TRANSITIONS.get((current_state, event), RobotState.FAILSAFE_HOLD)
+
+
 class RobotFSM:
     """Deterministic State Machine Driver for a Robot."""
 
@@ -99,35 +118,18 @@ class RobotFSM:
 
     def transition(self, event: RobotEvent) -> RobotState:
         """
-        Transitions to the next state based on the event.
-        If the transition is valid, updates self.state and returns it.
-        If undefined/invalid, falls back to RobotState.FAILSAFE_HOLD.
+        Executes a deterministic state transition.
+        If transition is invalid, deterministically falls back to FAILSAFE_HOLD.
         """
-        # 1. Global priority events
-        if event in GLOBAL_EVENTS:
-            next_state = GLOBAL_EVENTS[event]
-            self.state = next_state
-            return self.state
-
-        # 2. Table-driven transition
-        key = (self.state, event)
-        if key in TRANSITIONS:
-            next_state = TRANSITIONS[key]
-            self.state = next_state
-            return self.state
-
-        # 3. Invalid transition fallback to FAILSAFE_HOLD
-        log.warning(
-            "Invalid FSM transition: state=%s event=%s -> entering FAILSAFE_HOLD",
-            self.state.value,
-            event.value,
-        )
-        self.state = RobotState.FAILSAFE_HOLD
+        next_state = get_next_state(self.state, event)
+        if next_state == RobotState.FAILSAFE_HOLD and (self.state, event) not in TRANSITIONS and event not in GLOBAL_EVENTS:
+            log.warning(
+                f"Invalid FSM transition attempted: state={self.state.value}, event={event.value}. "
+                f"Deterministically transitioning to FAILSAFE_HOLD."
+            )
+        self.state = next_state
         return self.state
 
-
-def get_next_state(current_state: RobotState, event: RobotEvent) -> RobotState:
-    """Pure transition function."""
-    if event in GLOBAL_EVENTS:
-        return GLOBAL_EVENTS[event]
-    return TRANSITIONS.get((current_state, event), RobotState.FAILSAFE_HOLD)
+    def can_transition(self, event: RobotEvent) -> bool:
+        """Check if an event is legally allowed from the current state."""
+        return event in GLOBAL_EVENTS or (self.state, event) in TRANSITIONS

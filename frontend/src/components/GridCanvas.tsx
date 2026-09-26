@@ -524,6 +524,125 @@ export function GridCanvas({
       ctx.stroke()
     })
 
+    // 3.5. Pod Storage Yard (Industrial Multi-Tier Shelves / Movable Pods)
+    if (world.pod_slots && Array.isArray(world.pod_slots)) {
+      world.pod_slots.forEach((slot) => {
+        const center = cellCenter({ x: slot.x, y: slot.y })
+        const w = projection.tileW * 0.82
+        const h = projection.tileH * 0.72
+        const depth = projection.lift * 1.35
+
+        // Check if pod is currently carried by any AMR
+        const isCarried = robots.some((r) => r.carrying_pod_id === slot.shelf_id)
+
+        if (isCarried) {
+          // Empty slot footprint (walkable cell with subtle dashed floor marking)
+          ctx.save()
+          diamond(ctx, center.x, center.y, w * 0.85, h * 0.85)
+          ctx.strokeStyle = theme === 'light' ? 'rgba(217, 119, 6, 0.35)' : 'rgba(251, 146, 60, 0.35)'
+          ctx.lineWidth = 1.2
+          ctx.setLineDash([3, 2])
+          ctx.stroke()
+          ctx.fillStyle = theme === 'light' ? 'rgba(217, 119, 6, 0.04)' : 'rgba(251, 146, 60, 0.06)'
+          ctx.fill()
+          ctx.restore()
+        } else {
+          // Resting industrial shelf pod (Pallet Racking with Steel Uprights & Storage Totes)
+          diamond(ctx, center.x + 2, center.y + 2, w * 1.08, h * 1.08)
+          ctx.fillStyle = theme === 'light' ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.45)'
+          ctx.fill()
+
+          // Top roof/cap of racking
+          diamond(ctx, center.x, center.y - depth, w, h)
+          ctx.fillStyle = palette.steelTop
+          ctx.fill()
+          ctx.strokeStyle = palette.steel
+          ctx.stroke()
+
+          // Left face of the rack
+          ctx.fillStyle = palette.steelDark
+          ctx.beginPath()
+          ctx.moveTo(center.x - w / 2, center.y - depth)
+          ctx.lineTo(center.x, center.y - depth + h / 2)
+          ctx.lineTo(center.x, center.y + h / 2)
+          ctx.lineTo(center.x - w / 2, center.y)
+          ctx.closePath()
+          ctx.fill()
+
+          // Right face of the rack
+          ctx.fillStyle = theme === 'light' ? '#737373' : '#171717'
+          ctx.beginPath()
+          ctx.moveTo(center.x, center.y - depth + h / 2)
+          ctx.lineTo(center.x + w / 2, center.y - depth)
+          ctx.lineTo(center.x + w / 2, center.y)
+          ctx.lineTo(center.x, center.y + h / 2)
+          ctx.closePath()
+          ctx.fill()
+
+          // Visible Shelf Tiers & Uprights (Industrial Racking Realism)
+          ctx.strokeStyle = theme === 'light' ? '#d4d4d4' : '#404040'
+          ctx.lineWidth = 1.2
+          const tiers = [0.3, 0.65, 0.95]
+          tiers.forEach((tier) => {
+            const tierOffset = depth * tier
+            ctx.beginPath()
+            ctx.moveTo(center.x - w / 2, center.y - tierOffset)
+            ctx.lineTo(center.x, center.y - tierOffset + h / 2)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(center.x, center.y - tierOffset + h / 2)
+            ctx.lineTo(center.x + w / 2, center.y - tierOffset)
+            ctx.stroke()
+
+            // Storage totes on shelf tier
+            const toteW = w * 0.16
+            const toteH = h * 0.16
+            ctx.fillStyle = tier === 0.3 ? '#d97706' : tier === 0.65 ? '#ea580c' : '#737373'
+            roundedBox(ctx, center.x - w * 0.28, center.y - tierOffset + h * 0.1, toteW, toteH, 2)
+            ctx.fill()
+            ctx.fillStyle = tier === 0.3 ? '#737373' : '#d97706'
+            roundedBox(ctx, center.x + w * 0.12, center.y - tierOffset + h * 0.1, toteW, toteH, 2)
+            ctx.fill()
+          })
+
+          // Vertical corner upright struts
+          ctx.strokeStyle = theme === 'light' ? '#a3a3a3' : '#525252'
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.moveTo(center.x, center.y - depth + h / 2)
+          ctx.lineTo(center.x, center.y + h / 2)
+          ctx.moveTo(center.x - w / 2, center.y - depth)
+          ctx.lineTo(center.x - w / 2, center.y)
+          ctx.moveTo(center.x + w / 2, center.y - depth)
+          ctx.lineTo(center.x + w / 2, center.y)
+          ctx.stroke()
+        }
+      })
+    }
+
+    // 3.6. Sortation Chutes (Put-wall destination bins)
+    if (world.sortation_chutes && typeof world.sortation_chutes === 'object') {
+      Object.entries(world.sortation_chutes).forEach(([chuteId, info]) => {
+        const center = cellCenter({ x: info.x, y: info.y })
+        const w = projection.tileW * 0.72
+        const h = projection.tileH * 0.58
+        const depth = projection.lift * 0.35
+
+        diamond(ctx, center.x, center.y - depth, w, h)
+        ctx.fillStyle = '#0284c7'
+        ctx.fill()
+        ctx.strokeStyle = '#38bdf8'
+        ctx.lineWidth = 1.2
+        ctx.stroke()
+
+        ctx.fillStyle = '#ffffff'
+        ctx.font = `700 ${Math.max(6, projection.tileH * 0.12)}px 'JetBrains Mono', monospace`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(chuteId.replace('CHUTE-', 'C'), center.x, center.y - depth)
+      })
+    }
+
     // 4. Temporary Dynamic Obstacles
     obstacles.forEach((obstacle) => {
       const center = cellCenter(obstacle.position)
@@ -859,10 +978,13 @@ export function GridCanvas({
       ctx.restore()
 
       // Goods-To-Person AMR Visually Carrying Inventory Shelf Pod
-      if (
-        robot.robot_type === 'GOODS_TO_PERSON' &&
-        (robot.state === 'EN_ROUTE_DROPOFF' || robot.state === 'DROPPING')
-      ) {
+      const isCarryingPod =
+        Boolean(robot.carrying_pod_id) ||
+        (robot.robot_type === 'GOODS_TO_PERSON' &&
+          (robot.state === 'EN_ROUTE_DROPOFF' || robot.state === 'DROPPING'))
+
+      if (isCarryingPod) {
+        const podLabel = robot.carrying_pod_id || 'POD'
         const shelfLift = z + projection.lift * 0.38
         const sW = projection.tileW * 0.44
         const sH = projection.tileH * 0.38
@@ -901,11 +1023,12 @@ export function GridCanvas({
         ctx.closePath()
         ctx.fill()
 
-        // Visible shelf dividers / parcel indicator
-        ctx.fillStyle = '#fef3c7'
-        ctx.fillRect(center.x - sW * 0.28, center.y - shelfLift - sDepth * 0.5, sW * 0.16, sDepth * 0.35)
-        ctx.fillStyle = '#fed7aa'
-        ctx.fillRect(center.x + sW * 0.12, center.y - shelfLift - sDepth * 0.5, sW * 0.16, sDepth * 0.35)
+        // Pod ID text label on top face
+        ctx.fillStyle = '#ffffff'
+        ctx.font = `700 ${Math.max(6, base * 0.1)}px 'JetBrains Mono', monospace`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(podLabel, center.x, center.y - shelfLift - sDepth)
       }
 
       // State Ring Indicator

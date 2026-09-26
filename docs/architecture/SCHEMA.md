@@ -408,6 +408,24 @@ Sent every simulation tick.
 }
 ```
 
+Sent whenever a verified shelf inventory scan or update occurs via peer mesh / WiFi HaLow uplink:
+
+```json
+{
+  "type": "INVENTORY_SYNC",
+  "channel": "HALOW",
+  "shelf_id": "POD-A01",
+  "x": 7,
+  "y": 6,
+  "sku_manifest": { "SKU-A12": 15, "SKU-A24": 20 },
+  "current_box_count": 35,
+  "confidence": 0.98,
+  "tick": 42,
+  "source_robot_id": "AMR-08",
+  "timestamp": 1699999999999
+}
+```
+
 ---
 
 # 17. REST API Contract

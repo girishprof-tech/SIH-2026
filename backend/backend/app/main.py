@@ -190,6 +190,10 @@ async def lifespan(app: FastAPI):
     )
 
     # ── SPOF Hardening: Recover in-flight jobs from write-ahead journal ────────
+    from app.services.inventory_ledger import InventoryLedger
+    inventory_ledger = InventoryLedger()
+    inventory_ledger.seed_default_inventory(fleet_state.world)
+
     from app.services.job_journal import JobJournal
     job_journal = JobJournal()
     recovered_jobs = job_journal.recover_uncompleted_jobs()
@@ -308,6 +312,7 @@ async def lifespan(app: FastAPI):
     app.state.telemetry_streaming_paused = False
     app.state.fleet_mode = fleet_mode
     app.state.job_journal = job_journal
+    app.state.inventory_ledger = inventory_ledger
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
@@ -379,6 +384,12 @@ async def lifespan(app: FastAPI):
                             "mode": getattr(app.state, "fleet_mode", "spawned_new_fleet"),
                             "tick": fleet_state.tick,
                         }
+                        # Include live inventory ledger snapshot and sortation chutes
+                        try:
+                            data["inventory"] = [s.to_dict() for s in inventory_ledger.get_all_shelves()]
+                            data["sortation_chutes"] = fleet_state.world.sortation_chutes
+                        except Exception:
+                            pass
 
                         # Forward synchronized TICK_UPDATE payload to WebSocket clients
                         if clients > 0:
@@ -388,6 +399,52 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(0.04)
 
     forwarder_task = asyncio.create_task(_telemetry_forwarder(), name="telemetry_forwarder")
+
+    async def _halow_receiver():
+        """Listens on UDP port 9099 for simulated 802.11ah WiFi HaLow packets."""
+        loop = asyncio.get_running_loop()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setblocking(False)
+        try:
+            sock.bind(("127.0.0.1", 9099))
+        except Exception as e:
+            log.warning("Could not bind HaLow receiver on port 9099: %s", e)
+            return
+
+        from app.security.hmac_envelope import verify_envelope
+
+        while True:
+            try:
+                data, _ = await loop.sock_recv(sock, 4096)
+                if data:
+                    raw_str = data.decode("utf-8")
+                    envelope = json.loads(raw_str)
+                    if verify_envelope(envelope):
+                        payload = envelope.get("payload", {})
+                        sync_msg = {
+                            "type": "INVENTORY_SYNC",
+                            "channel": "HALOW",
+                            "shelf_id": payload.get("shelf_id"),
+                            "x": payload.get("x", 0),
+                            "y": payload.get("y", 0),
+                            "current_box_count": payload.get("current_box_count", 0),
+                            "sku_manifest": payload.get("sku_manifest", {}),
+                            "confidence": payload.get("confidence", 1.0),
+                            "last_audited_tick": payload.get("tick", 0),
+                            "last_audited_by": payload.get("source_robot_id") or payload.get("sender_id"),
+                            "source": payload.get("source", "audit_scan"),
+                            "timestamp_ms": int(time.time() * 1000),
+                        }
+                        if len(connection_manager._connections) > 0:
+                            await connection_manager.broadcast_json(sync_msg)
+            except asyncio.CancelledError:
+                break
+            except Exception as ex:
+                log.debug("HaLow receiver error: %s", ex)
+            await asyncio.sleep(0.01)
+        sock.close()
+
+    halow_task = asyncio.create_task(_halow_receiver(), name="halow_receiver")
 
     from app.services.task_manager import get_fleet_peer_ports
 
@@ -419,12 +476,17 @@ async def lifespan(app: FastAPI):
     log.info("Shutting down telemetry viewer...")
     forwarder_task.cancel()
     dispatcher_task.cancel()
+    halow_task.cancel()
     try:
         await forwarder_task
     except asyncio.CancelledError:
         pass
     try:
         await dispatcher_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await halow_task
     except asyncio.CancelledError:
         pass
 
