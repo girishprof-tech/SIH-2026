@@ -14,9 +14,12 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.schemas.task import JobOut, JobRequest, TaskInjectRequest, TaskOut
+from app.schemas.task import JobOut, JobRequest, OrderRequest, TaskInjectRequest, TaskOut
 from app.models.obstacle import TemporaryObstacle
-from app.models.robot import AMRType, RobotState
+from app.models.robot import AMRType, Robot, RobotState
+from app.models.task import Task, TaskStatus, TaskType
+from app.models.inventory import ShelfRecord
+from app.services.inventory_ledger import InventoryLedger
 
 log = logging.getLogger(__name__)
 
@@ -199,6 +202,37 @@ def _resolve_job_points(world, job_type: str, zone: str | None = None):
 
 
 
+def select_best_shelf_for_sku(
+    ledger: InventoryLedger,
+    sku: str,
+    quantity: int = 1,
+    idle_g2p_robots: Optional[List[Robot]] = None,
+    current_tick: Optional[int] = None,
+) -> Optional[ShelfRecord]:
+    """
+    Selects the optimal shelf holding the requested SKU per FIX 4:
+      1. Prefer highest confidence (decayed according to current_tick).
+      2. Break ties by minimum Manhattan distance to an idle G2P robot if available.
+      3. Break ties by lowest last_audited_tick (nudges coverage toward stale shelves).
+      4. Deterministic tie-break by shelf_id.
+    """
+    candidates = ledger.get_shelves_for_sku(sku, min_qty=quantity, current_tick=current_tick)
+    if not candidates:
+        return None
+
+    def sort_key(rec: ShelfRecord):
+        conf = rec.confidence
+        if idle_g2p_robots:
+            min_dist = min(abs(r.x - rec.x) + abs(r.y - rec.y) for r in idle_g2p_robots)
+        else:
+            min_dist = 0
+        audited_tick = rec.last_audited_tick
+        return (-conf, min_dist, audited_tick, rec.shelf_id)
+
+    candidates.sort(key=sort_key)
+    return candidates[0]
+
+
 def _pick_idle_robot_for_type(fleet, robot_type: AMRType, target: tuple[int, int] | None = None):
     candidates = [
         robot for robot in fleet.robots.values()
@@ -224,6 +258,74 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
     peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
 
     if body.job_type == "fetch_item":
+        requested_sku = body.sku or body.item_id
+        if requested_sku:
+            ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+            idle_g2ps = [
+                robot for robot in fleet.robots.values()
+                if robot.state == RobotState.IDLE and robot.robot_type == AMRType.GOODS_TO_PERSON
+            ]
+            best_shelf = select_best_shelf_for_sku(
+                ledger, requested_sku, quantity=body.quantity,
+                idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+            )
+            if best_shelf is None:
+                raise HTTPException(404, f"No shelf holds requested SKU {requested_sku!r} with quantity >= {body.quantity}")
+
+            pickup = (best_shelf.x, best_shelf.y)
+            dropoffs = sorted(list(fleet.world.dropoff_stations))
+            dropoff = dropoffs[0] if dropoffs else (29, 9)
+            robot_type = AMRType.GOODS_TO_PERSON
+            selected_robot = _pick_idle_robot_for_type(fleet, robot_type, pickup)
+            if selected_robot is None:
+                raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
+
+            task = task_manager.create_task(
+                pickup_x=pickup[0],
+                pickup_y=pickup[1],
+                dropoff_x=dropoff[0],
+                dropoff_y=dropoff[1],
+                urgency=body.urgency,
+                current_tick=fleet.tick,
+                task_type=TaskType.RETRIEVE_POD,
+                target_shelf_id=best_shelf.shelf_id,
+                sku_to_pick=requested_sku,
+                quantity=body.quantity,
+            )
+            fleet.queue_task(task)
+            assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
+            if not assigned_robot:
+                raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
+
+            journal = getattr(request.app.state, "job_journal", None)
+            if journal:
+                journal.log_submission(
+                    job_id=task.task_id,
+                    job_type=body.job_type,
+                    pickup=pickup,
+                    dropoff=dropoff,
+                    urgency=body.urgency,
+                )
+                journal.log_assignment(
+                    job_id=task.task_id,
+                    assigned_robot_id=assigned_robot,
+                    tick=fleet.tick,
+                )
+
+            task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
+            return JobOut(
+                job_type=body.job_type,
+                robot_type=robot_type.value,
+                task_id=task.task_id,
+                robot_id=assigned_robot,
+                target_shelf_id=best_shelf.shelf_id,
+                sku=requested_sku,
+                quantity=body.quantity,
+                status=task.status.value,
+                message=f"Fetch item job for SKU {requested_sku} assigned to {assigned_robot} (Shelf {best_shelf.shelf_id})",
+            )
+
+        # Legacy fallback without SKU
         pickup, dropoff, robot_type = _resolve_job_points(fleet.world, "fetch_item")
         selected_robot = _pick_idle_robot_for_type(fleet, robot_type, pickup)
         if selected_robot is None:
@@ -363,3 +465,109 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
         )
 
     raise HTTPException(400, f"Unsupported job_type: {body.job_type}")
+
+
+@router.post(
+    "/order",
+    summary="Create a SKU-based order for G2P pod retrieval",
+    response_model=JobOut,
+    status_code=201,
+)
+async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
+    """
+    Direct SKU order endpoint. Queries InventoryLedger for the optimal shelf holding
+    the requested SKU and dispatches a RETRIEVE_POD task to an idle G2P AMR.
+    """
+    fleet = _get_fleet(request)
+    task_manager = _get_task_manager(request)
+    from app.services.task_manager import get_fleet_peer_ports
+    peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
+    ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+
+    idle_g2ps = [
+        robot for robot in fleet.robots.values()
+        if robot.state == RobotState.IDLE and robot.robot_type == AMRType.GOODS_TO_PERSON
+    ]
+    best_shelf = select_best_shelf_for_sku(
+        ledger, body.sku, quantity=body.quantity,
+        idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+    )
+    if best_shelf is None:
+        raise HTTPException(404, f"No shelf holds SKU {body.sku!r} with quantity >= {body.quantity}")
+
+    pickup = (best_shelf.x, best_shelf.y)
+    if body.dropoff:
+        dropoff = (body.dropoff.x, body.dropoff.y)
+    else:
+        dropoffs = sorted(list(fleet.world.dropoff_stations))
+        dropoff = dropoffs[0] if dropoffs else (29, 9)
+
+    selected_robot = _pick_idle_robot_for_type(fleet, AMRType.GOODS_TO_PERSON, pickup)
+    if selected_robot is None:
+        raise HTTPException(409, "No GOODS_TO_PERSON robot available for order")
+
+    task = task_manager.create_task(
+        pickup_x=pickup[0],
+        pickup_y=pickup[1],
+        dropoff_x=dropoff[0],
+        dropoff_y=dropoff[1],
+        urgency=body.urgency,
+        current_tick=fleet.tick,
+        task_type=TaskType.RETRIEVE_POD,
+        target_shelf_id=best_shelf.shelf_id,
+        sku_to_pick=body.sku,
+        quantity=body.quantity,
+    )
+    fleet.queue_task(task)
+    assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
+    if not assigned_robot:
+        raise HTTPException(409, "No GOODS_TO_PERSON robot available for order")
+
+    journal = getattr(request.app.state, "job_journal", None)
+    if journal:
+        journal.log_submission(
+            job_id=task.task_id,
+            job_type="fetch_item",
+            pickup=pickup,
+            dropoff=dropoff,
+            urgency=body.urgency,
+        )
+        journal.log_assignment(
+            job_id=task.task_id,
+            assigned_robot_id=assigned_robot,
+            tick=fleet.tick,
+        )
+
+    task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
+    return JobOut(
+        job_type="fetch_item",
+        robot_type=AMRType.GOODS_TO_PERSON.value,
+        task_id=task.task_id,
+        robot_id=assigned_robot,
+        target_shelf_id=best_shelf.shelf_id,
+        sku=body.sku,
+        quantity=body.quantity,
+        status=task.status.value,
+        message=f"Order for SKU {body.sku} assigned to {assigned_robot} (Shelf {best_shelf.shelf_id})",
+    )
+
+
+@job_router.post(
+    "/job/order",
+    summary="Create a SKU-based order via /api/job/order",
+    response_model=JobOut,
+    status_code=201,
+)
+async def create_sku_job_order(body: OrderRequest, request: Request) -> JobOut:
+    return await create_sku_order(body, request)
+
+
+@job_router.post(
+    "/order",
+    summary="Create a SKU-based order via /api/order",
+    response_model=JobOut,
+    status_code=201,
+)
+async def create_sku_api_order(body: OrderRequest, request: Request) -> JobOut:
+    return await create_sku_order(body, request)
+

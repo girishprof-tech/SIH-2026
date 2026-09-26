@@ -163,14 +163,14 @@ class SpaceTimeAStarPlanner:
         dx, dy = DELTA[heading]
         target = (x + dx, y + dy)
         if self.grid.is_free(target) and not self._vertex_blocked(
-            target, nt, reservation_table, robot_id
+            target, nt, reservation_table, robot_id, self.grid
         ):
             if not self._causes_swap((x, y), target, t, reservation_table, robot_id):
                 out.append(((target[0], target[1], heading, nt), MOVE_COST_TICKS))
 
         # 2 & 3. Stay on the same cell for this tick, either turning to a new
         # heading or waiting (yielding). Both still occupy/reserve (x, y).
-        if not self._vertex_blocked((x, y), nt, reservation_table, robot_id):
+        if not self._vertex_blocked((x, y), nt, reservation_table, robot_id, self.grid):
             for h2 in HEADINGS:
                 cost = WAIT_COST_TICKS if h2 == heading else TURN_COST_TICKS
                 out.append(((x, y, h2, nt), cost))
@@ -185,9 +185,15 @@ class SpaceTimeAStarPlanner:
         t: int,
         reservation_table: ReservationTable,
         robot_id: Optional[str],
+        grid: Optional[WarehouseGrid] = None,
     ) -> bool:
         occupant = reservation_table.get((pos[0], pos[1], t))
-        return occupant is not None and occupant != robot_id
+        if occupant is not None and occupant != robot_id:
+            return True
+        if grid is not None and hasattr(grid, "is_pod_slot_occupied_by_other"):
+            if grid.is_pod_slot_occupied_by_other(pos, robot_id):
+                return True
+        return False
 
     @staticmethod
     def _causes_swap(

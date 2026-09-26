@@ -48,6 +48,14 @@ class TokenBucket:
             return True
         return False
 
+    def refill(self, num_bytes: Optional[int] = None) -> None:
+        """Refills tokens explicitly (useful for tick-based stepping or testing)."""
+        self.last_update = time.monotonic()
+        if num_bytes is None:
+            self.tokens = self.capacity
+        else:
+            self.tokens = min(self.capacity, self.tokens + num_bytes)
+
     def get_utilization(self) -> float:
         """Returns approximate channel utilization ratio [0.0, 1.0]."""
         return max(0.0, min(1.0, 1.0 - (self.tokens / self.capacity)))
@@ -136,12 +144,24 @@ class HaLowTransport(Transport):
         except Exception as e:
             log.debug(f"[HaLow Send Error] {self.node_id} -> {self.host}:{self.dashboard_port}: {e}")
 
-    def flush_pending(self) -> None:
-        """Flushes coalesced latest shelf snapshots if tokens become available."""
-        if not self._pending_shelf_snapshots:
-            return
+    @property
+    def pending_count(self) -> int:
+        return len(self._pending_shelf_snapshots)
 
+    def flush_pending(self) -> int:
+        """
+        Flushes coalesced latest shelf snapshots if tokens become available.
+        Returns number of successfully sent/drained snapshots.
+        """
+        if not self._pending_shelf_snapshots:
+            return 0
+
+        flushed = 0
         for shelf_id, payload in list(self._pending_shelf_snapshots.items()):
+            # Chaos packet drop during flush attempt
+            if self.packet_loss_pct > 0.0 and random.random() * 100.0 < self.packet_loss_pct:
+                continue
+
             raw = json.dumps(payload).encode("utf-8")
             if self.bucket.consume(len(raw)):
                 try:
@@ -150,10 +170,13 @@ class HaLowTransport(Transport):
                     self.total_packets_sent += 1
                     self.last_sent_timestamp = time.time()
                     del self._pending_shelf_snapshots[shelf_id]
+                    flushed += 1
                 except Exception:
-                    pass
+                    del self._pending_shelf_snapshots[shelf_id]
+                    flushed += 1
             else:
                 break
+        return flushed
 
     def recv_all(self) -> List[Dict[str, Any]]:
         """HaLow uplink is primarily outbound from robot to dashboard in this topology."""
@@ -166,9 +189,11 @@ class HaLowTransport(Transport):
             "total_bytes_sent": self.total_bytes_sent,
             "total_packets_sent": self.total_packets_sent,
             "dropped_burst_packets": self.dropped_burst_packets,
+            "pending_snapshots": len(self._pending_shelf_snapshots),
             "utilization": round(self.bucket.get_utilization(), 3),
             "last_sent_age_s": round(time.time() - self.last_sent_timestamp, 2) if self.last_sent_timestamp > 0 else None,
         }
+
 
     def close(self) -> None:
         try:

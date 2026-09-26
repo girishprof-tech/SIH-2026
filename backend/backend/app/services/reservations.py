@@ -22,7 +22,7 @@ Typical per-robot replan cycle:
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 ReservationTable = Dict[Tuple[int, int, int], str]
 
@@ -76,3 +76,137 @@ def prune_past(reservation_table: ReservationTable, current_tick: int) -> int:
     for key in stale:
         del reservation_table[key]
     return len(stale)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pod-Slot & Shelf Occupancy Reservations (Phase 1.5 Fix 1)
+# ─────────────────────────────────────────────────────────────────────────────
+
+import threading
+
+_pod_lock = threading.Lock()
+
+# Global shared pod claims: shelf_id -> {"robot_id": str, "claimed_tick": int, "expires_tick": int}
+SHARED_POD_CLAIMS: Dict[str, Dict[str, Any]] = {}
+SHARED_POD_SLOTS: Dict[str, Tuple[int, int]] = {}
+DEFAULT_POD_LEASE_TICKS = 40
+
+
+def register_pod_slots(slots: Dict[str, Tuple[int, int]]) -> None:
+    """Registers known pod slot coordinates {shelf_id: (x, y)}."""
+    with _pod_lock:
+        SHARED_POD_SLOTS.update(slots)
+
+
+def claim_pod(
+    shelf_id: str,
+    robot_id: str,
+    current_tick: int = 0,
+    lease_ticks: int = DEFAULT_POD_LEASE_TICKS,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> bool:
+    """
+    Atomically claims a shelf_id for robot_id with a bounded lease (TTL).
+    Returns True if successfully claimed or renewed by robot_id, False if claimed by another robot.
+    """
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        claim = target.get(shelf_id)
+        if claim is not None:
+            # Check if active by another robot
+            if claim["robot_id"] != robot_id and claim["expires_tick"] > current_tick:
+                return False
+        # Free or expired or owned by robot_id -> grant claim
+        target[shelf_id] = {
+            "robot_id": robot_id,
+            "claimed_tick": current_tick,
+            "expires_tick": current_tick + lease_ticks,
+        }
+        return True
+
+
+def renew_pod_claim(
+    shelf_id: str,
+    robot_id: str,
+    current_tick: int,
+    lease_ticks: int = DEFAULT_POD_LEASE_TICKS,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> bool:
+    """Extends the lease of an existing claim owned by robot_id."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        claim = target.get(shelf_id)
+        if claim and claim["robot_id"] == robot_id:
+            claim["expires_tick"] = current_tick + lease_ticks
+            return True
+        return False
+
+
+def release_pod(
+    shelf_id: str,
+    robot_id: str,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> bool:
+    """Releases a shelf_id claim if currently held by robot_id."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        claim = target.get(shelf_id)
+        if claim and claim["robot_id"] == robot_id:
+            del target[shelf_id]
+            return True
+        return False
+
+
+def release_robot_pod_claims(
+    robot_id: str,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[str]:
+    """Releases all pod claims owned by robot_id (e.g. on robot crash/disconnect/estop)."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        released = [sid for sid, c in target.items() if c["robot_id"] == robot_id]
+        for sid in released:
+            del target[sid]
+        return released
+
+
+def get_pod_claim(
+    shelf_id: str,
+    current_tick: Optional[int] = None,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Optional[str]:
+    """Returns the robot_id holding an active claim on shelf_id, or None if free/expired."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        claim = target.get(shelf_id)
+        if claim is None:
+            return None
+        if current_tick is not None and claim["expires_tick"] <= current_tick:
+            return None
+        return claim["robot_id"]
+
+
+def prune_stale_pod_claims(
+    current_tick: int,
+    pod_claims: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[str]:
+    """Prunes expired pod claims whose lease has elapsed. Returns list of released shelf_ids."""
+    target = SHARED_POD_CLAIMS if pod_claims is None else pod_claims
+    with _pod_lock:
+        stale = [sid for sid, c in target.items() if c["expires_tick"] <= current_tick]
+        for sid in stale:
+            del target[sid]
+        return stale
+
+
+def reserve_pod_slot(
+    slot_pos: Tuple[int, int],
+    robot_id: str,
+    start_tick: int,
+    duration_ticks: int,
+    reservation_table: ReservationTable,
+) -> None:
+    """Reserves the pod slot coordinates (x, y) across [start_tick, start_tick + duration_ticks]."""
+    for t in range(start_tick, start_tick + duration_ticks + 1):
+        reservation_table[(slot_pos[0], slot_pos[1], t)] = robot_id
+

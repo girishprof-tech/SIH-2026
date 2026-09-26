@@ -58,6 +58,21 @@ class WarehouseGrid:
         self._graph = self._build_graph()
         # Cache of {goal: {node: distance}} built lazily via single-source BFS.
         self._dist_cache: Dict[Position, Dict[Position, int]] = {}
+        # Pod-slot physical occupancy tracking: (x, y) -> robot_id (Phase 1.5 Fix 1)
+        self.pod_slot_occupants: Dict[Position, str] = {}
+
+    def set_pod_slot_occupant(self, pos: Position, robot_id: Optional[str]) -> None:
+        """Mark a pod slot cell as occupied by robot_id during lifting/carrying, or cleared (None)."""
+        int_pos = (int(pos[0]), int(pos[1]))
+        if robot_id is None:
+            self.pod_slot_occupants.pop(int_pos, None)
+        else:
+            self.pod_slot_occupants[int_pos] = robot_id
+
+    def is_pod_slot_occupied_by_other(self, pos: Position, robot_id: Optional[str]) -> bool:
+        """Returns True if the cell is an occupied pod slot claimed by another robot."""
+        occupant = self.pod_slot_occupants.get((int(pos[0]), int(pos[1])))
+        return occupant is not None and occupant != robot_id
 
     # -- construction helpers ------------------------------------------------
 

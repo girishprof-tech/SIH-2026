@@ -104,6 +104,7 @@ class FleetOrchestrator:
         self._bus_thread.start()
 
         # 2. Spawn one OS process per robot
+        fleet_roster = {cfg["robot_id"]: cfg.get("robot_type", "GOODS_TO_PERSON") for cfg in self.robots_config}
         for cfg in self.robots_config:
             rid = cfg["robot_id"]
             p = mp.Process(
@@ -127,8 +128,10 @@ class FleetOrchestrator:
                     cfg.get("robot_type", "GOODS_TO_PERSON"),
                     cfg.get("enable_idle_audit", True),
                     self.pause_event,
+                    fleet_roster,
                 ),
             )
+
             p.start()
             self.processes.append(p)
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")

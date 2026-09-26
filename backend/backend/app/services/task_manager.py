@@ -41,6 +41,7 @@ def build_task_assignment_envelope(
     seq: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Constructs a signed cryptographic HMAC envelope for TASK_ASSIGNMENT."""
+    task_type_val = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
     payload = {
         "type": "TASK_ASSIGNMENT",
         "sender_id": "DISPATCHER",
@@ -51,6 +52,10 @@ def build_task_assignment_envelope(
             "dropoff": [task.dropoff_x, task.dropoff_y],
             "urgency": task.urgency,
             "payload_weight_kg": getattr(task, "payload_weight_kg", 0.0),
+            "task_type": task_type_val,
+            "target_shelf_id": getattr(task, "target_shelf_id", None),
+            "sku_to_pick": getattr(task, "sku_to_pick", None),
+            "quantity": getattr(task, "quantity", 1),
         },
     }
     return sign_payload(payload, secret_key=secret_key, seq=seq)
@@ -62,6 +67,7 @@ def build_task_announcement_envelope(
     seq: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Constructs a signed cryptographic HMAC envelope for TASK_ANNOUNCEMENT."""
+    task_type_val = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
     payload = {
         "type": "TASK_ANNOUNCEMENT",
         "sender_id": "DISPATCHER",
@@ -71,6 +77,10 @@ def build_task_announcement_envelope(
             "dropoff": [task.dropoff_x, task.dropoff_y],
             "urgency": task.urgency,
             "payload_weight_kg": getattr(task, "payload_weight_kg", 0.0),
+            "task_type": task_type_val,
+            "target_shelf_id": getattr(task, "target_shelf_id", None),
+            "sku_to_pick": getattr(task, "sku_to_pick", None),
+            "quantity": getattr(task, "quantity", 1),
         },
     }
     return sign_payload(payload, secret_key=secret_key, seq=seq)
@@ -104,22 +114,62 @@ class AbstractTaskAssigner(abc.ABC):
 
 class NearestIdleAssignment(AbstractTaskAssigner):
     """
-    Simple nearest-idle robot assignment.
+    Simple nearest-idle robot assignment with pod-slot locking awareness (Phase 1.5 Fix 1).
 
     Picks the IDLE robot with minimum Manhattan distance to pickup.
-    This is the built-in default.
+    Refuses assignment if another task or robot has claimed the targeted shelf_id.
     """
 
     def assign(
         self,
         task: Task,
         robots: Dict[str, Robot],
-        active_tasks: Dict[str, Task],
+        active_tasks: Optional[Dict[str, Task] | List[Task]] = None,
+        **kwargs: Any,
     ) -> Optional[str]:
         best_robot_id: Optional[str] = None
         best_dist = float("inf")
 
         t_type = getattr(task, "task_type", TaskType.STANDARD)
+        shelf_id = getattr(task, "target_shelf_id", None)
+
+        task_dict: Dict[str, Task] = {}
+        if active_tasks:
+            if isinstance(active_tasks, dict):
+                task_dict = active_tasks
+            else:
+                task_dict = {t.task_id: t for t in active_tasks}
+
+        # Phase 1.5 Fix 1: Refuse assignment for duplicate/in-flight shelf tasks
+        if shelf_id and t_type in (TaskType.RETRIEVE_POD, TaskType.RETURN_POD, TaskType.PICK_ITEM):
+            # 1. Check in-flight active tasks
+            for other_id, other_task in task_dict.items():
+                if other_id != task.task_id and other_task.status in (TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS):
+                    if getattr(other_task, "target_shelf_id", None) == shelf_id:
+                        log.warning(
+                            "NearestIdleAssignment: Refusing assignment for task %s; shelf %s already targeted by %s",
+                            task.task_id, shelf_id, other_id,
+                        )
+                        return None
+
+            # 2. Check if any robot is already carrying this pod
+            for robot in robots.values():
+                if getattr(robot, "carrying_pod_id", None) == shelf_id:
+                    log.warning(
+                        "NearestIdleAssignment: Refusing assignment for task %s; shelf %s already carried by %s",
+                        task.task_id, shelf_id, robot.robot_id,
+                    )
+                    return None
+
+            # 3. Check active pod claims in reservations
+            from app.services.reservations import get_pod_claim
+            claimant = get_pod_claim(shelf_id)
+            if claimant is not None:
+                log.warning(
+                    "NearestIdleAssignment: Refusing assignment for task %s; shelf %s has active pod claim by %s",
+                    task.task_id, shelf_id, claimant,
+                )
+                return None
         
         # Explicit decoupled robot type filtering
         if t_type in (TaskType.INDUCT_BATCH, TaskType.DECANT_TO_CHUTE, TaskType.CONSOLIDATE_EXPORT):
@@ -149,6 +199,7 @@ class NearestIdleAssignment(AbstractTaskAssigner):
         return best_robot_id
 
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TaskManager
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +223,11 @@ class TaskManager:
         dropoff_x: int, dropoff_y: int,
         urgency: int,
         current_tick: int,
+        task_type: TaskType = TaskType.STANDARD,
+        target_shelf_id: Optional[str] = None,
+        sku_to_pick: Optional[str] = None,
+        quantity: int = 1,
+        payload_weight_kg: float = 0.0,
     ) -> Task:
         task = Task(
             task_id=Task.generate_id(),
@@ -182,9 +238,18 @@ class TaskManager:
             urgency=urgency,
             created_tick=current_tick,
             status=TaskStatus.PENDING,
+            task_type=task_type,
+            target_shelf_id=target_shelf_id,
+            sku_to_pick=sku_to_pick,
+            quantity=quantity,
+            payload_weight_kg=payload_weight_kg,
         )
         self._tasks[task.task_id] = task
-        log.info("TASK_CREATED task_id=%s urgency=%d", task.task_id, urgency)
+        log.info(
+            "TASK_CREATED task_id=%s urgency=%d type=%s target_shelf=%s sku=%s",
+            task.task_id, urgency, task_type.value if hasattr(task_type, "value") else task_type,
+            target_shelf_id, sku_to_pick,
+        )
         return task
 
     def get_task(self, task_id: str) -> Optional[Task]:

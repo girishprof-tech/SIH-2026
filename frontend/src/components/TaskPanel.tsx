@@ -20,6 +20,8 @@ export function TaskPanel({
 }) {
   const [jobType, setJobType] = useState<JobType>('fetch_item')
   const [itemId, setItemId] = useState('')
+  const [sku, setSku] = useState('')
+  const [quantity, setQuantity] = useState(1)
   const [zone, setZone] = useState('')
   const [urgency, setUrgency] = useState(3)
   const [jobs, setJobs] = useState<JobResponse[]>([])
@@ -27,7 +29,14 @@ export function TaskPanel({
 
   const submit = async () => {
     const body: JobRequest = { job_type: jobType, urgency }
-    if (jobType === 'fetch_item' && itemId.trim()) body.item_id = itemId.trim()
+    if (jobType === 'fetch_item') {
+      const targetSku = sku.trim() || itemId.trim()
+      if (targetSku) {
+        body.sku = targetSku
+        body.item_id = targetSku
+      }
+      body.quantity = Math.max(1, quantity)
+    }
     if (jobType !== 'audit_checkpoint' && zone.trim()) body.zone = zone.trim()
     try {
       setError(null)
@@ -35,7 +44,9 @@ export function TaskPanel({
       setJobs((previous) => [result, ...previous].slice(0, 8))
     } catch (reason) {
       setError(
-        reason instanceof ApiError && reason.status === 409
+        reason instanceof ApiError && reason.status === 404
+          ? `SKU not found: ${reason.message}`
+          : reason instanceof ApiError && reason.status === 409
           ? 'No robot available for this job type'
           : reason instanceof Error
           ? reason.message
@@ -111,14 +122,26 @@ export function TaskPanel({
         </label>
 
         {jobType === 'fetch_item' && (
-          <label>
-            Item ID
-            <input
-              value={itemId}
-              placeholder="Optional SKU or item reference"
-              onChange={(event) => setItemId(event.target.value)}
-            />
-          </label>
+          <div className="fetch-item-inputs" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.5rem' }}>
+            <label>
+              SKU to Retrieve
+              <input
+                value={sku}
+                placeholder="e.g. SKU-A, SKU-B"
+                onChange={(event) => setSku(event.target.value)}
+              />
+            </label>
+            <label>
+              Quantity
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={quantity}
+                onChange={(event) => setQuantity(Math.max(1, parseInt(event.target.value) || 1))}
+              />
+            </label>
+          </div>
         )}
 
         {jobType !== 'audit_checkpoint' && (

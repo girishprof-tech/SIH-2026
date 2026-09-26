@@ -20,7 +20,13 @@ from app.models.world import WorldConfig, build_default_world
 
 log = logging.getLogger(__name__)
 
-DEFAULT_DB_PATH = Path("data") / "inventory.db"
+# Anchor ROOT_DIR matching telemetry_bus.py pattern
+try:
+    ROOT_DIR = Path(__file__).resolve().parents[4]
+except IndexError:
+    ROOT_DIR = Path(__file__).resolve().parents[0]
+
+DEFAULT_DB_PATH = ROOT_DIR / "data" / "inventory.db"
 
 
 class InventoryLedger:
@@ -77,6 +83,21 @@ class InventoryLedger:
                     scan_manifest TEXT NOT NULL,
                     box_count INTEGER NOT NULL,
                     confidence REAL NOT NULL,
+                    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS transaction_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shelf_id TEXT NOT NULL,
+                    robot_id TEXT NOT NULL,
+                    tick INTEGER NOT NULL,
+                    sku TEXT NOT NULL,
+                    qty_delta INTEGER NOT NULL,
+                    new_manifest TEXT NOT NULL,
+                    new_box_count INTEGER NOT NULL,
                     logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -182,6 +203,103 @@ class InventoryLedger:
             confidence=confidence,
         )
 
+    def record_pick(
+        self,
+        shelf_id: str,
+        sku: str,
+        qty_delta: int,
+        robot_id: str,
+        tick: int,
+        manifest_override: Optional[Dict[str, int]] = None,
+    ) -> Optional[ShelfRecord]:
+        """
+        Record a pick transaction for a shelf.
+        Updates sku_manifest and current_box_count in shelves table.
+        Crucially: DOES NOT touch last_audited_tick, last_audited_by, or confidence.
+        Logs to transaction_logs rather than audit_logs.
+        If manifest_override is provided, uses that manifest directly (for decentralized mesh sync).
+        """
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE;")
+            cursor = conn.execute("SELECT * FROM shelves WHERE shelf_id = ?", (shelf_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.execute("ROLLBACK;")
+                return None
+
+            if manifest_override is not None:
+                manifest = dict(manifest_override)
+                new_box_count = sum(manifest.values())
+            else:
+                manifest = json.loads(row["sku_manifest"])
+                current_qty = manifest.get(sku, 0)
+                new_qty = max(0, current_qty - abs(qty_delta))
+                manifest[sku] = new_qty
+                new_box_count = sum(manifest.values())
+            manifest_json = json.dumps(manifest)
+
+            conn.execute(
+                """
+                UPDATE shelves SET
+                    current_box_count = ?,
+                    sku_manifest = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE shelf_id = ?;
+                """,
+                (new_box_count, manifest_json, shelf_id),
+            )
+
+            conn.execute(
+                """
+                INSERT INTO transaction_logs (
+                    shelf_id, robot_id, tick, sku, qty_delta, new_manifest, new_box_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                """,
+                (shelf_id, robot_id, tick, sku, -abs(qty_delta), manifest_json, new_box_count),
+            )
+            conn.execute("COMMIT;")
+
+        return ShelfRecord(
+            shelf_id=shelf_id,
+            x=row["x"],
+            y=row["y"],
+            capacity_boxes=row["capacity_boxes"],
+            current_box_count=new_box_count,
+            sku_manifest=manifest,
+            last_audited_tick=row["last_audited_tick"],
+            last_audited_by=row["last_audited_by"],
+            confidence=row["confidence"],
+        )
+
+    def get_shelves_for_sku(
+        self,
+        sku: str,
+        min_qty: int = 1,
+        current_tick: Optional[int] = None,
+    ) -> List[ShelfRecord]:
+        """Retrieve all shelves holding at least min_qty of requested SKU, with optionally decayed confidence."""
+        with self._get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM shelves;")
+            matching = []
+            for row in cursor.fetchall():
+                manifest = json.loads(row["sku_manifest"])
+                if manifest.get(sku, 0) >= min_qty:
+                    rec = ShelfRecord(
+                        shelf_id=row["shelf_id"],
+                        x=row["x"],
+                        y=row["y"],
+                        capacity_boxes=row["capacity_boxes"],
+                        current_box_count=row["current_box_count"],
+                        sku_manifest=manifest,
+                        last_audited_tick=row["last_audited_tick"],
+                        last_audited_by=row["last_audited_by"],
+                        confidence=row["confidence"],
+                    )
+                    if current_tick is not None:
+                        rec.confidence = rec.compute_decayed_confidence(current_tick)
+                    matching.append(rec)
+            return matching
+
     def get_shelf(self, shelf_id: str, current_tick: Optional[int] = None) -> Optional[ShelfRecord]:
         """Retrieve a shelf record by ID with optionally decayed confidence."""
         with self._get_connection() as conn:
@@ -259,14 +377,18 @@ class InventoryLedger:
         if world is None:
             world = build_default_world()
 
+        existing_ids = set()
         with self._get_connection() as conn:
             if not force:
-                cursor = conn.execute("SELECT COUNT(*) as cnt FROM shelves;")
-                if cursor.fetchone()["cnt"] >= len(world.pod_slots):
-                    return  # Already seeded
+                cursor = conn.execute("SELECT shelf_id FROM shelves;")
+                existing_ids = {row["shelf_id"] for row in cursor.fetchall()}
+                if len(existing_ids) >= len(world.pod_slots):
+                    return  # Already fully seeded
 
         # Deterministic seed based on slot name
         for shelf_id, (x, y) in world.pod_slots.items():
+            if not force and shelf_id in existing_ids:
+                continue
             # Seed PRNG for stable, reproducible manifests
             rng = random.Random(f"SEED-{shelf_id}")
             bank = shelf_id.split("-")[1][0] if "-" in shelf_id else "A"

@@ -152,6 +152,8 @@ class SimulationEngine:
         self._state.reset()
         self._reservations._table.clear()
         self._reservations._robot_keys.clear()
+        from app.services.reservations import SHARED_POD_CLAIMS, prune_stale_pod_claims
+        SHARED_POD_CLAIMS.clear()
         self._tel.replans = 0
         self._tel.total_ticks = 0
         self._charger_assignments.clear()
@@ -177,6 +179,8 @@ class SimulationEngine:
     async def _tick(self) -> None:
         self.ticks_executed += 1
         t0 = time.monotonic()
+        from app.services.reservations import prune_stale_pod_claims
+        prune_stale_pod_claims(self._state.tick)
 
         # ── Step 1: Advance tick ──────────────────────────────────────────────
         self._state.tick += 1

@@ -44,6 +44,8 @@ class JobRequest(BaseModel):
     """User-facing job request to drive dispatch without raw pickup/dropoff coords."""
     job_type: Literal["fetch_item", "sort_batch", "audit_checkpoint"]
     item_id: Optional[str] = None
+    sku: Optional[str] = None
+    quantity: int = 1
     zone: Optional[str] = None
     urgency: int = Field(..., ge=1, le=5, description="Task urgency 1 (low) – 5 (critical)")
 
@@ -55,11 +57,23 @@ class JobRequest(BaseModel):
         return v
 
 
+class OrderRequest(BaseModel):
+    """Direct SKU order request for G2P retrieval."""
+    sku: str = Field(..., description="Requested item SKU")
+    quantity: int = Field(1, ge=1, description="Quantity to pick")
+    urgency: int = Field(3, ge=1, le=5, description="Order urgency 1-5")
+    dropoff: Optional[Position] = None
+
+
 class JobOut(BaseModel):
     job_type: str
     robot_type: str
     task_id: Optional[str] = None
     audit_id: Optional[str] = None
     robot_id: Optional[str] = None
+    target_shelf_id: Optional[str] = None
+    sku: Optional[str] = None
+    quantity: Optional[int] = None
     status: str
     message: str
+
