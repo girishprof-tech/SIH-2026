@@ -17,10 +17,13 @@ from app.transport.loopback_transport import LoopbackNetworkHub, LoopbackTranspo
 from fastapi.testclient import TestClient
 from app.main import app
 
+from app.services.reservations import clear_all_claims
+
 cfg = get_settings()
 
 
 def test_battery_low_trigger():
+    clear_all_claims()
     hub = LoopbackNetworkHub()
     transport = LoopbackTransport("AMR-01", hub=hub)
     node = RobotNode(

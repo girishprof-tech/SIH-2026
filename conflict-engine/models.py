@@ -83,6 +83,7 @@ class Task:
     target_shelf_id: Optional[str] = None
     sku_to_pick: Optional[str] = None
     quantity: int = 1
+    destination_zone: Optional[str] = None
 
     @property
     def pickup_x(self) -> int:

@@ -229,6 +229,15 @@ class TaskManager:
         quantity: int = 1,
         payload_weight_kg: float = 0.0,
     ) -> Task:
+        # Part D: If payload_weight_kg is 0.0 and task targets a shelf, compute real weight from ledger
+        if payload_weight_kg == 0.0 and target_shelf_id and task_type in (TaskType.RETRIEVE_POD, TaskType.RETURN_POD):
+            try:
+                from app.services.inventory_ledger import InventoryLedger
+                ledger = InventoryLedger()
+                payload_weight_kg = ledger.get_shelf_weight_kg(target_shelf_id)
+            except Exception:
+                pass
+
         task = Task(
             task_id=Task.generate_id(),
             pickup_x=pickup_x,

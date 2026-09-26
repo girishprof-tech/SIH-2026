@@ -27,6 +27,7 @@ except IndexError:
     ROOT_DIR = Path(__file__).resolve().parents[0]
 
 DEFAULT_DB_PATH = ROOT_DIR / "data" / "inventory.db"
+DEFAULT_BOX_WEIGHT_KG: float = 2.5  # Part D: Pod-Weight Realism constant (kg per box)
 
 
 class InventoryLedger:
@@ -322,6 +323,28 @@ class InventoryLedger:
             if current_tick is not None:
                 record.confidence = record.compute_decayed_confidence(current_tick)
             return record
+
+    def get_shelf_weight_kg(self, shelf_id: str) -> float:
+        """
+        Part D: Compute total carried weight of a shelf from its current_box_count/manifest.
+        Returns weight in kg (box_count * DEFAULT_BOX_WEIGHT_KG). Returns 0.0 if not found or empty.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT current_box_count, sku_manifest FROM shelves WHERE shelf_id = ?;",
+                (shelf_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return 0.0
+            box_count = row["current_box_count"]
+            if box_count is None:
+                try:
+                    manifest = json.loads(row["sku_manifest"])
+                    box_count = sum(manifest.values())
+                except Exception:
+                    box_count = 0
+            return round(float(box_count * DEFAULT_BOX_WEIGHT_KG), 2)
 
     def get_all_shelves(self, current_tick: Optional[int] = None) -> List[ShelfRecord]:
         """Retrieve all shelf records ordered by shelf_id."""

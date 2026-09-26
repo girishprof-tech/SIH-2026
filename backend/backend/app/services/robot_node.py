@@ -118,6 +118,7 @@ class RobotNode:
         enable_idle_audit: bool = True,
         ledger: Optional[InventoryLedger] = None,
         fleet_roster: Optional[Dict[str, str]] = None,
+        world: Optional[WorldConfig] = None,
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -137,7 +138,8 @@ class RobotNode:
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
         self.secret_key = secret_key
-        default_world = build_default_world()
+        default_world = world or build_default_world()
+        self.world = default_world
         self.charging_stations = charging_stations or set(default_world.charging_stations)
         self.dropoff_stations: Set[Tuple[int, int]] = set(default_world.dropoff_stations)
         self.pickup_stations: Set[Tuple[int, int]] = set(default_world.pickup_stations)
@@ -185,7 +187,7 @@ class RobotNode:
         self.failsafe_hold_ticks = 0
 
         # 6. Mission & Task Management & Local Inventory Cache
-        self.world = build_default_world()
+        self.world = default_world
         from app.services.reservations import register_pod_slots
         if hasattr(self.world, "pod_slots") and self.world.pod_slots:
             register_pod_slots(self.world.pod_slots)
@@ -240,6 +242,11 @@ class RobotNode:
         self.chute_occupancy: Dict[str, int] = {c_id: 0 for c_id in self.world.sortation_chutes}
         self.chute_full_threshold: int = 5
 
+        # 14. Part C: Anticipatory charging parameters
+        self.energy_per_cell: float = 0.25
+        self.charging_safety_margin: float = 1.5
+        self.charging_reserve_pct: float = 10.0
+
         # If goal_pos provided at startup, auto-initialize initial task for legacy/demo scenarios
         if self.goal_pos is not None:
             self._assign_initial_task(self.goal_pos, self.urgency)
@@ -253,7 +260,8 @@ class RobotNode:
             return None
 
         chute_pos = (chute_info["x"], chute_info["y"])
-        export_dock_pos = (29, 14)  # East perimeter export dock
+        gate_id = chute_info.get("gate_id", "OUT-2")
+        export_dock_pos = self.world.gate_position(gate_id)
 
         consolidation_task_id = f"CONSOLIDATE-{chute_id}-{current_tick}"
         if consolidation_task_id in self.known_task_claims:
@@ -295,6 +303,73 @@ class RobotNode:
             task_type=TaskType.CONSOLIDATE_EXPORT,
         )
 
+    def trigger_autonomous_transfer(
+        self,
+        pick_station_id: str,
+        current_tick: int,
+        carton: Optional[Any] = None,
+    ) -> Optional[Task]:
+        """
+        Part B: Autonomously announces a TRANSFER_TO_SORTATION task when a pick station
+        has a carton waiting in its buffer.
+        """
+        st_info = self.world.pick_stations.get(pick_station_id)
+        if not st_info:
+            return None
+
+        pickup_pos = (st_info["x"], st_info["y"])
+        entrances = self.world.sortation_zone.get("entrances", [(21, 3)])
+        sort_entrance = entrances[0]
+
+        transfer_task_id = f"TRANSFER-{pick_station_id}-{current_tick}"
+        if transfer_task_id in self.known_task_claims:
+            return None
+
+        weight = getattr(carton, "weight_kg", 5.0) if carton else 5.0
+        sku = getattr(carton, "sku", "SKU-ITEM") if carton else "SKU-ITEM"
+        dest_zone = getattr(carton, "destination_zone", "ZONE_NORTH") if carton else "ZONE_NORTH"
+        qty = getattr(carton, "qty", 1) if carton else 1
+
+        self.log(f"[Tick {current_tick}] Carton available at {pick_station_id}. Autonomously triggering {transfer_task_id}!")
+
+        # Broadcast decentralized TASK_ANNOUNCEMENT to all peers
+        self.seq += 1
+        t_dict = {
+            "task_id": transfer_task_id,
+            "task_type": "TRANSFER_TO_SORTATION",
+            "pickup": list(pickup_pos),
+            "dropoff": list(sort_entrance),
+            "urgency": 4,
+            "payload_weight_kg": weight,
+            "sku_to_pick": sku,
+            "destination_zone": dest_zone,
+            "pick_station_id": pick_station_id,
+            "quantity": qty,
+        }
+        announcement_payload = {
+            "type": "TASK_ANNOUNCEMENT",
+            "sender_id": self.robot.robot_id,
+            "task": t_dict,
+            "tick": current_tick,
+        }
+        envelope = sign_payload(announcement_payload, secret_key=self.secret_key, seq=self.seq)
+        for peer_id in self.peer_ports.keys():
+            if peer_id != self.robot.robot_id:
+                self.transport.send(peer_id, envelope)
+
+        return Task(
+            task_id=transfer_task_id,
+            pickup_x=pickup_pos[0],
+            pickup_y=pickup_pos[1],
+            dropoff_x=sort_entrance[0],
+            dropoff_y=sort_entrance[1],
+            urgency=4,
+            created_tick=current_tick,
+            payload_weight_kg=weight,
+            task_type=TaskType.TRANSFER_TO_SORTATION,
+            destination_zone=dest_zone,
+        )
+
     def decant_batch_item(self, item: Dict[str, Any], tick: int) -> str:
         """
         Decants a single item into the appropriate sortation chute based on its destination zone.
@@ -332,8 +407,9 @@ class RobotNode:
 
     def close(self) -> None:
         try:
-            from app.services.reservations import release_robot_pod_claims
+            from app.services.reservations import release_robot_pod_claims, release_robot_charger_claims
             release_robot_pod_claims(self.robot_id)
+            release_robot_charger_claims(self.robot_id)
             if hasattr(self, "grid") and hasattr(self.grid, "set_pod_slot_occupant") and hasattr(self, "robot"):
                 self.grid.set_pod_slot_occupant(self.robot.position, None)
         except Exception:
@@ -354,6 +430,8 @@ class RobotNode:
         target_shelf_id: Optional[str] = None,
         sku_to_pick: Optional[str] = None,
         quantity: int = 1,
+        destination_zone: Optional[str] = None,
+        pick_station_id: Optional[str] = None,
     ) -> None:
         """Assigns an initial mission and plans the initial route."""
         tid = task_id or f"TASK-{self.robot_id}"
@@ -368,6 +446,13 @@ class RobotNode:
             t_type_enum = task_type
         else:
             t_type_enum = TaskType.STANDARD
+
+        # Part D: Pod-weight realism: auto-calculate weight if shelf specified
+        if payload_weight_kg == 0.0 and target_shelf_id and getattr(self, "inventory_ledger", None):
+            try:
+                payload_weight_kg = self.inventory_ledger.get_shelf_weight_kg(target_shelf_id)
+            except Exception:
+                pass
 
         self.task = Task(
             task_id=tid,
@@ -384,7 +469,10 @@ class RobotNode:
             target_shelf_id=target_shelf_id,
             sku_to_pick=sku_to_pick,
             quantity=quantity,
+            destination_zone=destination_zone,
         )
+        if pick_station_id:
+            setattr(self.task, "pick_station_id", pick_station_id)
         self.robot.current_task_id = tid
         self.goal_pos = goal_pos
         self.fsm.transition(RobotEvent.TASK_RECEIVED)
@@ -576,9 +664,15 @@ class RobotNode:
         if hasattr(self, "halow_transport") and self.halow_transport is not None:
             self.halow_transport.flush_pending()
 
-        # Phase 1.5 Fix 1: Prune stale pod claims & renew active claims
-        from app.services.reservations import prune_stale_pod_claims, renew_pod_claim
+        # Phase 1.5 & Part C: Prune stale pod & charger claims & renew active claims
+        from app.services.reservations import (
+            prune_stale_pod_claims, renew_pod_claim,
+            prune_stale_charger_claims, renew_charger_claim
+        )
         prune_stale_pod_claims(current_tick=tick)
+        prune_stale_charger_claims(current_tick=tick)
+        if self.charger_target:
+            renew_charger_claim(self.charger_target, self.robot.robot_id, current_tick=tick)
         if self.robot.carrying_pod_id:
             renew_pod_claim(self.robot.carrying_pod_id, self.robot.robot_id, current_tick=tick)
         elif self.task and getattr(self.task, "target_shelf_id", None) and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.LIFTING):
@@ -681,7 +775,13 @@ class RobotNode:
         # Check battery threshold & charging
         if self.fsm.state == RobotState.CHARGING:
             self.robot.battery_pct = min(100.0, self.robot.battery_pct + 4.0)
+            if self.charger_target:
+                from app.services.reservations import renew_charger_claim
+                renew_charger_claim(self.charger_target, self.robot.robot_id, tick)
             if self.robot.battery_pct >= 95.0:
+                from app.services.reservations import release_charger
+                if self.charger_target:
+                    release_charger(self.charger_target, self.robot.robot_id)
                 self.fsm.transition(RobotEvent.CHARGE_COMPLETE)
                 self.robot.state = self.fsm.state
                 self.charger_target = None
@@ -690,31 +790,69 @@ class RobotNode:
                 self.log(f"[Tick {tick}] Charging complete ({self.robot.battery_pct:.1f}%). Returning to IDLE.")
             return self._build_telemetry_frame(tick, "CHARGING", None)
 
-        if self.robot.battery_pct <= 25.0 and self.fsm.state != RobotState.CHARGING:
-            if self.charger_target is None:
-                self.charger_target = self._nearest_available_charger()
-                if self.charger_target is not None:
-                    self.goal_pos = self.charger_target
-                    self.fsm.state = RobotState.EN_ROUTE_PICKUP
-                    self.robot.state = self.fsm.state
-                    charging_path = self._timed_find_path(
-                        start=self.robot.position,
-                        goal=self.charger_target,
-                        current_tick=tick,
-                        reservation_table=self.local_reservations,
-                        robot_id=self.robot.robot_id,
-                        grid=self.grid,
-                    )
-                    if charging_path and len(charging_path) > 1:
-                        self.robot.path = charging_path
-                        reserve_path(charging_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
-                    self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
-            if self.charger_target is None:
-                self.log(f"[Tick {tick}] All charging stations occupied; holding at {self.robot.position}.")
-                return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
+        if self.fsm.state != RobotState.CHARGING:
+            from app.services.reservations import prune_stale_charger_claims, renew_charger_claim
+            prune_stale_charger_claims(tick)
 
-        # Check idle background audit patrol trigger
-        if self.enable_idle_audit and self.fsm.state == RobotState.IDLE and not self.task:
+            # If already en route to a charger, keep claim renewed
+            if self.charger_target is not None:
+                renew_charger_claim(self.charger_target, self.robot.robot_id, tick)
+            else:
+                # Dynamic anticipatory charging check (Part C)
+                # Formula: required_pct = (dist * energy_per_cell * safety_margin) + reserve_pct
+                should_charge = False
+                if self.charging_stations:
+                    station_candidates = sorted(
+                        self.charging_stations,
+                        key=lambda s: abs(s[0] - self.robot.position[0]) + abs(s[1] - self.robot.position[1])
+                    )
+                    nearest_s = station_candidates[0]
+                    dist_to_nearest = abs(nearest_s[0] - self.robot.position[0]) + abs(nearest_s[1] - self.robot.position[1])
+                    dyn_threshold = (dist_to_nearest * self.energy_per_cell * self.charging_safety_margin) + self.charging_reserve_pct
+
+                    if self.robot.battery_pct <= dyn_threshold or self.robot.battery_pct < 20.0:
+                        should_charge = True
+
+                if should_charge:
+                    target_station = self._nearest_available_charger(current_tick=tick, filter_reachable=True, claim=True)
+                    if target_station is None:
+                        # Fallback without reachable filter if battery is low
+                        target_station = self._nearest_available_charger(current_tick=tick, filter_reachable=False, claim=True)
+
+                    if target_station is not None:
+                        self.charger_target = target_station
+                        self.goal_pos = target_station
+                        if self.robot.position == target_station:
+                            self.fsm.state = RobotState.CHARGING
+                            self.robot.state = self.fsm.state
+                            self.robot.path = []
+                            self.log(f"[Tick {tick}] At charger station {self.charger_target}; charging.")
+                            return self._build_telemetry_frame(tick, "CHARGING", None)
+
+                        self.fsm.state = RobotState.EN_ROUTE_PICKUP
+                        self.robot.state = self.fsm.state
+                        charging_path = self._timed_find_path(
+                            start=self.robot.position,
+                            goal=self.charger_target,
+                            current_tick=tick,
+                            reservation_table=self.local_reservations,
+                            robot_id=self.robot.robot_id,
+                            grid=self.grid,
+                        )
+                        if charging_path and len(charging_path) > 1:
+                            self.robot.path = charging_path
+                            reserve_path(charging_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                        self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%) routing to charger {self.charger_target}.")
+                    else:
+                        self.log(f"[Tick {tick}] All charging stations occupied or contested; holding at {self.robot.position}.")
+                        return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
+
+        # Check idle background audit patrol trigger (SCANNING_AUDIT robots, or legacy test robots)
+        is_audit_eligible = (
+            self.robot_type == "SCANNING_AUDIT"
+            or (not self.robot_id.startswith("AMR-G2P") and not self.robot_id.startswith("AMR-SORT") and self.robot_type != "SORTING")
+        )
+        if self.enable_idle_audit and is_audit_eligible and self.fsm.state == RobotState.IDLE and not self.task:
             self.idle_ticks += 1
             if self.idle_ticks >= 10:
                 self.idle_ticks = 0
@@ -742,7 +880,7 @@ class RobotNode:
         # 3. Handle Atomic PICKING / DROPPING / LIFTING / LOWERING ticks
         if self.fsm.state in (RobotState.PICKING, RobotState.LIFTING):
             self.log(f"[Tick {tick}] Executing pickup/lift at {self.robot.position}...")
-            
+
             # If G2P robot, lift shelf pod
             if self.robot_type == "GOODS_TO_PERSON":
                 shelf_id = getattr(self.task, "target_shelf_id", None) or self.world.shelf_at(self.robot.position[0], self.robot.position[1])
@@ -767,6 +905,18 @@ class RobotNode:
                         self.robot.carrying_sku_manifest = dict(shelf_rec.sku_manifest)
                     self.log(f"[Tick {tick}] G2P Robot lifted pod {shelf_id} at {self.robot.position}.")
 
+            # If SORTING robot executing TRANSFER_TO_SORTATION, take carton from pick station
+            if self.robot_type == "SORTING" and self.task and getattr(self.task, "task_type", None) in (TaskType.TRANSFER_TO_SORTATION, "TRANSFER_TO_SORTATION"):
+                ps_id = getattr(self.task, "pick_station_id", None) or self.world.pick_station_at(self.robot.position[0], self.robot.position[1])
+                if not ps_id:
+                    nearby_stations = [
+                        sid for sid, s in self.world.pick_stations.items()
+                        if abs(s["x"] - self.robot.position[0]) + abs(s["y"] - self.robot.position[1]) <= 1
+                    ]
+                    ps_id = nearby_stations[0] if nearby_stations else "PICK-01"
+                carton = self.world.take_carton_from_pick_station(ps_id)
+                self.log(f"[Tick {tick}] SORTING Robot picked up carton from {ps_id} buffer (carton={carton}).")
+
             if self.fsm.can_transition(RobotEvent.LIFT_COMPLETE):
                 self.fsm.transition(RobotEvent.LIFT_COMPLETE)
             else:
@@ -790,13 +940,51 @@ class RobotNode:
 
         if self.fsm.state in (RobotState.DROPPING, RobotState.LOWERING):
             self.log(f"[Tick {tick}] Executing dropoff/lowering at {self.robot.position}...")
-            
+
             # If carrying pod, handle item pick decrement and lower pod
             if self.robot.carrying_pod_id:
                 pod_id = self.robot.carrying_pod_id
                 sku_to_pick = getattr(self.task, "sku_to_pick", None) if self.task else None
                 qty = getattr(self.task, "quantity", 1) if self.task else 1
-                
+                t_type = getattr(self.task, "task_type", None)
+
+                # Part B: G2P item pick creates Carton and deposits to pick-station buffer with backpressure
+                is_item_pick = (t_type in (TaskType.PICK_ITEM, "PICK_ITEM")) or (
+                    self.robot_type == "GOODS_TO_PERSON" and self.task and self.task.dropoff in [
+                        (s["x"], s["y"]) for s in self.world.pick_stations.values()
+                    ]
+                )
+                if is_item_pick:
+                    from app.models.carton import Carton
+                    from app.services.inventory_ledger import DEFAULT_BOX_WEIGHT_KG
+                    carton_weight = float(qty) * DEFAULT_BOX_WEIGHT_KG
+                    dest_zone = getattr(self.task, "destination_zone", "ZONE_NORTH")
+
+                    pref_station = self.world.pick_station_at(self.robot.position[0], self.robot.position[1])
+                    if not pref_station:
+                        nearby_stations = [
+                            sid for sid, s in self.world.pick_stations.items()
+                            if abs(s["x"] - self.robot.position[0]) + abs(s["y"] - self.robot.position[1]) <= 1
+                        ]
+                        pref_station = nearby_stations[0] if nearby_stations else None
+
+                    carton = Carton(
+                        sku=sku_to_pick or "SKU-ITEM",
+                        qty=qty,
+                        destination_zone=dest_zone,
+                        source_shelf_id=pod_id,
+                        created_tick=tick,
+                        weight_kg=carton_weight,
+                    )
+                    deposited_st = self.world.deposit_carton_to_pick_station(carton, preferred_station_id=pref_station)
+                    if deposited_st is None:
+                        # Pick station buffer is saturated: hold with backpressure wait
+                        self.log(f"[Tick {tick}] Pick station buffer is FULL. Backpressure hold at {self.robot.position}.")
+                        return self._build_telemetry_frame(tick, "BUFFER_FULL_WAIT", None)
+
+                    self.log(f"[Tick {tick}] Deposited carton ({carton.sku} x{carton.qty}, {carton.weight_kg}kg) into {deposited_st} buffer.")
+                    self.trigger_autonomous_transfer(deposited_st, tick, carton)
+
                 shelf_rec = self.local_inventory_cache.get(pod_id) or self.inventory_ledger.get_shelf(pod_id)
                 if shelf_rec:
                     current_manifest = dict(shelf_rec.sku_manifest)
@@ -806,7 +994,7 @@ class RobotNode:
                         picked_sku = max(current_manifest.keys(), key=lambda k: current_manifest[k])
                     else:
                         picked_sku = "DEFAULT_SKU"
-                    
+
                     # Phase 1.5 Fix 5: Decrement locally and use record_pick to preserve audit timestamp and confidence
                     current_manifest[picked_sku] = max(0, current_manifest.get(picked_sku, 0) - qty)
                     new_manifest = current_manifest
@@ -844,6 +1032,13 @@ class RobotNode:
                 self.robot.carrying_pod_id = None
                 self.robot.carrying_sku_manifest = {}
 
+            # Handle SORTING AMR completing TRANSFER_TO_SORTATION
+            if self.task and getattr(self.task, "task_type", None) in (TaskType.TRANSFER_TO_SORTATION, "TRANSFER_TO_SORTATION"):
+                dest_zone = getattr(self.task, "destination_zone", "ZONE_NORTH")
+                sku = getattr(self.task, "sku_to_pick", "ITEM")
+                decant_item = {"item_id": sku, "destination_zone": dest_zone}
+                chute_id = self.decant_batch_item(decant_item, tick)
+                self.log(f"[Tick {tick}] SORTING Robot transferred carton to sortation zone and decanted to chute {chute_id}.")
 
             if self.task:
                 self.completed_task_ids.add(self.task.task_id)
@@ -1008,7 +1203,7 @@ class RobotNode:
         elif intended_pos != self.robot.position:
             rx, ry = self.robot.position
             for peer_snap in list(self.peers.values()):
-                if peer_snap.last_seen_tick < tick - 2:
+                if peer_snap.last_seen_tick < tick - 5:
                     continue
 
                 # Current physical position of the peer: if peer's report was from a prior tick,
@@ -1226,14 +1421,28 @@ class RobotNode:
             action_taken = "DEGRADED_SPEED_PAUSE"
             self.log(f"[Tick {tick}] Degraded network throttle: pausing movement on alternate tick.")
 
-        # 11. Check Task Realism Load Pause (every 4th step while carrying weight)
-        if intended_pos != prev_pos and self.fsm.state == RobotState.EN_ROUTE_DROPOFF:
+        # 11. Check Task Realism Load Pause (Part D: proportional to weight, applies to pod and carton carry legs)
+        if intended_pos != prev_pos and (self.fsm.state == RobotState.EN_ROUTE_DROPOFF or self.robot.carrying_pod_id):
             p_weight = getattr(self.task, "payload_weight_kg", 0.0) if self.task else 0.0
-            if p_weight > 0.0 and self.load_move_steps > 0 and (self.load_move_steps % 4 == 0):
-                intended_pos = prev_pos
-                action_taken = "LOAD_WEIGHT_PAUSE"
-                self.load_move_steps += 1
-                self.log(f"[Tick {tick}] Load weight inertia pause (carrying {p_weight}kg).")
+            if p_weight == 0.0 and self.robot.carrying_pod_id and getattr(self, "inventory_ledger", None):
+                p_weight = self.inventory_ledger.get_shelf_weight_kg(self.robot.carrying_pod_id)
+
+            if p_weight > 0.0 and self.load_move_steps > 0:
+                # Heavy pod (>= 50kg): pause every 2 steps
+                # Medium load (20 - 50kg): pause every 3 steps
+                # Light load (< 20kg): pause every 4 steps
+                if p_weight >= 50.0:
+                    pause_interval = 2
+                elif p_weight >= 20.0:
+                    pause_interval = 3
+                else:
+                    pause_interval = 4
+
+                if self.load_move_steps % pause_interval == 0:
+                    intended_pos = prev_pos
+                    action_taken = "LOAD_WEIGHT_PAUSE"
+                    self.load_move_steps += 1
+                    self.log(f"[Tick {tick}] Load weight inertia pause (carrying {p_weight}kg, interval={pause_interval}).")
 
         # 11.5. Broadcast Updated Intention if arbitration or throttling altered intended_pos
         if list(intended_pos) != claim_payload.get("intended_pos"):
@@ -1398,27 +1607,57 @@ class RobotNode:
 
         return self._build_telemetry_frame(tick, action_taken, conflict_resolved)
 
-    def _nearest_available_charger(self) -> Optional[Tuple[int, int]]:
+    def _nearest_available_charger(
+        self,
+        current_tick: Optional[int] = None,
+        filter_reachable: bool = True,
+        claim: bool = False,
+    ) -> Optional[Tuple[int, int]]:
+        from app.services.reservations import get_charger_claim, claim_charger
+        tick = current_tick if current_tick is not None else getattr(self.robot, "last_updated_tick", 0)
+
         occupied = {
             peer.position for peer in self.peers.values()
-            if peer.state == RobotState.CHARGING
+            if peer.state == RobotState.CHARGING and peer.robot_id != self.robot.robot_id
         } | {
             peer.intended_pos for peer in self.peers.values()
-            if peer.intended_pos in self.charging_stations
+            if peer.intended_pos in self.charging_stations and peer.robot_id != self.robot.robot_id
         } | {
             (p["x"], p["y"])
             for peer in self.peers.values()
+            if peer.robot_id != self.robot.robot_id
             for p in (peer.path or [])
             if (p["x"], p["y"]) in self.charging_stations
         } | {
             peer.charger_target
             for peer in self.peers.values()
-            if getattr(peer, "charger_target", None) is not None
+            if getattr(peer, "charger_target", None) is not None and peer.robot_id != self.robot.robot_id
         }
-        candidates = [station for station in self.charging_stations if station not in occupied]
+
+        candidates = []
+        for station in self.charging_stations:
+            dist = abs(station[0] - self.robot.position[0]) + abs(station[1] - self.robot.position[1])
+            if filter_reachable and (dist * self.energy_per_cell > self.robot.battery_pct):
+                continue
+            if station in occupied:
+                continue
+            holder = get_charger_claim(station, tick)
+            if holder is not None and holder != self.robot.robot_id:
+                continue
+            candidates.append((dist, station))
+
         if not candidates:
             return None
-        return min(candidates, key=lambda station: (abs(station[0] - self.robot.position[0]) + abs(station[1] - self.robot.position[1]), station[0], station[1]))
+
+        candidates.sort(key=lambda s: (s[0], s[1][0], s[1][1]))
+
+        if claim:
+            for dist, station in candidates:
+                if claim_charger(station, self.robot.robot_id, current_tick=tick):
+                    return station
+            return None
+
+        return candidates[0][1]
 
     def _build_telemetry_frame(self, tick: int, action: str, conflict: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         frame = {
@@ -1557,6 +1796,8 @@ class RobotNode:
                             target_shelf_id=t_dict.get("target_shelf_id"),
                             sku_to_pick=t_dict.get("sku_to_pick"),
                             quantity=int(t_dict.get("quantity", 1)),
+                            destination_zone=t_dict.get("destination_zone"),
+                            pick_station_id=t_dict.get("pick_station_id"),
                         )
                         self.log(f"[Tick {current_tick}] Accepted TASK_ASSIGNMENT {tid} to pickup {pickup_pos} -> dropoff {dropoff_pos}.")
 
@@ -1567,7 +1808,7 @@ class RobotNode:
                 task_type_str = t_dict.get("task_type", "STANDARD")
 
                 # Explicit decoupled robot eligibility matching
-                if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT"):
+                if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT", "TRANSFER_TO_SORTATION"):
                     is_eligible = (self.robot_type == "SORTING")
                 elif task_type_str in ("RETRIEVE_POD", "RETURN_POD", "PICK_ITEM"):
                     is_eligible = (self.robot_type == "GOODS_TO_PERSON")
@@ -1711,6 +1952,8 @@ class RobotNode:
                         target_shelf_id=t_dict.get("target_shelf_id"),
                         sku_to_pick=t_dict.get("sku_to_pick"),
                         quantity=int(t_dict.get("quantity", 1)),
+                        destination_zone=t_dict.get("destination_zone"),
+                        pick_station_id=t_dict.get("pick_station_id"),
                     )
                     target_shelf = t_dict.get("target_shelf_id")
                     if target_shelf:

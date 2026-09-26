@@ -28,6 +28,7 @@ class TaskType(str, enum.Enum):
     INDUCT_BATCH = "INDUCT_BATCH"            # Import dock -> Sorting zone batch induction
     DECANT_TO_CHUTE = "DECANT_TO_CHUTE"      # Sorting zone -> Target chute decant
     CONSOLIDATE_EXPORT = "CONSOLIDATE_EXPORT"# Chute -> Export dock batch consolidation
+    TRANSFER_TO_SORTATION = "TRANSFER_TO_SORTATION" # Pick station buffer -> Sortation entrance transfer
 
 
 @dataclass
@@ -50,6 +51,7 @@ class Task:
     target_shelf_id: Optional[str] = None
     sku_to_pick: Optional[str] = None
     quantity: int = 1
+    destination_zone: Optional[str] = None
 
     # Internal tracking
     _pickup_done: bool = field(default=False, repr=False)

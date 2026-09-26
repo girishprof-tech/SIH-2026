@@ -210,3 +210,121 @@ def reserve_pod_slot(
     for t in range(start_tick, start_tick + duration_ticks + 1):
         reservation_table[(slot_pos[0], slot_pos[1], t)] = robot_id
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Charging Station Reservations & Claims (Part C)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_charger_lock = threading.Lock()
+SHARED_CHARGER_CLAIMS: Dict[Tuple[int, int], Dict[str, Any]] = {}
+DEFAULT_CHARGER_LEASE_TICKS = 40
+
+
+def claim_charger(
+    station_pos: Tuple[int, int],
+    robot_id: str,
+    current_tick: int = 0,
+    lease_ticks: int = DEFAULT_CHARGER_LEASE_TICKS,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> bool:
+    """
+    Part C: Atomically claims a charging station (x, y) for robot_id with a bounded lease (TTL).
+    Returns True if successfully claimed or renewed by robot_id, False if claimed by another robot.
+    """
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        claim = target.get(station_pos)
+        if claim is not None:
+            if claim["robot_id"] != robot_id and claim["expires_tick"] > current_tick:
+                return False
+        target[station_pos] = {
+            "robot_id": robot_id,
+            "claimed_tick": current_tick,
+            "expires_tick": current_tick + lease_ticks,
+        }
+        return True
+
+
+def renew_charger_claim(
+    station_pos: Tuple[int, int],
+    robot_id: str,
+    current_tick: int,
+    lease_ticks: int = DEFAULT_CHARGER_LEASE_TICKS,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> bool:
+    """Extends the lease of an existing charger claim owned by robot_id."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        claim = target.get(station_pos)
+        if claim and claim["robot_id"] == robot_id:
+            claim["expires_tick"] = current_tick + lease_ticks
+            return True
+        return False
+
+
+def release_charger(
+    station_pos: Tuple[int, int],
+    robot_id: str,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> bool:
+    """Releases a charging station claim if currently held by robot_id."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        claim = target.get(station_pos)
+        if claim and claim["robot_id"] == robot_id:
+            del target[station_pos]
+            return True
+        return False
+
+
+def release_robot_charger_claims(
+    robot_id: str,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> List[Tuple[int, int]]:
+    """Releases all charging station claims owned by robot_id."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        released = [pos for pos, c in target.items() if c["robot_id"] == robot_id]
+        for pos in released:
+            del target[pos]
+        return released
+
+
+def get_charger_claim(
+    station_pos: Tuple[int, int],
+    current_tick: Optional[int] = None,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> Optional[str]:
+    """Returns the robot_id holding an active claim on station_pos, or None if free/expired."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        claim = target.get(station_pos)
+        if claim is None:
+            return None
+        if current_tick is not None and claim["expires_tick"] <= current_tick:
+            return None
+        return claim["robot_id"]
+
+
+def prune_stale_charger_claims(
+    current_tick: int,
+    charger_claims: Optional[Dict[Tuple[int, int], Dict[str, Any]]] = None,
+) -> List[Tuple[int, int]]:
+    """Prunes expired charger claims whose lease has elapsed. Returns list of released station positions."""
+    target = SHARED_CHARGER_CLAIMS if charger_claims is None else charger_claims
+    with _charger_lock:
+        stale = [pos for pos, c in target.items() if c["expires_tick"] <= current_tick]
+        for pos in stale:
+            del target[pos]
+        return stale
+
+
+def clear_all_claims() -> None:
+    """Clears all shared pod and charger claims (used for test isolation / reset)."""
+    with _pod_lock:
+        SHARED_POD_CLAIMS.clear()
+        SHARED_POD_SLOTS.clear()
+    with _charger_lock:
+        SHARED_CHARGER_CLAIMS.clear()
+
+

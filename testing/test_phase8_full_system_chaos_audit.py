@@ -175,7 +175,7 @@ def test_full_system_chaos_audit_500_ticks(tmp_path):
         for rid, pos in occupants:
             if pos in positions:
                 vertex_collisions += 1
-                print(f"  [COLLISION ERROR] Tick {tick}: Vertex collision between {positions[pos]} and {rid} at {pos}")
+                print(f"  [COLLISION ERROR] Tick {tick}: Vertex collision between {positions[pos]} and {rid} at {pos}", flush=True)
             positions[pos] = rid
 
         # Check edge-swap collisions (A -> B and B -> A at same tick)
@@ -194,7 +194,7 @@ def test_full_system_chaos_audit_500_ticks(tmp_path):
                         continue
                     if curr_pos1 == prev_pos2 and curr_pos2 == prev_pos1 and curr_pos1 != prev_pos1:
                         edge_swap_collisions += 1
-                        print(f"  [COLLISION ERROR] Tick {tick}: Edge-swap collision between {r1} and {r2} ({prev_pos1} <-> {prev_pos2})")
+                        print(f"  [COLLISION ERROR] Tick {tick}: Edge-swap collision between {r1} and {r2} ({prev_pos1} <-> {prev_pos2})", flush=True)
 
     assert vertex_collisions == 0, f"Detected {vertex_collisions} vertex collisions during 500-tick chaos run!"
     assert edge_swap_collisions == 0, f"Detected {edge_swap_collisions} edge-swap collisions during 500-tick chaos run!"

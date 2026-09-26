@@ -7,8 +7,22 @@ NEVER re-derived inside the simulation hot-path.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, Optional, Set, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
+
+
+DEFAULT_EXPORT_GATES: Dict[str, List[Tuple[int, int]]] = {
+    "OUT-1": [(29, 8), (29, 9), (29, 10)],   # Gate OUT-1
+    "OUT-2": [(29, 13), (29, 14), (29, 15)], # Gate OUT-2
+    "OUT-3": [(29, 18), (29, 19), (29, 20)], # Gate OUT-3
+}
+
+DEFAULT_IMPORT_GATES: Dict[str, List[Tuple[int, int]]] = {
+    "IN-1": [(0, 8), (0, 9), (0, 10)],
+    "IN-2": [(0, 13), (0, 14), (0, 15)],
+    "IN-3": [(0, 18), (0, 19), (0, 20)],
+}
 
 
 @dataclass
@@ -29,13 +43,36 @@ class WorldConfig:
     dropoff_stations: FrozenSet[Tuple[int, int]]
     pod_slots: Dict[str, Tuple[int, int]] = field(default_factory=dict)
     sortation_chutes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    pick_stations: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    sortation_zone: Dict[str, Any] = field(default_factory=dict)
+    export_gates: Dict[str, List[Tuple[int, int]]] = field(default_factory=lambda: dict(DEFAULT_EXPORT_GATES))
+    import_gates: Dict[str, List[Tuple[int, int]]] = field(default_factory=lambda: dict(DEFAULT_IMPORT_GATES))
 
     # Precomputed set of all walkable cells (no static obstacle)
     walkable_cells: FrozenSet[Tuple[int, int]] = field(init=False)
     _coords_to_pod: Dict[Tuple[int, int], str] = field(init=False, repr=False)
     _coords_to_chute: Dict[Tuple[int, int], str] = field(init=False, repr=False)
+    _coords_to_pick_station: Dict[Tuple[int, int], str] = field(init=False, repr=False)
+    _gate_indices: Dict[str, int] = field(init=False, repr=False)
+    _lock: threading.Lock = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_lock", threading.Lock())
+        object.__setattr__(self, "_gate_indices", {gid: 0 for gid in self.export_gates})
+
+        # PART A Validation: Check that every chute has a valid gate_id
+        for chute_id, info in self.sortation_chutes.items():
+            gate_id = info.get("gate_id")
+            if not gate_id:
+                raise ValueError(
+                    f"Configuration Error: Chute '{chute_id}' is missing a required 'gate_id' mapping!"
+                )
+            if gate_id not in self.export_gates:
+                raise ValueError(
+                    f"Configuration Error: Chute '{chute_id}' references invalid gate_id '{gate_id}'. "
+                    f"Available export gates are: {list(self.export_gates.keys())}."
+                )
+
         all_cells = frozenset(
             (x, y)
             for x in range(self.width)
@@ -52,6 +89,25 @@ class WorldConfig:
             "_coords_to_chute",
             {(info["x"], info["y"]): chute_id for chute_id, info in self.sortation_chutes.items()}
         )
+        object.__setattr__(
+            self,
+            "_coords_to_pick_station",
+            {(info["x"], info["y"]): ps_id for ps_id, info in self.pick_stations.items()}
+        )
+
+    def gate_position(self, gate_id: str) -> Tuple[int, int]:
+        """
+        PART A: Returns a rotating cell from that gate's coordinate cluster so
+        simultaneous consolidations to the same gate do not collide on one tile.
+        """
+        if gate_id not in self.export_gates:
+            raise ValueError(f"Unknown gate_id '{gate_id}'. Valid gates: {list(self.export_gates.keys())}")
+        cluster = self.export_gates[gate_id]
+        with self._lock:
+            idx = self._gate_indices.get(gate_id, 0)
+            pos = cluster[idx % len(cluster)]
+            self._gate_indices[gate_id] = idx + 1
+        return pos
 
     def shelf_at(self, x: int, y: int) -> Optional[str]:
         """Return shelf_id of pod slot at (x, y), or None if not a pod slot."""
@@ -60,6 +116,10 @@ class WorldConfig:
     def chute_at(self, x: int, y: int) -> Optional[str]:
         """Return chute_id of sortation chute at (x, y), or None."""
         return self._coords_to_chute.get((x, y))
+
+    def pick_station_at(self, x: int, y: int) -> Optional[str]:
+        """Return pick_station_id at (x, y), or None."""
+        return self._coords_to_pick_station.get((x, y))
 
     def chute_for_destination(self, destination_zone: str) -> str:
         """
@@ -71,6 +131,55 @@ class WorldConfig:
                 return chute_id
         # Fallback overflow chute
         return "CHUTE-08"
+
+    # PART B: Pick Station Buffer Management
+    def deposit_carton_to_pick_station(self, carton: Any, preferred_station_id: Optional[str] = None) -> Optional[str]:
+        """
+        Places a Carton into a pick-station buffer with capacity backpressure.
+        Returns station_id where carton was placed, or None if all pick stations are full.
+        """
+        with self._lock:
+            # Check preferred station first if specified
+            if preferred_station_id and preferred_station_id in self.pick_stations:
+                st = self.pick_stations[preferred_station_id]
+                buf = st.setdefault("buffer", [])
+                if len(buf) < st.get("capacity", 4):
+                    buf.append(carton)
+                    return preferred_station_id
+
+            # Find nearest or first station with available capacity
+            candidates = sorted(
+                self.pick_stations.items(),
+                key=lambda item: len(item[1].setdefault("buffer", [])),
+            )
+            for ps_id, st in candidates:
+                buf = st.setdefault("buffer", [])
+                if len(buf) < st.get("capacity", 4):
+                    buf.append(carton)
+                    return ps_id
+
+        # Saturated buffer: backpressure
+        return None
+
+    def take_carton_from_pick_station(self, station_id: str) -> Optional[Any]:
+        """Pops and returns the next carton from station_id's buffer, or None if empty."""
+        with self._lock:
+            st = self.pick_stations.get(station_id)
+            if not st:
+                return None
+            buf = st.setdefault("buffer", [])
+            if buf:
+                return buf.pop(0)
+            return None
+
+    def get_non_empty_pick_stations(self) -> List[str]:
+        """Returns list of pick station IDs that currently hold at least one carton."""
+        with self._lock:
+            return [
+                ps_id
+                for ps_id, st in self.pick_stations.items()
+                if len(st.get("buffer", [])) > 0
+            ]
 
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
@@ -99,11 +208,15 @@ class WorldConfig:
         if (x, y) in self.charging_stations:
             return "CHARGING_BAY"
 
+        # Explicit Sortation Section (Part B)
+        if 21 <= x <= 27 and 2 <= y <= 5:
+            return "SORTING_ZONE"
+
         # Storage pod yard zone
         if 4 <= x <= 25 and 6 <= y <= 22:
             return "GOODS_TO_PERSON_ZONE"
 
-        # Sorting traffic clusters near the perimeter staging lanes
+        # Perimeter staging lanes
         if (x <= 5 or x >= 24) and (y <= 4 or y >= 24):
             return "SORTING_ZONE"
 
@@ -119,7 +232,9 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
     Build a realistic automated fulfillment warehouse layout with:
       - 4 modular storage pod banks (Pod Yard with 176 addressable pod slots POD-A01..POD-D44)
         laid out as accessible double-deep pods with North/South aisle entries,
-      - 8 dedicated Sortation Chutes along North/South perimeter sorting staging lanes,
+      - 1 Bounded Sortation Section (Part B: x=22..27, y=2..5) containing all 8 sortation chutes,
+      - 1 Pick-Station Row (Part B: x=20, y=2,3,4) with output buffers for G2P-to-Sort handoff,
+      - 3 Outbound Shipping Gates (OUT-1, OUT-2, OUT-3) with rotating coordinate clusters,
       - 2 vertical cross-highways (x=10, x=19) eliminating bottlenecks,
       - 8 dedicated perimeter charging alcoves (top and bottom),
       - multi-cell inbound receiving docks (West) and outbound shipping docks (East).
@@ -145,16 +260,29 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
                     pod_slots[shelf_id] = (rack_x, rack_y)
                     slot_idx += 1
 
-    # 8 Dedicated Sortation Chutes (Put-Wall) along North & South staging lanes
+    # PART B: 8 Dedicated Sortation Chutes inside the explicit bounded sortation rectangle (x=22..27, y=2..5)
+    # With PART A gate_id mapping to OUT-1, OUT-2, OUT-3
     sortation_chutes: Dict[str, Dict[str, Any]] = {
-        "CHUTE-01": {"name": "CHUTE-01", "x": 1, "y": 3, "destination_zone": "ZONE_NORTH", "capacity": 10, "current_count": 0},
-        "CHUTE-02": {"name": "CHUTE-02", "x": 2, "y": 3, "destination_zone": "ZONE_EAST", "capacity": 10, "current_count": 0},
-        "CHUTE-03": {"name": "CHUTE-03", "x": 3, "y": 3, "destination_zone": "ZONE_SOUTH", "capacity": 10, "current_count": 0},
-        "CHUTE-04": {"name": "CHUTE-04", "x": 4, "y": 3, "destination_zone": "ZONE_WEST", "capacity": 10, "current_count": 0},
-        "CHUTE-05": {"name": "CHUTE-05", "x": 1, "y": 25, "destination_zone": "ZONE_EXPRESS", "capacity": 10, "current_count": 0},
-        "CHUTE-06": {"name": "CHUTE-06", "x": 2, "y": 25, "destination_zone": "ZONE_REGIONAL", "capacity": 10, "current_count": 0},
-        "CHUTE-07": {"name": "CHUTE-07", "x": 3, "y": 25, "destination_zone": "ZONE_INTERNATIONAL", "capacity": 10, "current_count": 0},
-        "CHUTE-08": {"name": "CHUTE-08", "x": 4, "y": 25, "destination_zone": "OVERFLOW", "capacity": 20, "current_count": 0},
+        "CHUTE-01": {"name": "CHUTE-01", "x": 23, "y": 2, "destination_zone": "ZONE_NORTH", "gate_id": "OUT-1", "capacity": 10, "current_count": 0},
+        "CHUTE-02": {"name": "CHUTE-02", "x": 24, "y": 2, "destination_zone": "ZONE_EAST", "gate_id": "OUT-1", "capacity": 10, "current_count": 0},
+        "CHUTE-03": {"name": "CHUTE-03", "x": 25, "y": 2, "destination_zone": "ZONE_SOUTH", "gate_id": "OUT-2", "capacity": 10, "current_count": 0},
+        "CHUTE-04": {"name": "CHUTE-04", "x": 26, "y": 2, "destination_zone": "ZONE_WEST", "gate_id": "OUT-2", "capacity": 10, "current_count": 0},
+        "CHUTE-05": {"name": "CHUTE-05", "x": 23, "y": 4, "destination_zone": "ZONE_EXPRESS", "gate_id": "OUT-2", "capacity": 10, "current_count": 0},
+        "CHUTE-06": {"name": "CHUTE-06", "x": 24, "y": 4, "destination_zone": "ZONE_REGIONAL", "gate_id": "OUT-3", "capacity": 10, "current_count": 0},
+        "CHUTE-07": {"name": "CHUTE-07", "x": 25, "y": 4, "destination_zone": "ZONE_INTERNATIONAL", "gate_id": "OUT-3", "capacity": 10, "current_count": 0},
+        "CHUTE-08": {"name": "CHUTE-08", "x": 26, "y": 4, "destination_zone": "OVERFLOW", "gate_id": "OUT-3", "capacity": 20, "current_count": 0},
+    }
+
+    # PART B: Pick Stations at the pod yard's east boundary near x=19 cross-highway
+    pick_stations: Dict[str, Dict[str, Any]] = {
+        "PICK-01": {"name": "PICK-01", "x": 20, "y": 2, "capacity": 4, "buffer": []},
+        "PICK-02": {"name": "PICK-02", "x": 20, "y": 3, "capacity": 4, "buffer": []},
+        "PICK-03": {"name": "PICK-03", "x": 20, "y": 4, "capacity": 4, "buffer": []},
+    }
+
+    sortation_zone: Dict[str, Any] = {
+        "bounds": {"min_x": 22, "max_x": 27, "min_y": 2, "max_y": 5},
+        "entrances": [(21, 3), (21, 4)],
     }
 
     # 8 Distributed Perimeter Charging Stations (4 North alcoves, 4 South alcoves)
@@ -187,6 +315,8 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
         dropoff_stations=export_dock,
         pod_slots=pod_slots,
         sortation_chutes=sortation_chutes,
+        pick_stations=pick_stations,
+        sortation_zone=sortation_zone,
+        export_gates=dict(DEFAULT_EXPORT_GATES),
+        import_gates=dict(DEFAULT_IMPORT_GATES),
     )
-
-
