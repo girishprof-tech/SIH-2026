@@ -32,6 +32,9 @@ export const api = {
   addObstacle: (body: { obstacle_id: string; x: number; y: number; duration_ticks: number }) => request<TempObstacle>('/api/obstacles', { method: 'POST', body: JSON.stringify(body) }),
   removeObstacle: (id: string) => request(`/api/obstacles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   inventory: () => request<{ total_shelves: number; total_boxes: number; shelves: import('./types').ShelfRecord[] }>('/api/inventory'),
+  eStop: (robotId: string) => request(`/api/robots/${encodeURIComponent(robotId)}/emergency_stop`, { method: 'POST' }),
+  resetRobot: (robotId: string) => request(`/api/robots/${encodeURIComponent(robotId)}/reset`, { method: 'POST' }),
 }
+
 
 export const wsUrl = () => (import.meta.env.VITE_WS_URL ?? API_BASE.replace(/^http/, 'ws') + '/ws/fleet')

@@ -12,6 +12,7 @@ import { LoadingScreen } from './components/LoadingScreen'
 import { InventoryPanel } from './components/InventoryPanel'
 import { TransferLogPanel } from './components/TransferLogPanel'
 import { HaLowStatusWidget } from './components/HaLowStatusWidget'
+import { RobotInspectorPanel } from './components/RobotInspectorPanel'
 import { STATE_LABELS } from './state-meta'
 import type {
   HaLowStatus,
@@ -73,6 +74,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [fleetMode, setFleetMode] = useState<string>('Autonomous (10 AMRs)')
   const [lastSyncedTick, setLastSyncedTick] = useState<number>(0)
+  const [cameraFollow, setCameraFollow] = useState<boolean>(true)
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -428,6 +430,8 @@ export default function App() {
             onToggleFullscreen={handleToggleFullscreen}
             onRobot={setSelected ? (robot) => setSelected(robot.robot_id) : () => undefined}
             onCell={selectCell}
+            cameraFollow={cameraFollow}
+            onToggleCameraFollow={() => setCameraFollow((prev) => !prev)}
           />
           <div className="map-footer">
             <span>
@@ -552,42 +556,23 @@ export default function App() {
       </main>
 
       {chosen && (
-        <aside className="robot-detail panel">
-          <button className="close-detail" onClick={() => setSelected(null)} aria-label="Close robot details">
-            <X size={15} />
-          </button>
-          <h2>
-            <Bot size={18} /> {chosen.robot_id}
-          </h2>
-          <div>
-            <span className={`state-badge ${chosen.state.toLowerCase()}`}>
-              {STATE_LABELS[chosen.state] ?? chosen.state.replace(/_/g, ' ')}
-            </span>
-          </div>
-          <div className="detail-battery">
-            <span>
-              <Battery size={14} /> Battery
-            </span>
-            <strong className={chosen.battery_pct < 20 ? 'battery-low' : ''}>
-              {chosen.battery_pct.toFixed(1)}%
-            </strong>
-            <div>
-              <i style={{ width: `${chosen.battery_pct}%` }} />
-            </div>
-          </div>
-          <dl>
-            <dt>Position</dt>
-            <dd>
-              ({chosen.position.x}, {chosen.position.y}), {chosen.heading.toLowerCase()}
-            </dd>
-            <dt>Current task</dt>
-            <dd>{chosen.current_task_id ?? 'Unassigned'}</dd>
-            <dt>Priority score</dt>
-            <dd>{chosen.priority_score.toFixed(2)}</dd>
-            <dt>Path nodes</dt>
-            <dd>{chosen.path.length} reserved</dd>
-          </dl>
-        </aside>
+        <RobotInspectorPanel
+          robot={chosen}
+          tick={status.tick}
+          cameraFollow={cameraFollow}
+          onToggleCameraFollow={() => setCameraFollow((prev) => !prev)}
+          onClose={() => setSelected(null)}
+          onEStop={(robotId) => {
+            void run(() => api.eStop(robotId), `Emergency stop dispatched to ${robotId}`).then(() => {
+              void api.robots().then(setRobots)
+            })
+          }}
+          onReset={(robotId) => {
+            void run(() => api.resetRobot(robotId), `State reset dispatched to ${robotId}`).then(() => {
+              void api.robots().then(setRobots)
+            })
+          }}
+        />
       )}
 
       {toast && (

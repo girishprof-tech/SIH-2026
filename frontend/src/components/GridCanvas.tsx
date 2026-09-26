@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Maximize, Minimize, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
+import { Maximize, Minimize, RotateCcw, ZoomIn, ZoomOut, Crosshair, Box } from 'lucide-react'
 import { api } from '../api'
 import type { Conflict, Point, Robot, Task, TempObstacle, World } from '../types'
 import { ROBOT_TYPE_COLORS, STATE_COLORS } from '../state-meta'
+import { Warehouse3DCanvas } from './Warehouse3DCanvas'
 
 type Props = {
   world: World
@@ -19,6 +20,8 @@ type Props = {
   onToggleFullscreen?: () => void
   onRobot: (robot: Robot) => void
   onCell: (point: Point) => void
+  cameraFollow?: boolean
+  onToggleCameraFollow?: () => void
 }
 type View = { zoom: number; panX: number; panY: number; drag: boolean; x: number; y: number; moved: boolean }
 type Projection = { originX: number; originY: number; tileW: number; tileH: number; lift: number }
@@ -112,12 +115,20 @@ export function GridCanvas({
   onToggleFullscreen,
   onRobot,
   onCell,
+  cameraFollow: propCameraFollow,
+  onToggleCameraFollow,
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null)
   const view = useRef<View>({ zoom: 1, panX: 0, panY: 0, drag: false, x: 0, y: 0, moved: false })
   const motion = useRef<Map<string, Motion>>(new Map())
   const [viewVersion, setViewVersion] = useState(0)
   const [duration, setDuration] = useState(tickMs)
+  const [is3D, setIs3D] = useState(true)
+  const [internalCameraFollow, setInternalCameraFollow] = useState(true)
+
+  const cameraFollow = propCameraFollow !== undefined ? propCameraFollow : internalCameraFollow
+  const handleToggleCameraFollow = onToggleCameraFollow ?? (() => setInternalCameraFollow((prev) => !prev))
+
 
   const handleZoomIn = () => {
     view.current.zoom = Math.min(2.5, Number((view.current.zoom + 0.15).toFixed(2)))
@@ -1127,65 +1138,108 @@ export function GridCanvas({
           )}
         </div>
       </div>
-      <canvas
-        ref={ref}
-        onClick={hitPoint}
-        onPointerDown={(event) => {
-          view.current.drag = true
-          view.current.x = event.clientX
-          view.current.y = event.clientY
-          view.current.moved = false
-          event.currentTarget.setPointerCapture(event.pointerId)
-        }}
-        onPointerMove={(event) => {
-          const current = view.current
-          if (!current.drag) return
-          const dx = event.clientX - current.x
-          const dy = event.clientY - current.y
-          if (Math.abs(dx) + Math.abs(dy) > 2) current.moved = true
-          current.panX += dx
-          current.panY += dy
-          current.x = event.clientX
-          current.y = event.clientY
-          setViewVersion((version) => version + 1)
-        }}
-        onPointerUp={(event) => {
-          view.current.drag = false
-          event.currentTarget.releasePointerCapture(event.pointerId)
-        }}
-        onWheel={(event) => {
-          event.preventDefault()
-          view.current.zoom = Math.max(0.5, Math.min(2.5, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
-          setViewVersion((version) => version + 1)
-        }}
-      />
+      {is3D ? (
+        <Warehouse3DCanvas
+          world={world}
+          robots={robots}
+          tasks={tasks}
+          conflicts={conflicts}
+          obstacles={obstacles}
+          tick={tick}
+          selected={selected}
+          showMeshLinks={showMeshLinks}
+          cameraFollow={cameraFollow}
+          theme={theme}
+          onRobot={onRobot}
+          onCell={onCell}
+        />
+      ) : (
+        <canvas
+          ref={ref}
+          onClick={hitPoint}
+          onPointerDown={(event) => {
+            view.current.drag = true
+            view.current.x = event.clientX
+            view.current.y = event.clientY
+            view.current.moved = false
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event) => {
+            const current = view.current
+            if (!current.drag) return
+            const dx = event.clientX - current.x
+            const dy = event.clientY - current.y
+            if (Math.abs(dx) + Math.abs(dy) > 2) current.moved = true
+            current.panX += dx
+            current.panY += dy
+            current.x = event.clientX
+            current.y = event.clientY
+            setViewVersion((version) => version + 1)
+          }}
+          onPointerUp={(event) => {
+            view.current.drag = false
+            event.currentTarget.releasePointerCapture(event.pointerId)
+          }}
+          onWheel={(event) => {
+            event.preventDefault()
+            view.current.zoom = Math.max(0.5, Math.min(2.5, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
+            setViewVersion((version) => version + 1)
+          }}
+        />
+      )}
 
       {/* Floating Canvas Control HUD */}
       <div className="canvas-hud-controls">
         <button
-          className="canvas-hud-btn"
-          onClick={handleZoomIn}
-          title="Zoom In (+)"
-          aria-label="Zoom in canvas"
+          className={`canvas-hud-btn ${is3D ? 'active' : ''}`}
+          onClick={() => setIs3D((prev) => !prev)}
+          title={is3D ? 'Switch to 2D Plan View' : 'Switch to 3D Orbit View'}
+          aria-label="Toggle 2D / 3D View"
+          style={{ fontWeight: 700, fontSize: '11px', width: 'auto', padding: '0 8px', letterSpacing: '0.04em' }}
         >
-          <ZoomIn size={14} />
+          {is3D ? '3D VIEW' : '2D VIEW'}
         </button>
-        <button
-          className="canvas-hud-btn"
-          onClick={handleZoomOut}
-          title="Zoom Out (-)"
-          aria-label="Zoom out canvas"
-        >
-          <ZoomOut size={14} />
-        </button>
-        <button
-          className="canvas-hud-btn"
-          onClick={handleResetView}
-          title="Reset View / Center"
-          aria-label="Reset canvas view"
-        >
-          <RotateCcw size={13} />
-        </button>
+
+        {is3D && selected && (
+          <button
+            className={`canvas-hud-btn ${cameraFollow ? 'active' : ''}`}
+            onClick={handleToggleCameraFollow}
+            title={cameraFollow ? 'Disable Camera Follow' : 'Follow Selected AMR'}
+            aria-label="Toggle Camera Follow"
+          >
+            <Crosshair size={14} />
+          </button>
+        )}
+
+        {!is3D && (
+          <>
+            <button
+              className="canvas-hud-btn"
+              onClick={handleZoomIn}
+              title="Zoom In (+)"
+              aria-label="Zoom in canvas"
+            >
+              <ZoomIn size={14} />
+            </button>
+            <button
+              className="canvas-hud-btn"
+              onClick={handleZoomOut}
+              title="Zoom Out (-)"
+              aria-label="Zoom out canvas"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <button
+              className="canvas-hud-btn"
+              onClick={handleResetView}
+              title="Reset View / Center"
+              aria-label="Reset canvas view"
+            >
+              <RotateCcw size={13} />
+            </button>
+          </>
+        )}
+
         {onToggleFullscreen && (
           <button
             className={`canvas-hud-btn ${isFullscreen ? 'active' : ''}`}
