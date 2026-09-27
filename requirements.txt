@@ -9,10 +9,11 @@ uvicorn[standard]==0.32.1
 websockets==13.1
 python-multipart==0.0.12
 
-# ── Configuration & Data Validation ──────────────────────────────────────────
+# ── Configuration & Data Validation & Security ──────────────────────────────
 pydantic>=2.12.5,<3
 pydantic-settings==2.6.1
 python-dotenv==1.0.1
+cryptography>=42.0.0
 
 # ── HTTP Clients & Network Transport ─────────────────────────────────────────
 httpx==0.28.1

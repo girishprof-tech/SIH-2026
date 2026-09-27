@@ -50,6 +50,7 @@ class RobotEvent(str, enum.Enum):
     RESUME_PICKUP = "RESUME_PICKUP"
     RESUME_DROPOFF = "RESUME_DROPOFF"
     RESUME_AUDIT = "RESUME_AUDIT"
+    RESUME_IDLE = "RESUME_IDLE"
     BATTERY_LOW = "BATTERY_LOW"
     CHARGE_COMPLETE = "CHARGE_COMPLETE"
     E_STOP = "E_STOP"
@@ -62,6 +63,7 @@ TRANSITIONS: Dict[Tuple[RobotState, RobotEvent], RobotState] = {
     # Standard Mission lifecycle
     (RobotState.IDLE, RobotEvent.TASK_RECEIVED): RobotState.ASSIGNED,
     (RobotState.IDLE, RobotEvent.START_AUDIT): RobotState.AUDITING,
+    (RobotState.IDLE, RobotEvent.CONFLICT_LOST): RobotState.CONFLICT_NEGOTIATING,
     (RobotState.ASSIGNED, RobotEvent.PATH_PLANNED): RobotState.EN_ROUTE_PICKUP,
     (RobotState.EN_ROUTE_PICKUP, RobotEvent.PICKUP_REACHED): RobotState.PICKING,
     (RobotState.EN_ROUTE_PICKUP, RobotEvent.CONFLICT_LOST): RobotState.CONFLICT_NEGOTIATING,
@@ -87,6 +89,8 @@ TRANSITIONS: Dict[Tuple[RobotState, RobotEvent], RobotState] = {
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_PICKUP): RobotState.EN_ROUTE_PICKUP,
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_DROPOFF): RobotState.EN_ROUTE_DROPOFF,
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_AUDIT): RobotState.AUDITING,
+    (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_IDLE): RobotState.IDLE,
+    (RobotState.CONFLICT_NEGOTIATING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
 
     # Charging lifecycle
     (RobotState.CHARGING, RobotEvent.CHARGE_COMPLETE): RobotState.IDLE,

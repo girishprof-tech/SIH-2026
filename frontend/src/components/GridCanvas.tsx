@@ -123,7 +123,7 @@ export function GridCanvas({
   const motion = useRef<Map<string, Motion>>(new Map())
   const [viewVersion, setViewVersion] = useState(0)
   const [duration, setDuration] = useState(tickMs)
-  const [is3D, setIs3D] = useState(true)
+  const [is3D, setIs3D] = useState(false)
   const [internalCameraFollow, setInternalCameraFollow] = useState(true)
 
   const cameraFollow = propCameraFollow !== undefined ? propCameraFollow : internalCameraFollow
@@ -1109,7 +1109,7 @@ export function GridCanvas({
   }
 
   return (
-    <div className={`grid-shell ${isFullscreen ? 'fullscreen' : ''}`}>
+    <div className={`grid-shell ${isFullscreen ? 'fullscreen' : ''}`} style={{ backgroundColor: palette.background }}>
       <div className="grid-caption">
         <div className="caption-left">
           <span className="live-indicator">
@@ -1138,55 +1138,57 @@ export function GridCanvas({
           )}
         </div>
       </div>
-      {is3D ? (
-        <Warehouse3DCanvas
-          world={world}
-          robots={robots}
-          tasks={tasks}
-          conflicts={conflicts}
-          obstacles={obstacles}
-          tick={tick}
-          selected={selected}
-          showMeshLinks={showMeshLinks}
-          cameraFollow={cameraFollow}
-          theme={theme}
-          onRobot={onRobot}
-          onCell={onCell}
-        />
-      ) : (
-        <canvas
-          ref={ref}
-          onClick={hitPoint}
-          onPointerDown={(event) => {
-            view.current.drag = true
-            view.current.x = event.clientX
-            view.current.y = event.clientY
-            view.current.moved = false
-            event.currentTarget.setPointerCapture(event.pointerId)
-          }}
-          onPointerMove={(event) => {
-            const current = view.current
-            if (!current.drag) return
-            const dx = event.clientX - current.x
-            const dy = event.clientY - current.y
-            if (Math.abs(dx) + Math.abs(dy) > 2) current.moved = true
-            current.panX += dx
-            current.panY += dy
-            current.x = event.clientX
-            current.y = event.clientY
-            setViewVersion((version) => version + 1)
-          }}
-          onPointerUp={(event) => {
-            view.current.drag = false
-            event.currentTarget.releasePointerCapture(event.pointerId)
-          }}
-          onWheel={(event) => {
-            event.preventDefault()
-            view.current.zoom = Math.max(0.5, Math.min(2.5, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
-            setViewVersion((version) => version + 1)
-          }}
-        />
-      )}
+      <div key={is3D ? 'view-3d' : 'view-2d'} className="canvas-view-container">
+        {is3D ? (
+          <Warehouse3DCanvas
+            world={world}
+            robots={robots}
+            tasks={tasks}
+            conflicts={conflicts}
+            obstacles={obstacles}
+            tick={tick}
+            selected={selected}
+            showMeshLinks={showMeshLinks}
+            cameraFollow={cameraFollow}
+            theme={theme}
+            onRobot={onRobot}
+            onCell={onCell}
+          />
+        ) : (
+          <canvas
+            ref={ref}
+            onClick={hitPoint}
+            onPointerDown={(event) => {
+              view.current.drag = true
+              view.current.x = event.clientX
+              view.current.y = event.clientY
+              view.current.moved = false
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => {
+              const current = view.current
+              if (!current.drag) return
+              const dx = event.clientX - current.x
+              const dy = event.clientY - current.y
+              if (Math.abs(dx) + Math.abs(dy) > 2) current.moved = true
+              current.panX += dx
+              current.panY += dy
+              current.x = event.clientX
+              current.y = event.clientY
+              setViewVersion((version) => version + 1)
+            }}
+            onPointerUp={(event) => {
+              view.current.drag = false
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }}
+            onWheel={(event) => {
+              event.preventDefault()
+              view.current.zoom = Math.max(0.5, Math.min(2.5, view.current.zoom + (event.deltaY > 0 ? -0.08 : 0.08)))
+              setViewVersion((version) => version + 1)
+            }}
+          />
+        )}
+      </div>
 
       {/* Floating Canvas Control HUD */}
       <div className="canvas-hud-controls">

@@ -468,6 +468,7 @@ export function Warehouse3DCanvas({
   robots,
   selected,
   cameraFollow = true,
+  theme = 'dark',
   onRobot,
   onCell,
 }: Props) {
@@ -475,8 +476,10 @@ export function Warehouse3DCanvas({
     return robots.find((r) => r.robot_id === selected)
   }, [robots, selected])
 
+  const bgColor = theme === 'light' ? '#E5E5E5' : '#111111'
+
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', background: '#090d16' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative', background: bgColor }}>
       <Canvas
         shadows
         camera={{ position: [0, 22, 28], fov: 45 }}

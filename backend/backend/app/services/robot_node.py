@@ -1368,7 +1368,7 @@ class RobotNode:
             "priority_score": self.robot.priority_score,
             "state": self.fsm.state.value,
             "wait_ticks": self.robot.wait_ticks_so_far,
-            "path": list(self.robot.path[:8]),
+            "path": list(self.robot.path[:8]) if self.robot.path else [{"x": self.robot.position[0], "y": self.robot.position[1], "t": tick + dt} for dt in range(8)],
             "charger_target": list(self.charger_target) if self.charger_target else None,
             "claimed_pod_id": claimed_pod,
             "active_claimed_pods": list(self.active_claimed_pods),
@@ -1739,6 +1739,8 @@ class RobotNode:
                     self.fsm.transition(RobotEvent.RESUME_DROPOFF)
                 elif self.pre_conflict_activity == RobotState.AUDITING:
                     self.fsm.transition(RobotEvent.RESUME_AUDIT)
+                elif self.pre_conflict_activity == RobotState.IDLE or self.pre_conflict_activity is None:
+                    self.fsm.transition(RobotEvent.RESUME_IDLE)
                 else:
                     self.fsm.state = RobotState.FAILSAFE_HOLD
                 self.pre_conflict_activity = None
@@ -2134,7 +2136,7 @@ class RobotNode:
                     s_enum = RobotState.IDLE
 
                 msg_tick = int(actual_msg["tick"])
-                self.degraded_detector.record_peer_tick(sender_id, msg_tick)
+                self.degraded_detector.record_peer_tick(sender_id, current_tick)
 
                 c_target = actual_msg.get("charger_target")
                 charger_target_tuple = (int(c_target[0]), int(c_target[1])) if c_target else None
@@ -2189,7 +2191,7 @@ class RobotNode:
                     state=s_enum,
                     wait_ticks_so_far=int(actual_msg["wait_ticks"]),
                     path=actual_msg["path"],
-                    last_seen_tick=msg_tick,
+                    last_seen_tick=current_tick,
                     charger_target=charger_target_tuple,
                     robot_type=peer_rt,
                     occupied_slot=peer_occ_tuple,
@@ -2199,8 +2201,24 @@ class RobotNode:
                 # Update local reservation table
                 for k in [k for k, v in list(self.local_reservations.items()) if v == sender_id]:
                     del self.local_reservations[k]
-                for p in snap.path:
-                    self.local_reservations[(int(p["x"]), int(p["y"]), int(p["t"]))] = sender_id
+                if snap.path:
+                    max_dt = 0
+                    for p in snap.path:
+                        p_step_t = int(p.get("t", msg_tick))
+                        dt = max(0, p_step_t - msg_tick)
+                        max_dt = max(max_dt, dt)
+                        rec_t = current_tick + dt
+                        self.local_reservations[(int(p["x"]), int(p["y"]), rec_t)] = sender_id
+                    # Extend final step across planning horizon so peers don't path through the stopped robot
+                    last_p = snap.path[-1]
+                    lx, ly = int(last_p["x"]), int(last_p["y"])
+                    for dt in range(max_dt + 1, self.HOLD):
+                        self.local_reservations[(lx, ly, current_tick + dt)] = sender_id
+                else:
+                    # Stationary/parked at snap.intended_pos or snap.position
+                    sx, sy = snap.intended_pos if snap.intended_pos else snap.position
+                    for dt in range(self.HOLD):
+                        self.local_reservations[(sx, sy, current_tick + dt)] = sender_id
 
             elif m_type == "TASK_ASSIGNMENT":
                 # Handle task assignment message from central dispatcher (legacy / direct mode)
