@@ -61,7 +61,7 @@ def clean_stale_ports(ports=range(9001, 9030)):
         pass
 
 
-def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) -> Tuple[bool, Dict[str, Any]]:
+def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03, num_robots: int = 20) -> Tuple[bool, Dict[str, Any]]:
     clean_stale_ports()
 
     world = build_default_world()
@@ -73,13 +73,15 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
         # East staging bays
         (27, 4), (27, 7), (27, 10), (27, 13), (27, 16), (27, 19), (27, 22), (27, 25),
         # North & South cross-highways
-        (10, 3), (19, 3), (10, 26), (19, 26)
+        (10, 3), (19, 3), (10, 26), (19, 26),
+        # Extra transit staging bays for up to 25 robots
+        (14, 3), (16, 3), (14, 26), (16, 26), (10, 14)
     ]
 
     robot_types = (
-        ["GOODS_TO_PERSON"] * 8 +
-        ["SORTING"] * 6 +
-        ["SCANNING_AUDIT"] * 6
+        ["GOODS_TO_PERSON"] * 10 +
+        ["SORTING"] * 8 +
+        ["SCANNING_AUDIT"] * 7
     )
 
     goals = [
@@ -90,7 +92,9 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
         (2, 4), (2, 10), (2, 7), (2, 16),
         (2, 13), (2, 22), (2, 19), (2, 25),
         # North-South & South-North cross-highway traffic
-        (10, 26), (19, 26), (10, 3), (19, 3)
+        (10, 26), (19, 26), (10, 3), (19, 3),
+        # Extra goals
+        (14, 26), (16, 26), (14, 3), (16, 3), (19, 14)
     ]
 
     robots_config = [
@@ -103,7 +107,7 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
             "robot_type": robot_types[i - 1],
             "enable_idle_audit": (robot_types[i - 1] == "SCANNING_AUDIT"),
         }
-        for i in range(1, 21)
+        for i in range(1, num_robots + 1)
     ]
 
     log_dir = ROOT_DIR / "logs" / "repro_20robot"
@@ -117,8 +121,9 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
     )
 
     # Tracking data structures
-    tick_robot_positions: Dict[int, Dict[str, Tuple[int, int]]] = {}
+    tick_robot_positions: Dict[int, Dict[str, Tuple[int, int]]] = defaultdict(dict)
     robot_position_history = defaultdict(list)
+    robot_last_recorded_tick = defaultdict(lambda: -1)
     robot_state_history = defaultdict(list)
     pod_occupancy_violations = []
 
@@ -140,28 +145,37 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
 
             if tick_update:
                 robots = tick_update.get("robots", [])
-                pos_map = {}
                 carried_pod_positions = {}
 
                 for r in robots:
                     rid = r["id"]
+                    r_tick = int(r.get("tick", curr_tick))
                     r_pos = (int(r["x"]), int(r["y"]))
-                    pos_map[rid] = r_pos
                     r_state = r.get("state", "IDLE")
                     r_pod = r.get("carrying_pod_id")
-                    robot_position_history[rid].append(r_pos)
-                    robot_state_history[rid].append((curr_tick, r_state))
 
-                    if r_pod or r_state in ("PICKING", "LIFTING"):
+                    # Map robot position to its actual tick
+                    tick_robot_positions[r_tick][rid] = r_pos
+
+                    if r_tick > robot_last_recorded_tick[rid]:
+                        robot_last_recorded_tick[rid] = r_tick
+                        robot_position_history[rid].append(r_pos)
+                        robot_state_history[rid].append((r_tick, r_state))
+
+                    if (r_pod or r_state in ("PICKING", "LIFTING")) and r_tick == curr_tick:
                         carried_pod_positions[r_pos] = (rid, r_pod)
 
-                # Check invariant: No robot's path intersects a pod cell occupied/carried by another robot
+                # Check invariant: No robot's path intersects a pod cell occupied/carried by another robot at the same tick
                 for r in robots:
                     rid = r["id"]
+                    r_tick = int(r.get("tick", curr_tick))
+                    if r_tick != curr_tick:
+                        continue
                     r_path = r.get("path", [])
                     for step in r_path:
                         step_pos = (int(step["x"]), int(step["y"]))
-                        if step_pos in carried_pod_positions:
+                        step_t = int(step.get("t", curr_tick))
+                        if step_t == curr_tick and step_pos in carried_pod_positions:
                             owner_id, pod_id = carried_pod_positions[step_pos]
                             if owner_id != rid:
                                 pod_occupancy_violations.append({
@@ -171,8 +185,6 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
                                     "pod_id": pod_id,
                                     "cell": step_pos,
                                 })
-
-                tick_robot_positions[curr_tick] = pos_map
 
                 if curr_tick >= last_reported + 50:
                     last_reported = curr_tick
@@ -281,5 +293,6 @@ def run_20robot_repro(target_ticks: int = 320, tick_interval_s: float = 0.03) ->
 
 
 if __name__ == "__main__":
-    success, res = run_20robot_repro()
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else 20
+    success, res = run_20robot_repro(num_robots=count)
     sys.exit(0 if success else 1)

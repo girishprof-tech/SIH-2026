@@ -43,6 +43,10 @@ class UdpTransport(Transport):
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             except Exception:
                 pass
+        try:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+        except Exception:
+            pass
         self.sock.bind((self.host, self.port))
         self.sock.setblocking(False)
 
@@ -71,7 +75,7 @@ class UdpTransport(Transport):
         messages: List[Dict[str, Any]] = []
         while True:
             try:
-                raw_data, _ = self.sock.recvfrom(4096)
+                raw_data, _ = self.sock.recvfrom(65535)
             except (BlockingIOError, socket.error):
                 break
             except Exception:

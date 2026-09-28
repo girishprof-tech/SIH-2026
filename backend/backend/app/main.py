@@ -316,10 +316,14 @@ async def lifespan(app: FastAPI):
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
+    from app.websocket.delta_encoder import FleetDeltaEncoder
     import asyncio
+    import json
+
+    delta_encoder = FleetDeltaEncoder()
 
     async def _telemetry_forwarder():
-        """Reads updates from the independent robot processes and broadcasts them."""
+        """Reads updates from the independent robot processes and broadcasts them with delta encoding."""
         last_tick = -1
         disconnect_time: Optional[float] = None
         auto_pause = os.environ.get("AUTO_PAUSE_ON_DISCONNECT", "0") == "1"
@@ -391,9 +395,14 @@ async def lifespan(app: FastAPI):
                         except Exception:
                             pass
 
-                        # Forward synchronized TICK_UPDATE payload to WebSocket clients
+                        full_json = json.dumps(data, separators=(",", ":"))
+                        connection_manager.latest_baseline_json = full_json
+
+                        # Forward synchronized TICK_UPDATE or compact TICK_DELTA payload to WebSocket clients
                         if clients > 0:
-                            await connection_manager.broadcast_json(data)
+                            delta = delta_encoder.compute_delta(data)
+                            delta_json = json.dumps(delta, separators=(",", ":"))
+                            await connection_manager.broadcast_telemetry(full_json, delta_json)
             except Exception as e:
                 log.debug("Telemetry forwarder error: %s", e)
             await asyncio.sleep(0.04)

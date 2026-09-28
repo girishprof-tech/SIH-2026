@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Battery, Bot, X, Package, Activity, Radio, Layers, ShieldCheck, Box, Sliders } from 'lucide-react'
 import { api, setApiOperatorRole } from './api'
-import { useFleetSocket } from './hooks/useFleetSocket'
+import { useFleetSocket, type FleetStore } from './hooks/useFleetSocket'
 import { ControlBar } from './components/ControlBar'
 import { RoleSelectionModal, type OperatorRole } from './components/RoleSelectionModal'
 import { GridCanvas } from './components/GridCanvas'
@@ -179,84 +179,85 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
-  const { status: socket, skippedTicks } = useFleetSocket((update: any) => {
-    if (update.type === 'INVENTORY_SYNC') {
-      const newEvent: InventoryUpdateEvent = {
-        id: `SYNC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        shelf_id: update.shelf_id || 'UNKNOWN',
-        source_robot_id: update.last_audited_by || 'AMR-NODE',
-        source: update.source || 'audit_scan',
-        channel: update.channel || 'HALOW',
-        tick: update.last_audited_tick || status.tick,
-        box_count: update.current_box_count || 0,
-        confidence: update.confidence ?? 1.0,
-        sku_manifest: update.sku_manifest || {},
-        timestamp_ms: update.timestamp_ms || Date.now(),
-      }
-      setTransferLogs((prev) => [newEvent, ...prev].slice(0, 100))
+  const handleInventorySync = useCallback((update: any) => {
+    const newEvent: InventoryUpdateEvent = {
+      id: `SYNC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      shelf_id: update.shelf_id || 'UNKNOWN',
+      source_robot_id: update.last_audited_by || 'AMR-NODE',
+      source: update.source || 'audit_scan',
+      channel: update.channel || 'HALOW',
+      tick: update.last_audited_tick || 0,
+      box_count: update.current_box_count || 0,
+      confidence: update.confidence ?? 1.0,
+      sku_manifest: update.sku_manifest || {},
+      timestamp_ms: update.timestamp_ms || Date.now(),
+    }
+    setTransferLogs((prev) => [newEvent, ...prev].slice(0, 100))
 
-      setInventory((prev) => {
-        const idx = prev.findIndex((s) => s.shelf_id === update.shelf_id)
-        if (idx >= 0) {
-          const updated = [...prev]
-          updated[idx] = {
-            ...updated[idx],
-            current_box_count: update.current_box_count ?? updated[idx].current_box_count,
-            sku_manifest: update.sku_manifest ?? updated[idx].sku_manifest,
-            confidence: update.confidence ?? updated[idx].confidence,
-            last_audited_tick: update.last_audited_tick ?? updated[idx].last_audited_tick,
-            last_audited_by: update.last_audited_by ?? updated[idx].last_audited_by,
-          }
-          return updated
+    setInventory((prev) => {
+      const idx = prev.findIndex((s) => s.shelf_id === update.shelf_id)
+      if (idx >= 0) {
+        const updated = [...prev]
+        updated[idx] = {
+          ...updated[idx],
+          current_box_count: update.current_box_count ?? updated[idx].current_box_count,
+          sku_manifest: update.sku_manifest ?? updated[idx].sku_manifest,
+          confidence: update.confidence ?? updated[idx].confidence,
+          last_audited_tick: update.last_audited_tick ?? updated[idx].last_audited_tick,
+          last_audited_by: update.last_audited_by ?? updated[idx].last_audited_by,
         }
-        return prev
-      })
+        return updated
+      }
+      return prev
+    })
 
-      setHaLowStatus((prev) => ({
-        ...prev,
-        last_msg_timestamp_ms: Date.now(),
-        packets_received: prev.packets_received + 1,
-      }))
-      return
-    }
+    setHaLowStatus((prev) => ({
+      ...prev,
+      last_msg_timestamp_ms: Date.now(),
+      packets_received: prev.packets_received + 1,
+    }))
+  }, [])
 
-    if (update.robots) setRobots(update.robots)
-    if (update.active_conflicts) setConflicts(update.active_conflicts)
-    if (update.temporary_obstacles) setObstacles(update.temporary_obstacles)
-    if (update.tick !== undefined) setLastSyncedTick(update.tick)
-    setStatus((old) => ({ ...old, tick: update.tick, timestamp_ms: update.timestamp_ms }))
-    if (update.tasks) setTasks(update.tasks)
-    if (update.metrics) setMetrics(update.metrics)
-    if (update.inventory) setInventory(update.inventory)
-    if (update.sortation_chutes) {
-      setWorld((prev) => ({ ...prev, sortation_chutes: update.sortation_chutes }))
+  const handleUiSync = useCallback((store: FleetStore) => {
+    setRobots(store.robotsArray)
+    if (store.conflicts) setConflicts(store.conflicts)
+    if (store.obstacles) setObstacles(store.obstacles)
+    setLastSyncedTick(store.tick)
+    setStatus((old) => ({ ...old, tick: store.tick, timestamp_ms: store.timestamp_ms }))
+    if (store.tasks) setTasks(store.tasks)
+    if (store.metrics) setMetrics(store.metrics)
+    if (store.inventory) setInventory(store.inventory)
+    if (store.sortation_chutes) {
+      setWorld((prev) => ({ ...prev, sortation_chutes: store.sortation_chutes }))
     }
-    if (update.halow_status) {
-      setHaLowStatus(update.halow_status)
+    if (store.halow_status) {
+      setHaLowStatus(store.halow_status)
     }
-    if (update.fleet_status) {
+    if (store.fleet_status) {
       setStatus((old) => ({
         ...old,
-        running: update.fleet_status!.running,
-        tick: update.tick,
+        running: store.fleet_status!.running,
+        tick: store.tick,
       }))
-      if (update.fleet_status.mode) {
-        setFleetMode(update.fleet_status.mode)
+      if (store.fleet_status.mode) {
+        setFleetMode(store.fleet_status.mode)
       }
     }
     setHistory((old) =>
       [
         ...old,
         {
-          tick: update.tick,
-          process: update.metrics?.last_tick_processing_ms ?? metrics?.last_tick_processing_ms ?? 0,
-          planner: update.metrics?.planner_latency_ms ?? metrics?.planner_latency_ms ?? 0,
-          conflicts: (update.active_conflicts || []).length,
-          replans: update.metrics?.replans ?? metrics?.replans ?? 0,
+          tick: store.tick,
+          process: store.metrics?.last_tick_processing_ms ?? 0,
+          planner: store.metrics?.planner_latency_ms ?? 0,
+          conflicts: (store.conflicts || []).length,
+          replans: store.metrics?.replans ?? 0,
         },
       ].slice(-50)
     )
-  })
+  }, [])
+
+  const { status: socket, skippedTicks, storeRef } = useFleetSocket(handleUiSync, handleInventorySync)
 
   const run = async <T,>(action: () => Promise<T>, success?: string): Promise<T> => {
     setBusy(true)
@@ -467,6 +468,7 @@ export default function App() {
             onCell={selectCell}
             cameraFollow={cameraFollow}
             onToggleCameraFollow={() => setCameraFollow((prev) => !prev)}
+            storeRef={storeRef}
           />
           <div className="map-footer">
             <span>

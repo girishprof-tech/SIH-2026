@@ -15,6 +15,8 @@ Guarantees durability and seamless crash recovery:
 
 from __future__ import annotations
 
+import atexit
+import asyncio
 import json
 import logging
 import os
@@ -31,13 +33,53 @@ DEFAULT_JOURNAL_PATH = ROOT_DIR / "data" / "job_log.jsonl"
 
 class JobJournal:
     """
-    Thread-safe, append-only WAL journal for warehouse jobs.
+    Thread-safe, append-only WAL journal for warehouse jobs with non-blocking file streaming.
+    Streams writes directly to an open append-only file descriptor and offloads
+    hardware fsync operations when executing under an active asyncio event loop,
+    preventing event loop lag and thread starvation under heavy task injection.
     """
 
     def __init__(self, journal_path: Optional[Path] = None) -> None:
         self.journal_path = journal_path or DEFAULT_JOURNAL_PATH
         self.journal_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._file: Optional[Any] = None
+        atexit.register(self.close)
+
+    def _ensure_file(self):
+        if self._file is None or self._file.closed:
+            self.journal_path.parent.mkdir(parents=True, exist_ok=True)
+            self._file = open(self.journal_path, "a", encoding="utf-8", buffering=1)
+        return self._file
+
+    def _fsync_handle(self) -> None:
+        """Physical disk flush routine executed synchronously or via worker pool."""
+        try:
+            with self._lock:
+                if self._file and not self._file.closed:
+                    self._file.flush()
+                    os.fsync(self._file.fileno())
+        except OSError:
+            pass
+
+    def flush(self) -> None:
+        """Explicitly flush user-space buffers and fsync file to non-volatile disk."""
+        self._fsync_handle()
+
+    def close(self) -> None:
+        """Cleanly flush and close the streaming journal handle."""
+        with self._lock:
+            if self._file and not self._file.closed:
+                try:
+                    self._file.flush()
+                    os.fsync(self._file.fileno())
+                except OSError:
+                    pass
+                try:
+                    self._file.close()
+                except Exception:
+                    pass
+                self._file = None
 
     def append_entry(
         self,
@@ -50,10 +92,12 @@ class JobJournal:
         status: Optional[str] = None,
         assigned_robot_id: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None,
+        flush_sync: bool = False,
     ) -> Dict[str, Any]:
         """
-        Appends an event entry to the journal and immediately flushes & fsyncs to disk.
-        Guarantees durability prior to HTTP response return.
+        Appends an event entry to the journal using non-blocking file streaming.
+        Flushes immediately to OS cache; schedules fsync in background thread pool
+        if running within an event loop to avoid blocking async dispatch.
         """
         record: Dict[str, Any] = {
             "timestamp": time.time(),
@@ -79,16 +123,35 @@ class JobJournal:
         line = json.dumps(record, separators=(",", ":")) + "\n"
 
         with self._lock:
-            with open(self.journal_path, "a", encoding="utf-8") as f:
-                f.write(line)
-                f.flush()
-                try:
-                    os.fsync(f.fileno())
-                except OSError:
-                    pass
+            f = self._ensure_file()
+            f.write(line)
+            f.flush()
+
+        # Non-blocking file streaming: if called from an active asyncio event loop,
+        # offload blocking hardware fsync to background thread pool executor so the event loop is never stalled.
+        if flush_sync:
+            self._fsync_handle()
+        else:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(None, self._fsync_handle)
+            except RuntimeError:
+                # No active event loop running on this thread; perform synchronous fsync
+                self._fsync_handle()
 
         log.debug("[JobJournal] Committed event '%s' for job '%s' to disk.", event, job_id)
         return record
+
+    async def append_entry_async(
+        self,
+        event: str,
+        job_id: str,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Asynchronously streams an entry to the journal without blocking the event loop.
+        """
+        return self.append_entry(event=event, job_id=job_id, flush_sync=False, **kwargs)
 
     def log_submission(
         self,
@@ -159,6 +222,7 @@ class JobJournal:
         of all submitted jobs.
         Returns all jobs whose latest status is NOT 'COMPLETED' and NOT 'CANCELLED'.
         """
+        self.flush()
         if not self.journal_path.exists():
             return []
 

@@ -73,6 +73,7 @@ class TelemetryBus:
             robots_list.append({
                 "id": s["robot_id"],
                 "robot_id": s["robot_id"],
+                "tick": s.get("tick", self.current_tick),
                 "robot_type": s.get("robot_type", "GOODS_TO_PERSON"),
                 "position": {"x": s["x"], "y": s["y"]},
                 "x": s["x"],

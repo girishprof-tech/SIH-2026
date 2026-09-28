@@ -88,6 +88,8 @@ class FleetOrchestrator:
         self.telemetry_queue: mp.Queue = mp.Queue()
         self.stop_event: mp.Event = mp.Event()
         self.pause_event: mp.Event = mp.Event()
+        self.start_event: mp.Event = mp.Event()
+        self.ready_barrier: Optional[mp.Barrier] = None
         # Distinct UDP ports for real decentralized networking (e.g. 9000 + N for robots, 9601..9603 for stations)
         self.peer_ports: Dict[str, int] = {
             cfg["robot_id"]: 9000 + i for i, cfg in enumerate(self.robots_config, start=1)
@@ -106,7 +108,12 @@ class FleetOrchestrator:
         self._bus_thread = threading.Thread(target=self._run_bus, daemon=True, name="TelemetryBusCollector")
         self._bus_thread.start()
 
-        # 2. Spawn one OS process per robot
+        # 2. Setup startup rendezvous barrier
+        total_nodes = len(self.robots_config) + (3 if enable_stations else 0)
+        self.ready_barrier = mp.Barrier(total_nodes + 1)
+        self.start_event = mp.Event()
+
+        # 3. Spawn one OS process per robot
         fleet_roster = {cfg["robot_id"]: cfg.get("robot_type", "GOODS_TO_PERSON") for cfg in self.robots_config}
         for cfg in self.robots_config:
             rid = cfg["robot_id"]
@@ -133,13 +140,14 @@ class FleetOrchestrator:
                     self.pause_event,
                     fleet_roster,
                 ),
+                kwargs={"start_event": self.start_event, "start_barrier": self.ready_barrier},
             )
 
             p.start()
             self.processes.append(p)
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")
 
-        # 3. Spawn 3 fixed-infrastructure Station processes if enabled
+        # 4. Spawn 3 fixed-infrastructure Station processes if enabled
         if enable_stations:
             print("[FleetOrchestrator] Spawning 3 fixed station processes (Import, Export, Authority)...")
             station_specs = [
@@ -161,11 +169,18 @@ class FleetOrchestrator:
                         str(self.log_dir),
                         self.tick_interval_s,
                     ),
+                    kwargs={"start_event": self.start_event, "start_barrier": self.ready_barrier},
                 )
                 sp.start()
                 self.station_processes.append(sp)
                 print(f"  -> Spawned Station Process for {st_id} (PID={sp.pid}) on UDP port {st_port}")
 
+        # Synchronize child processes: Wait until every process has finished initialization
+        try:
+            self.ready_barrier.wait(timeout=20.0)
+        except Exception as e:
+            print(f"[FleetOrchestrator] Warning: Barrier wait timeout: {e}")
+        self.start_event.set()
         print("[FleetOrchestrator] All robot and station processes successfully running!")
 
     def pause(self) -> None:
@@ -234,6 +249,7 @@ class FleetOrchestrator:
         # Re-initialize events and queue
         self.stop_event = mp.Event()
         self.pause_event = mp.Event()
+        self.start_event = mp.Event()
         if pause_on_reset:
             self.pause_event.set()
         self.telemetry_queue = mp.Queue()
@@ -261,6 +277,12 @@ class FleetOrchestrator:
         """Signals all processes to stop and forcefully joins/terminates them."""
         print("[FleetOrchestrator] Stopping all robot and station processes...")
         self.stop_event.set()
+        self.start_event.set()
+        if self.ready_barrier is not None:
+            try:
+                self.ready_barrier.abort()
+            except Exception:
+                pass
         if self._bus_thread and self._bus_thread.is_alive():
             self._bus_thread.join(timeout=1.0)
         for p in self.processes:

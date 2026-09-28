@@ -453,6 +453,8 @@ def run_station_process(
     tick_interval_s: float = 0.15,
     dashboard_port: int = 9099,
     secret_key: str = DEFAULT_SECRET_KEY,
+    start_event: Optional[mp.Event] = None,
+    start_barrier: Optional[mp.Barrier] = None,
 ) -> None:
     """
     Entrypoint function executed in an independent OS process for each StationNode.
@@ -468,11 +470,32 @@ def run_station_process(
         dashboard_port=dashboard_port,
         log_dir=l_path,
     )
+    if start_barrier is not None:
+        try:
+            start_barrier.wait()
+        except Exception:
+            pass
+    elif start_event is not None:
+        start_event.wait()
+
+    if stop_event.is_set():
+        station.close()
+        return
+
+    start_time = time.time()
     tick = 0
     try:
         while not stop_event.is_set():
             station.poll_and_step(tick)
             tick += 1
-            time.sleep(tick_interval_s)
+            now = time.time()
+            target_time = start_time + tick * tick_interval_s
+            sleep_time = target_time - now
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            elif now - target_time > 0.5:
+                start_time = now - tick * tick_interval_s
+            else:
+                time.sleep(0.0001)
     finally:
         station.close()
