@@ -62,11 +62,15 @@ def compute_priority(
     # 1. Deterministic baseline
     baseline = calculate_deterministic_priority(robot, task, distance_to_goal)
 
-    if gnn_model is None:
-        if prev_score is not None:
+    if baseline <= AUDIT_MAX_CEILING:
+        # Taskless / auditing robots always remain at the audit floor
+        if prev_score is not None and prev_score <= AUDIT_MAX_CEILING:
             baseline = apply_ema_smoothing(baseline, prev_score, alpha=alpha)
-            if calculate_deterministic_priority(robot, task, distance_to_goal) < -500.0:
-                baseline = min(AUDIT_MAX_CEILING, baseline)
+        return float(min(AUDIT_MAX_CEILING, baseline))
+
+    if gnn_model is None:
+        if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
+            baseline = apply_ema_smoothing(baseline, prev_score, alpha=alpha)
         return float(baseline)
 
     # 2. Check Anti-Flapping Cooldown Window
@@ -78,10 +82,8 @@ def compute_priority(
 
     if in_cooldown:
         log.debug("compute_priority: In fallback cooldown at tick %d; using deterministic baseline.", current_tick)
-        if prev_score is not None:
+        if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
             baseline = apply_ema_smoothing(baseline, prev_score, alpha=alpha)
-            if calculate_deterministic_priority(robot, task, distance_to_goal) < -500.0:
-                baseline = min(AUDIT_MAX_CEILING, baseline)
         return float(baseline)
 
     # 3. Attempt GNN model inference with latency monitoring and exception safety
@@ -106,7 +108,7 @@ def compute_priority(
                 cooldown_tracker.trip_fallback(current_tick, FALLBACK_COOLDOWN_TICKS)
             if hasattr(robot, "fallback_until_tick"):
                 robot.fallback_until_tick = current_tick + FALLBACK_COOLDOWN_TICKS
-            if prev_score is not None:
+            if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
                 baseline = apply_ema_smoothing(baseline, prev_score, alpha=alpha)
             return float(baseline)
 
@@ -117,7 +119,7 @@ def compute_priority(
                 cooldown_tracker.trip_fallback(current_tick, FALLBACK_COOLDOWN_TICKS)
             if hasattr(robot, "fallback_until_tick"):
                 robot.fallback_until_tick = current_tick + FALLBACK_COOLDOWN_TICKS
-            if prev_score is not None:
+            if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
                 baseline = apply_ema_smoothing(baseline, prev_score, alpha=alpha)
             return float(baseline)
 
@@ -125,19 +127,11 @@ def compute_priority(
         clamped_adj = max(-MAX_GNN_ADJUSTMENT, min(MAX_GNN_ADJUSTMENT, adjustment))
         raw_score = baseline + clamped_adj
 
-        # Enforce Audit Priority Tier Floor: GNN adjustments must NEVER elevate an auditing
-        # robot above the minimum possible score of any task-carrying robot.
-        if baseline < -500.0:
-            raw_score = min(AUDIT_MAX_CEILING, raw_score)
-
-        # 4. Apply EMA smoothing
-        if prev_score is not None:
+        # 4. Apply EMA smoothing within the active task tier
+        if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
             score = apply_ema_smoothing(raw_score, prev_score, alpha=alpha)
         else:
             score = raw_score
-
-        if baseline < -500.0:
-            score = min(AUDIT_MAX_CEILING, score)
 
         return float(score)
 

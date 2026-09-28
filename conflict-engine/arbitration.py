@@ -196,11 +196,45 @@ def resolve_conflict(
         if evade_path:
             new_path = evade_path
         else:
-            # Loser cannot advance or evade immediately: hold position for current and next tick
-            new_path = [
-                {"x": start_pos[0], "y": start_pos[1], "t": current_tick},
-                {"x": start_pos[0], "y": start_pos[1], "t": current_tick + 1},
-            ]
+            # Active turnout back-off (Part 1C): instead of stationary WAIT,
+            # attempt to find a reverse path to the nearest intersection/turnout
+            # so the lane is physically cleared for the winner.
+            reverse_candidates = []
+            for rx in range(max(0, start_pos[0] - 3), min(30, start_pos[0] + 4)):
+                for ry in range(max(0, start_pos[1] - 3), min(30, start_pos[1] + 4)):
+                    rc = (rx, ry)
+                    if rc == start_pos or rc == w_cur:
+                        continue
+                    mdist = abs(rx - start_pos[0]) + abs(ry - start_pos[1])
+                    if mdist < 1 or mdist > 4:
+                        continue
+                    if reservation_table.get((rx, ry, current_tick + 1)) is not None:
+                        continue
+                    reverse_candidates.append((mdist, rc))
+            reverse_candidates.sort(key=lambda t: t[0])
+
+            reverse_path = None
+            for _, rc in reverse_candidates:
+                try:
+                    sig = inspect.signature(find_path_fn)
+                    if "robot_id" in sig.parameters:
+                        rp = find_path_fn(start_pos, rc, current_tick, reservation_table, robot_id=loser.robot_id)
+                    else:
+                        rp = find_path_fn(start_pos, rc, current_tick, reservation_table)
+                except Exception:
+                    rp = find_path_fn(start_pos, rc, current_tick, reservation_table)
+                if rp and len(rp) > 1:
+                    reverse_path = rp
+                    break
+
+            if reverse_path:
+                new_path = reverse_path
+            else:
+                # Last resort: hold position for current and next tick
+                new_path = [
+                    {"x": start_pos[0], "y": start_pos[1], "t": current_tick},
+                    {"x": start_pos[0], "y": start_pos[1], "t": current_tick + 1},
+                ]
     elif len(new_path) == 1 and new_path[0]["t"] == current_tick:
         new_path.append({"x": new_path[0]["x"], "y": new_path[0]["y"], "t": current_tick + 1})
 

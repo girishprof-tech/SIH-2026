@@ -108,9 +108,10 @@ def detect_conflicts(robots: List[Any], current_tick: int) -> List[Dict[str, Any
                 })
                 continue
 
-            # 3. Check CELL_OVERLAP across future horizon [current_tick + 1, current_tick + 2]
+            # 3. Check CELL_OVERLAP across future horizon [current_tick + 1, current_tick + 3]
+            # Extended to 3 ticks to catch rolling-horizon blind spots in narrow corridors.
             conflict_found = False
-            for dt in (1, 2):
+            for dt in (1, 2, 3):
                 target_tick = current_tick + dt
                 p_a = _get_pos_at_tick(ra, target_tick, current_tick)
                 p_b = _get_pos_at_tick(rb, target_tick, current_tick)

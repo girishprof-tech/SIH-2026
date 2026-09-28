@@ -1972,6 +1972,58 @@ class RobotNode:
 
         prune_past(self.local_reservations, tick)
 
+        # ── Reactive Physical Proximity Override (Part 1D) ──────────────
+        # Low-level safety net: if after committing movement, we are occupying
+        # the same cell as any peer, or concurrent collision / edge-swap occurred,
+        # emergency-brake and revert to previous position immediately.
+        my_pos = self.robot.position
+        if my_pos != prev_pos:
+            for peer in self.peers.values():
+                if peer.robot_id == self.robot.robot_id:
+                    continue
+                p_pos = peer.position
+                p_intent = peer.intended_pos
+
+                # Check for physical vertex overlap or concurrent entry or edge swap
+                collision = False
+                if p_pos is not None and my_pos == p_pos:
+                    collision = True
+                elif p_intent is not None and my_pos == p_intent:
+                    collision = True
+                elif p_pos is not None and p_intent is not None and my_pos == p_pos and prev_pos == p_intent:
+                    collision = True
+
+                if collision:
+                    self.robot.position = prev_pos
+                    self.robot.heading = prev_heading
+                    action_taken = "PROXIMITY_BRAKE"
+                    self.robot.wait_ticks_so_far += 1
+                    self._needs_replan = True
+                    self.log(
+                        f"[Tick {tick}] PROXIMITY OVERRIDE: Collision danger prevented with "
+                        f"{peer.robot_id} (my_pos={my_pos}, peer_pos={p_pos}, peer_intent={p_intent}). "
+                        f"Reverting to {prev_pos}, triggering re-arbitration."
+                    )
+                    break
+        # ────────────────────────────────────────────────────────────────
+
+        # ── G2P Shelf Violation Guard (Part 2D) ─────────────────────────
+        # If a laden robot (carrying pod) has stepped onto any shelf cell, ESTOP.
+        if hasattr(self, '_carrying_pod') and self._carrying_pod:
+            if hasattr(self.grid, 'is_shelf_cell') and self.grid.is_shelf_cell(self.robot.position):
+                # Check if this is the robot's own docking shelf — that's allowed
+                own_shelf = getattr(self, '_docking_shelf_pos', None)
+                if own_shelf is None or self.robot.position != own_shelf:
+                    self.fsm.state = RobotState.EMERGENCY_STOP
+                    self.robot.state = self.fsm.state
+                    self.robot.path = []
+                    action_taken = "ESTOP_SHELF_VIOLATION"
+                    self.log(
+                        f"[Tick {tick}] ESTOP: Laden robot stepped onto shelf cell {self.robot.position}! "
+                        f"Aborting execution."
+                    )
+        # ────────────────────────────────────────────────────────────────
+
         self.log(
             f"[Tick {tick}] Pos={self.robot.position}, Heading={self.robot.heading.value}, "
             f"State={self.fsm.state.value}, Action={action_taken}, Priority={self.robot.priority_score:.1f}, "
@@ -2657,10 +2709,12 @@ class RobotNode:
                 self.interim_coordinator_id = None
             return
 
-        candidates = [(float(self.robot.priority_score), str(self.robot.robot_id))]
+        my_p = float(self.robot.priority_score) if (self.task is not None and float(self.robot.priority_score) > -500.0) else 0.0
+        candidates = [(my_p, str(self.robot.robot_id))]
         for p in self.peers.values():
             if p.last_seen_tick >= current_tick - 5:
-                candidates.append((float(p.priority_score), str(p.robot_id)))
+                peer_p = float(p.priority_score) if float(p.priority_score) > -500.0 else 0.0
+                candidates.append((peer_p, str(p.robot_id)))
 
         candidates.sort(key=lambda c: (-c[0], c[1]))
         winner_score, winner_id = candidates[0]

@@ -211,6 +211,7 @@ def test_redteam_replay_attack_rejected():
         tick=5,
         source_robot_id="AMR-ATTACKER",
         seq=1,
+        version=10,
     )
 
     # First delivery: accepted

@@ -140,3 +140,61 @@ class ReservationManager:
         self._table.clear()
         self._robot_keys.clear()
         log.info("RESERVATION_MANAGER_CLEARED: All reservations purged.")
+
+    # -- Kinematic Time-Window Buffering (Part 1B) ---------------------------
+
+    def reserve_with_buffer(
+        self, robot_id: str, x: int, y: int, t: int, delta: int = 1
+    ) -> None:
+        """Reserve cell (x, y) for time interval [t - delta, t + delta].
+        Prevents edge-swap collisions caused by kinematic timing drift."""
+        for dt in range(-delta, delta + 1):
+            tick = t + dt
+            if tick >= 0:
+                key: ReservationKey = (x, y, tick)
+                existing = self._table.get(key)
+                if existing is None or existing == robot_id:
+                    self._table[key] = robot_id
+                    if robot_id not in self._robot_keys:
+                        self._robot_keys[robot_id] = set()
+                    self._robot_keys[robot_id].add(key)
+
+    def is_buffer_blocked(
+        self, x: int, y: int, t: int, robot_id: str, delta: int = 1
+    ) -> bool:
+        """Check if any tick in [t - delta, t + delta] is reserved by another robot."""
+        for dt in range(-delta, delta + 1):
+            tick = t + dt
+            if tick >= 0:
+                owner = self._table.get((x, y, tick))
+                if owner is not None and owner != robot_id:
+                    return True
+        return False
+
+    def reserve_corridor_segment(
+        self,
+        robot_id: str,
+        corridor_cells: set,
+        entry_tick: int,
+        exit_tick: int,
+    ) -> bool:
+        """Attempt to lock an entire narrow corridor segment for exclusive traversal.
+        Returns True if the lock was acquired (no other robot holds any cell in the segment
+        during [entry_tick, exit_tick]). Returns False if the corridor is contested."""
+        # Check for conflicts first
+        for cell in corridor_cells:
+            cx, cy = cell
+            for t in range(entry_tick, exit_tick + 1):
+                owner = self._table.get((cx, cy, t))
+                if owner is not None and owner != robot_id:
+                    return False
+        # Lock all cells for the traversal window
+        if robot_id not in self._robot_keys:
+            self._robot_keys[robot_id] = set()
+        for cell in corridor_cells:
+            cx, cy = cell
+            for t in range(entry_tick, exit_tick + 1):
+                key = (cx, cy, t)
+                self._table[key] = robot_id
+                self._robot_keys[robot_id].add(key)
+        return True

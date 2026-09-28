@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import heapq
 from itertools import count
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from grid import WarehouseGrid, Position
 
@@ -87,7 +87,14 @@ class SpaceTimeAStarPlanner:
         reservation_table: ReservationTable,
         robot_id: Optional[str] = None,
         start_heading: Optional[str] = None,
+        blocked_cells: Optional[Set[Position]] = None,
+        allowed_exception: Optional[Position] = None,
     ) -> List[dict]:
+        """Plan a path from start to goal.
+        
+        blocked_cells: additional cells to treat as impassable (e.g., shelf cells for G2P).
+        allowed_exception: a single cell within blocked_cells that IS allowed (the target shelf).
+        """
         start = (int(start[0]), int(start[1]))
         goal = (int(goal[0]), int(goal[1]))
 
@@ -132,7 +139,11 @@ class SpaceTimeAStarPlanner:
             if t >= max_t:
                 continue
 
-            for nstate, cost in self._successors(state, reservation_table, robot_id):
+            for nstate, cost in self._successors(
+                state, reservation_table, robot_id,
+                blocked_cells=blocked_cells,
+                allowed_exception=allowed_exception,
+            ):
                 if nstate in closed:
                     continue
                 tentative_g = g_score[state] + cost
@@ -154,6 +165,8 @@ class SpaceTimeAStarPlanner:
         state: State,
         reservation_table: ReservationTable,
         robot_id: Optional[str],
+        blocked_cells: Optional[Set[Position]] = None,
+        allowed_exception: Optional[Position] = None,
     ) -> List[Tuple[State, int]]:
         x, y, heading, t = state
         nt = t + 1
@@ -162,11 +175,32 @@ class SpaceTimeAStarPlanner:
         # 1. Move forward one cell in the current heading.
         dx, dy = DELTA[heading]
         target = (x + dx, y + dy)
-        if self.grid.is_free(target) and not self._vertex_blocked(
+
+        target_free = self.grid.is_free(target)
+        if target_free and blocked_cells and target in blocked_cells:
+            if allowed_exception is None or target != allowed_exception:
+                target_free = False
+
+        if target_free and not self._vertex_blocked(
             target, nt, reservation_table, robot_id, self.grid
         ):
             if not self._causes_swap((x, y), target, t, reservation_table, robot_id):
-                out.append(((target[0], target[1], heading, nt), MOVE_COST_TICKS))
+                # Corridor entry locking check (Part 1A):
+                # If target is inside a narrow corridor and we are ENTERING from outside,
+                # verify no opposing robot occupies or has reserved any cell in that segment.
+                corridor_ok = True
+                seg = self.grid.get_corridor_segment(target)
+                if seg is not None and (x, y) not in seg:
+                    for c_cell in seg:
+                        for ct in range(nt, nt + len(seg) + 1):
+                            occ = reservation_table.get((c_cell[0], c_cell[1], ct))
+                            if occ is not None and occ != robot_id:
+                                corridor_ok = False
+                                break
+                        if not corridor_ok:
+                            break
+                if corridor_ok:
+                    out.append(((target[0], target[1], heading, nt), MOVE_COST_TICKS))
 
         # 2 & 3. Stay on the same cell for this tick, either turning to a new
         # heading or waiting (yielding). Both still occupy/reserve (x, y).
@@ -233,6 +267,80 @@ class SpaceTimeAStarPlanner:
         states.reverse()
         return [{"x": s[0], "y": s[1], "t": s[3]} for s in states]
 
+    # -- G2P Dual-Phase Path Planning (Part 2C) ------------------------------
+
+    def plan_g2p_path(
+        self,
+        robot_pos: Position,
+        shelf_pos: Position,
+        aisle_entry_pos: Position,
+        delivery_pos: Position,
+        current_tick: int,
+        reservation_table: ReservationTable,
+        robot_id: Optional[str] = None,
+        start_heading: Optional[str] = None,
+    ) -> Dict[str, List[dict]]:
+        """Dual-phase G2P path planning.
+        
+        Phase A: Route from robot_pos to shelf_pos via open aisles.
+                 Only the target shelf cell is traversable at the terminal step.
+        Phase B: 
+          Step 1 (Reverse Egress): shelf_pos → aisle_entry_pos (back into the aisle)
+          Step 2 (Corridor Transport): aisle_entry_pos → delivery_pos (all shelves impassable)
+        
+        Returns: {"pickup": [...], "egress": [...], "delivery": [...]}
+        """
+        all_shelf_cells = self.grid._shelf_cells if hasattr(self.grid, '_shelf_cells') else set()
+        
+        # Phase A: pickup path (only target shelf is enterable)
+        pickup_path = self.plan_path(
+            robot_pos, shelf_pos, current_tick, reservation_table,
+            robot_id=robot_id, start_heading=start_heading,
+            blocked_cells=all_shelf_cells,
+            allowed_exception=shelf_pos,
+        )
+
+        if not pickup_path:
+            return {"pickup": [], "egress": [], "delivery": []}
+
+        # Compute tick at end of pickup
+        pickup_end_tick = pickup_path[-1]["t"] if pickup_path else current_tick
+
+        # Phase B Step 1: Reverse egress (shelf → aisle entry, all shelves blocked)
+        egress_path = self.plan_path(
+            shelf_pos, aisle_entry_pos, pickup_end_tick + 1, reservation_table,
+            robot_id=robot_id,
+            blocked_cells=all_shelf_cells,
+            allowed_exception=shelf_pos,  # Robot is allowed to start from the shelf it just docked at
+        )
+
+        if not egress_path:
+            # Try with a small time offset
+            egress_path = self.plan_path(
+                shelf_pos, aisle_entry_pos, pickup_end_tick + 2, reservation_table,
+                robot_id=robot_id,
+                blocked_cells=all_shelf_cells,
+                allowed_exception=shelf_pos,
+            )
+
+        if not egress_path:
+            return {"pickup": pickup_path, "egress": [], "delivery": []}
+
+        egress_end_tick = egress_path[-1]["t"] if egress_path else pickup_end_tick + 1
+
+        # Phase B Step 2: Corridor highway navigation (all shelves impassable)
+        delivery_path = self.plan_path(
+            aisle_entry_pos, delivery_pos, egress_end_tick + 1, reservation_table,
+            robot_id=robot_id,
+            blocked_cells=all_shelf_cells,
+        )
+
+        return {
+            "pickup": pickup_path,
+            "egress": egress_path,
+            "delivery": delivery_path,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Module-level convenience API — this is the literal signature other members
@@ -271,6 +379,8 @@ def find_path(
     robot_id: Optional[str] = None,
     start_heading: Optional[str] = None,
     grid: Optional[WarehouseGrid] = None,
+    blocked_cells: Optional[Set[Position]] = None,
+    allowed_exception: Optional[Position] = None,
 ) -> List[dict]:
     """
     Exact contract from SCHEMA.md Section 8. Positional call with 4 args
@@ -296,4 +406,6 @@ def find_path(
         reservation_table,
         robot_id=robot_id,
         start_heading=start_heading,
+        blocked_cells=blocked_cells,
+        allowed_exception=allowed_exception,
     )

@@ -25,6 +25,8 @@ class RobotState(str, enum.Enum):
     DROPPING = "DROPPING"
     LOWERING = "LOWERING"
     CONFLICT_NEGOTIATING = "CONFLICT_NEGOTIATING"
+    DOCKING = "DOCKING"
+    EGRESS = "EGRESS"
     AUDITING = "AUDITING"
     CHARGING = "CHARGING"
     FAILSAFE_HOLD = "FAILSAFE_HOLD"
@@ -42,7 +44,9 @@ class RobotEvent(str, enum.Enum):
     PICKUP_REACHED = "PICKUP_REACHED"
     CONFLICT_LOST = "CONFLICT_LOST"
     PICKUP_COMPLETE = "PICKUP_COMPLETE"
+    DOCK_COMPLETE = "DOCK_COMPLETE"
     LIFT_COMPLETE = "LIFT_COMPLETE"
+    EGRESS_COMPLETE = "EGRESS_COMPLETE"
     DROPOFF_REACHED = "DROPOFF_REACHED"
     MISSION_COMPLETE = "MISSION_COMPLETE"
     LOWER_COMPLETE = "LOWER_COMPLETE"
@@ -74,9 +78,16 @@ TRANSITIONS: Dict[Tuple[RobotState, RobotEvent], RobotState] = {
     (RobotState.DROPPING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
     (RobotState.DROPPING, RobotEvent.LOWER_COMPLETE): RobotState.IDLE,
 
-    # G2P Pod Transport Lifecycle
+    # G2P Pod Transport Lifecycle (with DOCKING + EGRESS)
+    (RobotState.EN_ROUTE_PICKUP, RobotEvent.DOCK_COMPLETE): RobotState.DOCKING,
+    (RobotState.DOCKING, RobotEvent.PICKUP_REACHED): RobotState.PICKING,
+    (RobotState.DOCKING, RobotEvent.LIFT_COMPLETE): RobotState.EGRESS,
+    (RobotState.PICKING, RobotEvent.DOCK_COMPLETE): RobotState.DOCKING,
     (RobotState.LIFTING, RobotEvent.LIFT_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
     (RobotState.LIFTING, RobotEvent.PICKUP_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.LIFTING, RobotEvent.EGRESS_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.EGRESS, RobotEvent.EGRESS_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
+    (RobotState.EGRESS, RobotEvent.CONFLICT_LOST): RobotState.CONFLICT_NEGOTIATING,
     (RobotState.LOWERING, RobotEvent.LOWER_COMPLETE): RobotState.IDLE,
     (RobotState.LOWERING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
 
@@ -91,6 +102,7 @@ TRANSITIONS: Dict[Tuple[RobotState, RobotEvent], RobotState] = {
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_AUDIT): RobotState.AUDITING,
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.RESUME_IDLE): RobotState.IDLE,
     (RobotState.CONFLICT_NEGOTIATING, RobotEvent.MISSION_COMPLETE): RobotState.IDLE,
+    (RobotState.CONFLICT_NEGOTIATING, RobotEvent.EGRESS_COMPLETE): RobotState.EN_ROUTE_DROPOFF,
 
     # Charging lifecycle
     (RobotState.CHARGING, RobotEvent.CHARGE_COMPLETE): RobotState.IDLE,

@@ -226,7 +226,7 @@ def calculate_deterministic_priority(
         wait_bonus = float(getattr(robot, "wait_ticks_so_far", 0) * 2)
         dist_pen = float(distance_to_goal)
         raw_score = AUDIT_BASE_SCORE + wait_bonus - dist_pen
-        if prev_score is not None:
+        if prev_score is not None and prev_score <= AUDIT_MAX_CEILING:
             raw_score = apply_ema_smoothing(raw_score, prev_score, alpha=alpha)
         return float(min(AUDIT_MAX_CEILING, raw_score))
 
@@ -242,8 +242,8 @@ def calculate_deterministic_priority(
     if use_calibration:
         raw_score = raw_score * FALLBACK_SCALE + FALLBACK_OFFSET
 
-    # Apply EMA smoothing if previous score exists
-    if prev_score is not None:
+    # Apply EMA smoothing only if previous score was in the active task tier
+    if prev_score is not None and prev_score > AUDIT_MAX_CEILING:
         raw_score = apply_ema_smoothing(raw_score, prev_score, alpha=alpha)
 
     return float(raw_score)
