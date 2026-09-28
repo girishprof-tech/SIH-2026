@@ -1184,8 +1184,35 @@ class RobotNode:
                 )
                 if p_drop and len(p_drop) > 1:
                     self.robot.path = p_drop
-                    reserve_path(p_drop, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
             self.robot.state = self.fsm.state
+            # Broadcast newly planned dropoff route so peers immediately see the reservation
+            self.seq += 1
+            claimed_pod = self.robot.carrying_pod_id or (getattr(self.task, "target_shelf_id", None) if self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.PICKING, RobotState.LIFTING) else None)
+            claim_payload = {
+                "type": "RESERVATION_CLAIM",
+                "robot_id": self.robot.robot_id,
+                "robot_type": self.robot_type,
+                "tick": tick,
+                "position": [self.robot.position[0], self.robot.position[1]],
+                "intended_pos": [self.robot.position[0], self.robot.position[1]],
+                "heading": self.robot.heading.value,
+                "priority_score": self.robot.priority_score,
+                "state": self.fsm.state.value,
+                "wait_ticks": self.robot.wait_ticks_so_far,
+                "path": list(self.robot.path[:8]) if self.robot.path else [{"x": self.robot.position[0], "y": self.robot.position[1], "t": tick + dt} for dt in range(8)],
+                "charger_target": list(self.charger_target) if self.charger_target else None,
+                "claimed_pod_id": claimed_pod,
+                "active_claimed_pods": list(self.active_claimed_pods),
+                "occupied_slot": [self.robot.position[0], self.robot.position[1]] if (self.robot.carrying_pod_id or self.fsm.state in (RobotState.PICKING, RobotState.LIFTING)) else None,
+            }
+            envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
+            for peer_id in self.peer_ports.keys():
+                if peer_id != self.robot.robot_id:
+                    if self.is_peer_in_proximity(peer_id):
+                        self.transport.send(peer_id, envelope)
+                        self.packets_sent_count += 1
+                    else:
+                        self.packets_filtered_count += 1
             return self._build_telemetry_frame(tick, "LIFTING_COMPLETE", None)
 
         if self.fsm.state in (RobotState.DROPPING, RobotState.LOWERING):
@@ -1445,7 +1472,7 @@ class RobotNode:
                         abs(ix - p.position[0]) + abs(iy - p.position[1]),
                         abs(rx - p.intended_pos[0]) + abs(ry - p.intended_pos[1]),
                         abs(ix - p.intended_pos[0]) + abs(iy - p.intended_pos[1]),
-                    ) <= 3
+                    ) <= 5
                 )
                 and p.last_seen_tick < tick
                 for p in self.peers.values()
@@ -1973,27 +2000,27 @@ class RobotNode:
         prune_past(self.local_reservations, tick)
 
         # ── Reactive Physical Proximity Override (Part 1D) ──────────────
-        # Low-level safety net: if after committing movement, we are occupying
-        # the same cell as any peer, or concurrent collision / edge-swap occurred,
-        # emergency-brake and revert to previous position immediately.
+        # Low-level safety net: drain latest peer broadcasts right now to catch
+        # any concurrent movements committed during this tick.
+        self._drain_inbox(tick)
         my_pos = self.robot.position
-        if my_pos != prev_pos:
-            for peer in self.peers.values():
-                if peer.robot_id == self.robot.robot_id:
-                    continue
-                p_pos = peer.position
-                p_intent = peer.intended_pos
+        for peer in self.peers.values():
+            if peer.robot_id == self.robot.robot_id:
+                continue
+            p_pos = peer.position
+            p_intent = peer.intended_pos
 
-                # Check for physical vertex overlap or concurrent entry or edge swap
-                collision = False
-                if p_pos is not None and my_pos == p_pos:
-                    collision = True
-                elif p_intent is not None and my_pos == p_intent:
-                    collision = True
-                elif p_pos is not None and p_intent is not None and my_pos == p_pos and prev_pos == p_intent:
-                    collision = True
+            # Check for physical vertex overlap or concurrent entry or edge swap
+            collision = False
+            if p_pos is not None and my_pos == p_pos:
+                collision = True
+            elif p_intent is not None and my_pos == p_intent and my_pos != prev_pos:
+                collision = True
+            elif p_pos is not None and p_intent is not None and my_pos == p_pos and prev_pos == p_intent:
+                collision = True
 
-                if collision:
+            if collision:
+                if my_pos != prev_pos:
                     self.robot.position = prev_pos
                     self.robot.heading = prev_heading
                     action_taken = "PROXIMITY_BRAKE"
@@ -2004,7 +2031,19 @@ class RobotNode:
                         f"{peer.robot_id} (my_pos={my_pos}, peer_pos={p_pos}, peer_intent={p_intent}). "
                         f"Reverting to {prev_pos}, triggering re-arbitration."
                     )
-                    break
+                else:
+                    # Both ended up in the same cell while one was stationary;
+                    # immediately step aside into an adjacent free neighbor to avoid multi-tick overlap
+                    free_nbs = [nb for nb in self.grid._free_neighbors(my_pos) if nb not in {p.position for p in self.peers.values()}]
+                    if free_nbs:
+                        self.robot.position = free_nbs[0]
+                        action_taken = "EMERGENCY_EVADE"
+                        self._needs_replan = True
+                        self.log(
+                            f"[Tick {tick}] PROXIMITY OVERRIDE: Evading stationary collision with "
+                            f"{peer.robot_id} at {my_pos} -> stepped aside to {free_nbs[0]}."
+                        )
+                break
         # ────────────────────────────────────────────────────────────────
 
         # ── G2P Shelf Violation Guard (Part 2D) ─────────────────────────
