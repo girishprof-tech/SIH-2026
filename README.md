@@ -27,8 +27,11 @@ An edge-first, collision-free autonomous fleet coordination platform featuring a
 - **Engineering Fixes & Verification Report**: [`docs/reports/FIXES_APPLIED.md`](docs/reports/FIXES_APPLIED.md)
 - **Decentralization Implementation Report**: [`docs/reports/IMPLEMENTATION_REPORT.md`](docs/reports/IMPLEMENTATION_REPORT.md)
 - **Production Audit & Telemetry Report (V2)**: [`docs/reports/IMPLEMENTATION_REPORT_V2.md`](docs/reports/IMPLEMENTATION_REPORT_V2.md)
-- **Space-Time Swap Collision Analysis**: [`docs/reports/PEER_BUG_ANALYSIS.md`](docs/reports/PEER_BUG_ANALYSIS.md)
-- **Decentralized Concurrency Rationale**: [`docs/reports/REFACTOR_NOTES.md`](docs/reports/REFACTOR_NOTES.md)
+### Part 6 Decentralized Architecture & E2E Verification
+- **Part 6 Comprehensive Results & Verification Report**: [`docs/PART6_RESULTS.md`](docs/PART6_RESULTS.md)
+- **Part 6 Baseline Report**: [`docs/PART6_BASELINE.md`](docs/PART6_BASELINE.md)
+- **Part 6 Master Test Runner**: [`testing/run_all_part6.py`](testing/run_all_part6.py)
+- **Part 6 E2E 5 Scenarios Verifier (30x30 & 20x20)**: [`testing/verify_step7_e2e_scenarios.py`](testing/verify_step7_e2e_scenarios.py)
 
 ---
 
@@ -111,16 +114,52 @@ python testing/test_decentralization.py
 python testing/verify_no_swap.py
 ```
 
-### 2. Start Backend & Fleet
+### 2. Run Part 6 Master Attack & E2E Suites
+```bash
+# Run Part 6 cumulative regression suite (8 suites: idle fleet, motion, camera, collision, map, tasks, E2E)
+python testing/run_all_part6.py
+
+# Run comprehensive E2E 5-scenario verifier on both 30x30 and custom 20x20 maps
+python testing/verify_step7_e2e_scenarios.py
+
+# Run decentralized task allocation & lease attack suite (6 attack vectors)
+python testing/attack_step6_decentralized_tasks.py
+
+# Run map editor format fuzzing & validator suite (5 attack vectors)
+python testing/attack_step5_map_editor.py
+```
+
+### 3. Start Backend & Fleet
 ```bash
 cd backend/backend
 python -m uvicorn app.main:app --port 8000 --reload
 ```
 
-### 3. Start Frontend Dashboard
+### 4. Start Frontend Dashboard
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 Open `http://localhost:5173` to view the live operations control room.
+
+---
+
+## Future Roadmap: "Later" Ideas & Technical Risks
+
+### 1. Dynamic Multi-Tier Priority Pricing in Contract-Net
+- **Opportunity:** AMRs currently bid based on distance, battery penalties, and task urgency. A dynamic surge-pricing mechanism could dynamically adjust bid scores during traffic hotspots to automatically balance aisle density.
+- **Risk:** In heavily partitioned or lossy mesh networks, robots might overestimate congestion and defer tasks indefinitely if bidding weights become non-monotonic.
+
+### 2. Continuous Corridor Flow Reservation vs Discrete Vertex Locking
+- **Opportunity:** Step 4 enforces narrow corridor locking via discrete Space-Time A* reservations. Moving to directional one-way flow tokens for narrow aisles would permit platooning (multiple robots following each other through a corridor in the same direction).
+- **Risk:** platooning requires fine-grained kinematic distance tracking to prevent rear-end collisions during sudden stops.
+
+### 3. Spline Path Smoothing & Non-Holonomic Kinematic Interpolation
+- **Opportunity:** The 3D frontend currently interpolates between discrete cell centers using angular slerp. Integrating Hermite spline path smoothing with non-holonomic turning radius limits would provide photorealistic turning curvature.
+- **Risk:** Spline paths might clip rack corners if corner clearance bounds are not factored into the bounding-box collision detection.
+
+### 4. WAN-Scale Multi-Warehouse Ledger Replication
+- **Opportunity:** The peer-to-peer anti-entropy ledger gossip protocol currently operates over local subnets and simulated mesh networks. Extending this with Merkle-CRDTs would enable cross-warehouse inventory rebalancing without centralized cloud databases.
+- **Risk:** High network latency across WAN links could delay consistency convergence, requiring conflict-resolution heuristics for simultaneous cross-dock picks.
+

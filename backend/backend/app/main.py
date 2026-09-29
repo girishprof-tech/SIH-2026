@@ -31,6 +31,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from app.api import chaos, robots, simulation, tasks, websocket
 from app.api.chaos_and_world import router as world_router
+from app.api.map_router import router as map_router
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.models.robot import AMRType, Heading, Robot, RobotState
@@ -358,8 +359,14 @@ async def lifespan(app: FastAPI):
                         last_tick = data["tick"]
                         proc_ms = (time.perf_counter() - t_start) * 1000.0
                         process_telemetry_frame(data, fleet_state, telemetry, loop_duration_ms=proc_ms)
-
+                        data["tick_ms"] = cfg.SIM_TICK_MS
                         # Synchronize task state, active obstacles, metrics, and fleet status onto the TICK_UPDATE frame
+                        for r_tel in fleet_state.robots.values():
+                            if r_tel.current_task_id:
+                                t_obj = task_manager.get_task(r_tel.current_task_id)
+                                if t_obj and t_obj.assigned_robot_id != r_tel.robot_id:
+                                    task_manager.record_claim(r_tel.current_task_id, r_tel.robot_id, 40, fleet_state.tick)
+
                         data["tasks"] = [
                             {
                                 "task_id": t.task_id,
@@ -369,9 +376,15 @@ async def lifespan(app: FastAPI):
                                 "status": t.status.value,
                                 "assigned_robot_id": t.assigned_robot_id,
                                 "created_tick": t.created_tick,
+                                "task_type": t.task_type.value if hasattr(t.task_type, "value") else str(t.task_type),
+                                "target_shelf_id": getattr(t, "target_shelf_id", None),
+                                "return_to_home": getattr(t, "return_to_home", True),
+                                "lease_expires_tick": getattr(t, "lease_expires_tick", None),
+                                "unclaimed_reason": getattr(t, "unclaimed_reason", None),
                             }
                             for t in task_manager.all_tasks().values()
                         ]
+
                         data["temporary_obstacles"] = [
                             {
                                 "obstacle_id": obs.obstacle_id,
@@ -383,10 +396,18 @@ async def lifespan(app: FastAPI):
                             if obs.is_active(fleet_state.tick)
                         ]
                         data["metrics"] = telemetry.snapshot()
+                        has_active_tasks = any(
+                            t.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, "COMPLETED", "FAILED")
+                            for t in task_manager.all_tasks().values()
+                        ) or any(
+                            r.current_task_id is not None or r.state in (RobotState.EN_ROUTE_PICKUP, RobotState.PICKING, RobotState.EN_ROUTE_DROPOFF, RobotState.DROPPING, RobotState.LIFTING, RobotState.LOWERING)
+                            for r in fleet_state.robots.values()
+                        )
                         data["fleet_status"] = {
                             "running": fleet_state.is_running,
                             "mode": getattr(app.state, "fleet_mode", "spawned_new_fleet"),
                             "tick": fleet_state.tick,
+                            "armed_state": ("RUNNING" if has_active_tasks else "ARMED — waiting for tasks") if fleet_state.is_running else "STOPPED",
                         }
                         # Include live inventory ledger snapshot and sortation chutes
                         try:
@@ -430,22 +451,48 @@ async def lifespan(app: FastAPI):
                     envelope = json.loads(raw_str)
                     if verify_envelope(envelope):
                         payload = envelope.get("payload", {})
-                        sync_msg = {
-                            "type": "INVENTORY_SYNC",
-                            "channel": "HALOW",
-                            "shelf_id": payload.get("shelf_id"),
-                            "x": payload.get("x", 0),
-                            "y": payload.get("y", 0),
-                            "current_box_count": payload.get("current_box_count", 0),
-                            "sku_manifest": payload.get("sku_manifest", {}),
-                            "confidence": payload.get("confidence", 1.0),
-                            "last_audited_tick": payload.get("tick", 0),
-                            "last_audited_by": payload.get("source_robot_id") or payload.get("sender_id"),
-                            "source": payload.get("source", "audit_scan"),
-                            "timestamp_ms": int(time.time() * 1000),
-                        }
-                        if len(connection_manager._connections) > 0:
-                            await connection_manager.broadcast_json(sync_msg)
+                        m_type = payload.get("type", "")
+
+                        if m_type == "TASK_CLAIM":
+                            t_id = payload.get("task_id")
+                            w_id = payload.get("winner_id") or payload.get("robot_id")
+                            l_ticks = int(payload.get("lease_ticks", 40))
+                            c_tick = int(payload.get("tick", fleet_state.tick))
+                            if t_id and w_id:
+                                task_manager.record_claim(t_id, w_id, l_ticks, c_tick)
+
+                        elif m_type == "TASK_LEASE_HEARTBEAT":
+                            t_id = payload.get("task_id")
+                            r_id = payload.get("robot_id") or payload.get("sender_id")
+                            l_ticks = int(payload.get("lease_ticks", 40))
+                            c_tick = int(payload.get("tick", fleet_state.tick))
+                            if t_id and r_id:
+                                task_manager.record_lease_heartbeat(t_id, r_id, l_ticks, c_tick)
+
+                        elif m_type == "TASK_COMPLETED":
+                            t_id = payload.get("task_id")
+                            r_id = payload.get("robot_id") or payload.get("sender_id")
+                            c_tick = int(payload.get("tick", fleet_state.tick))
+                            if t_id:
+                                task_manager.mark_completed_by_id(t_id, r_id, c_tick)
+
+                        elif m_type in ("INVENTORY_UPDATE", "INVENTORY_SYNC") or "shelf_id" in payload:
+                            sync_msg = {
+                                "type": "INVENTORY_SYNC",
+                                "channel": "HALOW",
+                                "shelf_id": payload.get("shelf_id"),
+                                "x": payload.get("x", 0),
+                                "y": payload.get("y", 0),
+                                "current_box_count": payload.get("current_box_count", 0),
+                                "sku_manifest": payload.get("sku_manifest", {}),
+                                "confidence": payload.get("confidence", 1.0),
+                                "last_audited_tick": payload.get("tick", 0),
+                                "last_audited_by": payload.get("source_robot_id") or payload.get("sender_id"),
+                                "source": payload.get("source", "audit_scan"),
+                                "timestamp_ms": int(time.time() * 1000),
+                            }
+                            if len(connection_manager._connections) > 0:
+                                await connection_manager.broadcast_json(sync_msg)
             except asyncio.CancelledError:
                 break
             except Exception as ex:
@@ -458,21 +505,17 @@ async def lifespan(app: FastAPI):
     from app.services.task_manager import get_fleet_peer_ports
 
     async def _pending_task_dispatcher():
-        """Periodically scans pending tasks and dispatches to available idle robots."""
+        """Periodically evaluates task leases, unassigned tasks, and re-announces to available robots."""
         while True:
             try:
-                pending = task_manager.pending_tasks()
-                if pending:
-                    p_ports = get_fleet_peer_ports(getattr(app.state, "orchestrator", None))
-                    for t in pending:
-                        assigned = task_manager.dispatch_to_fleet(t, peer_ports=p_ports)
-                        if assigned:
-                            log.debug("DISPATCH_RETRY: Pending task %s dispatched to %s", t.task_id, assigned)
+                p_ports = get_fleet_peer_ports(getattr(app.state, "orchestrator", None))
+                task_manager.check_leases_and_unclaimed(fleet_state.tick, peer_ports=p_ports)
             except Exception as e:
                 log.debug("Pending task dispatcher error: %s", e)
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)
 
     dispatcher_task = asyncio.create_task(_pending_task_dispatcher(), name="pending_task_dispatcher")
+
 
     log.info(
         "Backend ready as Pure Telemetry Viewer. Grid=%dx%d Fleet=%d Tick=%dms",
@@ -541,6 +584,7 @@ app.include_router(chaos.router)
 app.include_router(robots.router)
 app.include_router(websocket.router)
 app.include_router(world_router)
+app.include_router(map_router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

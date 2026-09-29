@@ -13,9 +13,13 @@ from typing import Optional, Tuple
 class TaskStatus(str, enum.Enum):
     """SCHEMA.md §5 — Status Values."""
     PENDING = "PENDING"
+    ANNOUNCED = "ANNOUNCED"
+    BIDDING = "BIDDING"
     ASSIGNED = "ASSIGNED"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
+    UNCLAIMED = "UNCLAIMED"
+    FAILED = "FAILED"
 
 
 class TaskType(str, enum.Enum):
@@ -34,7 +38,8 @@ class TaskType(str, enum.Enum):
 @dataclass
 class Task:
     """
-    Represents a warehouse task with full backward compatibility and G2P pod support.
+    Represents a warehouse task with full backward compatibility, G2P pod support,
+    and decentralized contract-net bidding/lease lifecycle.
     """
 
     task_id: str
@@ -53,6 +58,15 @@ class Task:
     quantity: int = 1
     destination_zone: Optional[str] = None
     pick_station_id: Optional[str] = None
+
+    # Step 6: Decentralized contract-net, lease tracking & G2P return
+    return_to_home: bool = False
+    home_slot: Optional[Tuple[int, int]] = None
+    lease_expires_tick: Optional[int] = None
+    unclaimed_reason: Optional[str] = None
+    announcement_count: int = 0
+    last_announced_tick: Optional[int] = None
+    route_code: Optional[str] = None
 
     # Internal tracking
     _pickup_done: bool = field(default=False, repr=False)
@@ -78,3 +92,4 @@ class Task:
     @staticmethod
     def generate_id(prefix: str = "TASK") -> str:
         return f"{prefix}-{uuid.uuid4().hex[:6].upper()}"
+

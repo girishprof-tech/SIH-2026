@@ -94,9 +94,11 @@ class TelemetryBus:
                 "carrying_pod_id": s.get("carrying_pod_id"),
             })
 
+        from ..core.config import cfg
         return {
             "type": "TICK_UPDATE",
             "tick": self.current_tick,
+            "tick_ms": cfg.SIM_TICK_MS,
             "timestamp_ms": int(time.time() * 1000),
             "robots": robots_list,
             "active_conflicts": list(self.active_conflicts),

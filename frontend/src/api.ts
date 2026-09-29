@@ -51,6 +51,10 @@ export const api = {
   inventory: () => request<{ total_shelves: number; total_boxes: number; shelves: import('./types').ShelfRecord[] }>('/api/inventory'),
   eStop: (robotId: string) => request(`/api/robots/${encodeURIComponent(robotId)}/emergency_stop`, { method: 'POST' }),
   resetRobot: (robotId: string) => request(`/api/robots/${encodeURIComponent(robotId)}/reset`, { method: 'POST' }),
+  mapValidate: (mapData: import('./types').WarehouseMap) => request<import('./types').MapValidationResult>('/api/map/validate', { method: 'POST', body: JSON.stringify(mapData) }),
+  mapLaunch: (mapData: import('./types').WarehouseMap | string) => request<any>('/api/map/launch', { method: 'POST', body: JSON.stringify(typeof mapData === 'string' ? { filename: mapData } : mapData) }),
+  mapCurrent: () => request<import('./types').WarehouseMap>('/api/map/current'),
+  mapPresets: () => request<import('./types').MapPreset[]>('/api/map/presets'),
 }
 
 

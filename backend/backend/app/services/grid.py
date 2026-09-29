@@ -108,7 +108,7 @@ class WarehouseGrid:
                 int_pos = (int(pos[0]), int(pos[1]))
                 int_target = (int(target_shelf_pos[0]), int(target_shelf_pos[1]))
                 return int_pos == int_target  # Only the assigned shelf is enterable
-            return True  # No shelf constraint specified, allow (backward compat)
+            return False  # Shelf cells are impassable by default
         if self.is_pod_slot_occupied_by_other(pos, robot_id):
             return False
         return True

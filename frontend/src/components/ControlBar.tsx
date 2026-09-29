@@ -12,11 +12,13 @@ import {
   Network,
   Maximize,
   Minimize,
+  Edit3,
 } from 'lucide-react'
 import type { SocketStatus } from '../hooks/useFleetSocket'
 
 type Props = {
   running: boolean
+  armedState?: string
   tick: number
   lastSyncedTick: number
   fleetMode?: string
@@ -34,6 +36,7 @@ type Props = {
   onToggleFullscreen?: () => void
   operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
   onOpenRoleModal?: () => void
+  onOpenMapEditor?: () => void
   onAction: (action: 'start' | 'pause' | 'reset') => void
   onChaos: (enabled: boolean, loss: number) => void
   onDemo: () => void
@@ -41,6 +44,7 @@ type Props = {
 
 export function ControlBar({
   running,
+  armedState = 'ARMED — waiting for tasks',
   tick,
   lastSyncedTick,
   fleetMode = 'Autonomous (10 AMRs)',
@@ -58,6 +62,7 @@ export function ControlBar({
   onToggleFullscreen,
   operatorRole = 'AUTHORITY',
   onOpenRoleModal,
+  onOpenMapEditor,
   onAction,
   onChaos,
   onDemo,
@@ -117,6 +122,57 @@ export function ControlBar({
           </button>
         </div>
 
+        {/* Dashboard state: ARMED — waiting for tasks vs RUNNING */}
+        {running ? (
+          <div
+            className={`fleet-armed-badge ${armedState === 'RUNNING' ? 'running' : 'armed'}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              background: armedState === 'RUNNING' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+              color: armedState === 'RUNNING' ? '#22c55e' : '#38bdf8',
+              border: `1px solid ${armedState === 'RUNNING' ? 'rgba(34, 197, 94, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
+            }}
+          >
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                background: armedState === 'RUNNING' ? '#22c55e' : '#38bdf8',
+                boxShadow: armedState === 'RUNNING' ? '0 0 8px #22c55e' : '0 0 8px #38bdf8',
+              }}
+            />
+            {armedState}
+          </div>
+        ) : (
+          <div
+            className="fleet-armed-badge paused"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '5px 12px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontWeight: 600,
+              background: 'rgba(148, 163, 184, 0.12)',
+              color: '#94a3b8',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+            }}
+          >
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8' }} />
+            PAUSED
+          </div>
+        )}
+
         <button
           className={`control-button mesh-toggle ${showMeshLinks ? 'active' : ''}`}
           onClick={onToggleMeshLinks}
@@ -126,6 +182,18 @@ export function ControlBar({
           <Share2 size={13} />
           <span>P2P Mesh</span>
         </button>
+
+        {onOpenMapEditor && (
+          <button
+            className="control-button map-editor-btn"
+            onClick={onOpenMapEditor}
+            title="Open interactive warehouse map editor"
+            aria-label="Open Map Editor"
+          >
+            <Edit3 size={13} />
+            <span>Map Editor</span>
+          </button>
+        )}
 
         {onToggleFullscreen && (
           <button

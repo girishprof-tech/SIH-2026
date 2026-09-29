@@ -130,7 +130,10 @@ class RobotNode:
         secret_key: str = "sih2026-edge-robot-shared-secret",
         charging_stations: Optional[Set[Tuple[int, int]]] = None,
         robot_type: str = "GOODS_TO_PERSON",
-        enable_idle_audit: bool = True,
+        enable_idle_audit: Optional[bool] = None,
+        auto_idle_audit: Optional[bool] = None,
+        auto_consolidation: Optional[bool] = None,
+        auto_transfer: Optional[bool] = None,
         ledger: Optional[InventoryLedger] = None,
         fleet_roster: Optional[Dict[str, str]] = None,
         world: Optional[WorldConfig] = None,
@@ -162,7 +165,26 @@ class RobotNode:
         self.charger_target: Optional[Tuple[int, int]] = None
         self.active_claimed_pods: Set[str] = set()
         self.robot_type = robot_type
-        self.enable_idle_audit = enable_idle_audit
+
+        # Step 1: Gate autonomous sources behind explicit flags, default OFF from config
+        if auto_idle_audit is not None:
+            self.auto_idle_audit = bool(auto_idle_audit)
+        elif enable_idle_audit is not None:
+            self.auto_idle_audit = bool(enable_idle_audit)
+        else:
+            self.auto_idle_audit = getattr(cfg, "AUTO_IDLE_AUDIT", False)
+        self.enable_idle_audit = self.auto_idle_audit
+
+        self.auto_consolidation = (
+            bool(auto_consolidation)
+            if auto_consolidation is not None
+            else getattr(cfg, "AUTO_CONSOLIDATION", False)
+        )
+        self.auto_transfer = (
+            bool(auto_transfer)
+            if auto_transfer is not None
+            else getattr(cfg, "AUTO_TRANSFER", False)
+        )
 
 
         # 1. Logging
@@ -194,7 +216,11 @@ class RobotNode:
         self.replay_guard = ReplayGuard(freshness_window_s=5.0)
 
         # 4. Grid and Local Reservations
-        self.grid = WarehouseGrid(obstacles=self.obstacles, width=30, height=30)
+        grid_w = getattr(default_world, "width", 30) if default_world else 30
+        grid_h = getattr(default_world, "height", 30) if default_world else 30
+        self.grid = WarehouseGrid(obstacles=self.obstacles, width=grid_w, height=grid_h)
+        if hasattr(default_world, "pod_slots") and default_world.pod_slots:
+            self.grid.register_shelf_cells(default_world.pod_slots.values())
         self.local_reservations: Dict[Tuple[int, int, int], str] = {}
         self.HOLD = 30
 
@@ -252,9 +278,10 @@ class RobotNode:
         self.fallback_cooldown = AntiFlappingCooldown(cooldown_ticks=FALLBACK_COOLDOWN_TICKS)
         self.row_tracker = RightOfWayTracker(arbitration_radius=ARBITRATION_RADIUS)
 
-        # 12. Contract-Net Decentralized Task Bidding
+        # 12. Contract-Net Decentralized Task Bidding & Lease Tracking
         self.active_bids: Dict[str, Dict[str, Any]] = {}
         self.known_task_claims: Set[str] = set()
+        self.task_leases: Dict[str, Dict[str, Any]] = {}
 
         # 13. SORTING AMR Batch & Chute Occupancy Tracking
         self.carrying_batch: List[Dict[str, Any]] = []
@@ -284,10 +311,15 @@ class RobotNode:
         if self.goal_pos is not None:
             self._assign_initial_task(self.goal_pos, self.urgency)
 
-    def trigger_autonomous_consolidation(self, chute_id: str, current_tick: int) -> Optional[Task]:
+    def trigger_autonomous_consolidation(
+        self, chute_id: str, current_tick: int, force: bool = False
+    ) -> Optional[Task]:
         """
         Autonomously spawns and broadcasts a CONSOLIDATE_EXPORT task when a sortation chute is full.
+        Gated by self.auto_consolidation unless force=True (direct consequence of user task).
         """
+        if not self.auto_consolidation and not force:
+            return None
         chute_info = self.world.sortation_chutes.get(chute_id)
         if not chute_info:
             return None
@@ -341,11 +373,15 @@ class RobotNode:
         pick_station_id: str,
         current_tick: int,
         carton: Optional[Any] = None,
+        force: bool = False,
     ) -> Optional[Task]:
         """
         Part B: Autonomously announces a TRANSFER_TO_SORTATION task when a pick station
         has a carton waiting in its buffer.
+        Gated by self.auto_transfer unless force=True (direct consequence of user task).
         """
+        if not self.auto_transfer and not force:
+            return None
         st_info = self.world.pick_stations.get(pick_station_id)
         if not st_info:
             return None
@@ -416,11 +452,45 @@ class RobotNode:
 
         # Check full threshold
         if self.chute_occupancy[chute_id] >= self.chute_full_threshold:
-            self.trigger_autonomous_consolidation(chute_id, tick)
+            self.trigger_autonomous_consolidation(chute_id, tick, force=True)
 
         return chute_id
 
     def _timed_find_path(self, *args, **kwargs) -> List[Dict[str, Any]]:
+        # Enforce shelf cells as impassable by default
+        if "blocked_cells" not in kwargs:
+            if hasattr(self, "grid") and getattr(self.grid, "_shelf_cells", None):
+                kwargs["blocked_cells"] = set(self.grid._shelf_cells)
+
+        if "robot_id" not in kwargs:
+            kwargs["robot_id"] = getattr(self, "robot_id", None) or (self.robot.robot_id if hasattr(self, "robot") else None)
+
+        if "start_heading" not in kwargs and hasattr(self, "robot") and getattr(self.robot, "heading", None):
+            h_val = self.robot.heading
+            kwargs["start_heading"] = h_val.value if hasattr(h_val, "value") else str(h_val)
+
+        # Unladen G2P entering a designated shelf cell is the sole exception
+        # ALSO allow laden G2P returning pod to its home slot
+        if "allowed_exception" not in kwargs:
+            goal = kwargs.get("goal") or (args[1] if len(args) > 1 else None)
+            carrying = getattr(self.robot, "carrying_pod_id", None) if hasattr(self, "robot") else None
+            is_g2p = (str(getattr(self, "robot_type", "")).endswith("GOODS_TO_PERSON"))
+            home_slot = getattr(self.task, "home_slot", None) if hasattr(self, "task") and self.task else None
+            returning_home = (
+                carrying
+                and is_g2p
+                and hasattr(self, "task")
+                and self.task
+                and getattr(self.task, "return_to_home", False)
+                and goal
+                and home_slot
+                and (tuple(goal) == tuple(home_slot))
+            )
+            if is_g2p and (not carrying or returning_home) and goal and hasattr(self, "grid") and self.grid.is_shelf_cell(goal):
+                kwargs["allowed_exception"] = (int(goal[0]), int(goal[1]))
+            else:
+                kwargs["allowed_exception"] = None
+
         t0 = time.perf_counter()
         p = find_path(*args, **kwargs)
         self.last_planner_ms = (time.perf_counter() - t0) * 1000.0
@@ -915,7 +985,38 @@ class RobotNode:
         elif self.task and getattr(self.task, "target_shelf_id", None) and self.fsm.state in (RobotState.EN_ROUTE_PICKUP, RobotState.LIFTING):
             renew_pod_claim(self.task.target_shelf_id, self.robot.robot_id, current_tick=tick)
 
+        # Task Lease Renewal & Heartbeat
+        if self.task and getattr(self.task, "task_id", None):
+            tid = self.task.task_id
+            self.task_leases[tid] = {"holder": self.robot.robot_id, "expires_tick": tick + 40}
+            if tick % 5 == 0:
+                self.seq += 1
+                hb_payload = {
+                    "type": "TASK_LEASE_HEARTBEAT",
+                    "sender_id": self.robot.robot_id,
+                    "robot_id": self.robot.robot_id,
+                    "task_id": tid,
+                    "tick": tick,
+                    "lease_ticks": 40,
+                }
+                hb_env = sign_payload(hb_payload, secret_key=self.secret_key, seq=self.seq)
+                for peer_id in self.peer_ports.keys():
+                    if peer_id != self.robot.robot_id:
+                        self.transport.send(peer_id, hb_env)
+                if hasattr(self, "halow_transport") and self.halow_transport:
+                    self.halow_transport.send("DASHBOARD", hb_env)
+
+        # Check peer task lease expiries
+        for tid, l_info in list(self.task_leases.items()):
+            if l_info.get("holder") != self.robot.robot_id:
+                if tick > l_info.get("expires_tick", 0) and tid not in self.completed_task_ids:
+                    self.log(f"[Tick {tick}] Task lease expired for {tid} held by {l_info.get('holder')}. Clearing claim.")
+                    self.known_task_claims.discard(tid)
+                    self.active_bids.pop(tid, None)
+                    self.task_leases.pop(tid, None)
+
         # 2.1. Periodic Anti-Entropy Gossip & Ledger Resync (Every 20 ticks)
+
         if tick % 20 == 0 and self.inventory_ledger is not None:
             for s in self.inventory_ledger.get_all_shelves(current_tick=tick):
                 local = self.local_inventory_cache.get(s.shelf_id)
@@ -1104,7 +1205,7 @@ class RobotNode:
             self.robot_type == "SCANNING_AUDIT"
             or (not self.robot_id.startswith("AMR-G2P") and not self.robot_id.startswith("AMR-SORT") and self.robot_type != "SORTING")
         )
-        if self.enable_idle_audit and is_audit_eligible and self.fsm.state == RobotState.IDLE and not self.task:
+        if self.auto_idle_audit and is_audit_eligible and self.fsm.state == RobotState.IDLE and not self.task:
             self.idle_ticks += 1
             if self.idle_ticks >= 10:
                 self.idle_ticks = 0
@@ -1260,45 +1361,76 @@ class RobotNode:
                         return self._build_telemetry_frame(tick, "BUFFER_FULL_WAIT", None)
 
                     self.log(f"[Tick {tick}] Deposited carton ({carton.sku} x{carton.qty}, {carton.weight_kg}kg) into {deposited_st} buffer.")
-                    self.trigger_autonomous_transfer(deposited_st, tick, carton)
+                    self.trigger_autonomous_transfer(deposited_st, tick, carton, force=True)
 
-                shelf_rec = self.local_inventory_cache.get(pod_id) or self.inventory_ledger.get_shelf(pod_id)
-                if shelf_rec:
-                    current_manifest = dict(shelf_rec.sku_manifest)
-                    if sku_to_pick and sku_to_pick in current_manifest:
-                        picked_sku = sku_to_pick
-                    elif current_manifest:
-                        picked_sku = max(current_manifest.keys(), key=lambda k: current_manifest[k])
-                    else:
-                        picked_sku = "DEFAULT_SKU"
+                home_slot = getattr(self.task, "home_slot", None) or (self.task.pickup if self.task else None)
+                is_at_home = bool(home_slot and self.robot.position == home_slot)
 
-                    # Phase 1.5 Fix 5: Decrement locally and use record_pick to preserve audit timestamp and confidence
-                    current_manifest[picked_sku] = max(0, current_manifest.get(picked_sku, 0) - qty)
-                    new_manifest = current_manifest
-                    new_box_count = sum(new_manifest.values())
-                    preserved_conf = shelf_rec.confidence
+                if not is_at_home and not getattr(self.task, "_pick_executed", False):
+                    shelf_rec = self.local_inventory_cache.get(pod_id) or self.inventory_ledger.get_shelf(pod_id)
+                    if shelf_rec:
+                        current_manifest = dict(shelf_rec.sku_manifest)
+                        if sku_to_pick and sku_to_pick in current_manifest:
+                            picked_sku = sku_to_pick
+                        elif current_manifest:
+                            picked_sku = max(current_manifest.keys(), key=lambda k: current_manifest[k])
+                        else:
+                            picked_sku = "DEFAULT_SKU"
 
-                    try:
-                        self.inventory_ledger.record_pick(
+                        # Phase 1.5 Fix 5: Decrement locally and use record_pick to preserve audit timestamp and confidence
+                        current_manifest[picked_sku] = max(0, current_manifest.get(picked_sku, 0) - qty)
+                        new_manifest = current_manifest
+                        new_box_count = sum(new_manifest.values())
+                        preserved_conf = shelf_rec.confidence
+
+                        try:
+                            self.inventory_ledger.record_pick(
+                                shelf_id=pod_id,
+                                sku=picked_sku,
+                                qty_delta=qty,
+                                robot_id=self.robot.robot_id,
+                                tick=tick,
+                                manifest_override=new_manifest,
+                            )
+                        except Exception as e:
+                            self.log(f"[Tick {tick}] Ledger pick recording failed (server down/offline): {e}")
+
+                        self.broadcast_inventory_update(
                             shelf_id=pod_id,
-                            sku=picked_sku,
-                            qty_delta=qty,
-                            robot_id=self.robot.robot_id,
-                            tick=tick,
-                            manifest_override=new_manifest,
+                            current_tick=tick,
+                            sku_manifest=new_manifest,
+                            box_count=new_box_count,
+                            confidence=preserved_conf,
+                            is_audit=False,
                         )
-                    except Exception as e:
-                        self.log(f"[Tick {tick}] Ledger pick recording failed (server down/offline): {e}")
+                        self.log(f"[Tick {tick}] Pick operation completed on pod {pod_id} (picked {qty} units of {picked_sku}).")
+                    if self.task:
+                        self.task._pick_executed = True
 
-                    self.broadcast_inventory_update(
-                        shelf_id=pod_id,
+                should_return_home = bool(getattr(self.task, "return_to_home", False))
+
+                if should_return_home and home_slot and self.robot.position != home_slot:
+                    self.log(f"[Tick {tick}] G2P Shelf Pick finished. Returning shelf {pod_id} to home slot {home_slot}...")
+                    self.goal_pos = home_slot
+                    # Update task dropoff so arrival detection works
+                    self.task.dropoff_x = home_slot[0]
+                    self.task.dropoff_y = home_slot[1]
+                    # Plan path to home slot
+                    p_home = self._timed_find_path(
+                        start=self.robot.position,
+                        goal=home_slot,
                         current_tick=tick,
-                        sku_manifest=new_manifest,
-                        box_count=new_box_count,
-                        confidence=preserved_conf,
-                        is_audit=False,
+                        reservation_table=self.local_reservations,
+                        grid=self.grid,
                     )
-                    self.log(f"[Tick {tick}] Pick operation completed on pod {pod_id} (picked {qty} units of {picked_sku}).")
+                    if p_home and len(p_home) > 1:
+                        self.robot.path = p_home
+                        reserve_path(p_home, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                    else:
+                        self.robot.path = []
+                    self.fsm.state = RobotState.EN_ROUTE_DROPOFF
+                    self.robot.state = RobotState.EN_ROUTE_DROPOFF
+                    return self._build_telemetry_frame(tick, "RETURNING_SHELF_TO_HOME", None)
 
                 # Release pod claim and broadcast release to peers
                 self.release_pod_resource(pod_id, tick)
@@ -1316,8 +1448,28 @@ class RobotNode:
                 self.log(f"[Tick {tick}] SORTING Robot transferred carton to sortation zone and decanted to chute {chute_id}.")
 
             if self.task:
-                self.completed_task_ids.add(self.task.task_id)
+                completed_tid = self.task.task_id
+                self.completed_task_ids.add(completed_tid)
+                self.task_leases.pop(completed_tid, None)
+                self.known_task_claims.add(completed_tid)
                 self.task.status = "COMPLETED"
+
+                # Broadcast signed TASK_COMPLETED
+                self.seq += 1
+                comp_payload = {
+                    "type": "TASK_COMPLETED",
+                    "sender_id": self.robot.robot_id,
+                    "robot_id": self.robot.robot_id,
+                    "task_id": completed_tid,
+                    "tick": tick,
+                }
+                comp_env = sign_payload(comp_payload, secret_key=self.secret_key, seq=self.seq)
+                for peer_id in self.peer_ports.keys():
+                    if peer_id != self.robot.robot_id:
+                        self.transport.send(peer_id, comp_env)
+                if hasattr(self, "halow_transport") and self.halow_transport:
+                    self.halow_transport.send("DASHBOARD", comp_env)
+
                 self.task = None
             self.goal_pos = None
             self.robot.path = []
@@ -1329,6 +1481,7 @@ class RobotNode:
             self.robot.state = self.fsm.state
             self.pre_conflict_activity = None
             action_taken = "MISSION_COMPLETED"
+
 
         # 4. Propose Next Position along Path (if not already evading / vacating)
         if intended_pos == self.robot.position:
@@ -1414,6 +1567,7 @@ class RobotNode:
                     if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
                         if (
                             self.grid.is_free(cand)
+                            and not self.grid.is_shelf_cell(cand)
                             and cand not in peer_positions
                             and cand not in peer_intents
                             and cand not in peer_path_cells
@@ -1482,13 +1636,12 @@ class RobotNode:
                 break
             time.sleep(0.0005)
 
-        # Fail-safe check for unconfirmed peer targeting or adjacent to our intended cell
+        # Fail-safe check for unconfirmed peer targeting our intended cell
         if intended_pos != self.robot.position:
             unconfirmed_collision = any(
                 (
                     intended_pos == p.position
                     or intended_pos == p.intended_pos
-                    or (p.position != self.robot.position and abs(intended_pos[0] - p.position[0]) + abs(intended_pos[1] - p.position[1]) <= 1)
                 )
                 and p.last_seen_tick < tick
                 for p in self.peers.values()
@@ -1671,7 +1824,7 @@ class RobotNode:
                             evade_cell = None
                             for cand in candidate_evasions:
                                 if 0 <= cand[0] < self.grid.width and 0 <= cand[1] < self.grid.height:
-                                    if self.grid.is_free(cand) and cand not in peer_blocked and cand not in other_peer_positions:
+                                    if self.grid.is_free(cand) and not self.grid.is_shelf_cell(cand) and cand not in peer_blocked and cand not in other_peer_positions:
                                         evade_cell = cand
                                         break
 
@@ -2509,20 +2662,35 @@ class RobotNode:
                 else:
                     is_eligible = (self.robot_type in ("GOODS_TO_PERSON", "SORTING"))
 
+                # Check battery feasibility before bidding (path length + margin)
+                pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
+                dropoff_pos = tuple(t_dict["dropoff"]) if "dropoff" in t_dict else pickup_pos
+                dist_to_pickup = abs(self.robot.position[0] - pickup_pos[0]) + abs(self.robot.position[1] - pickup_pos[1])
+                dist_pickup_to_drop = abs(dropoff_pos[0] - pickup_pos[0]) + abs(dropoff_pos[1] - pickup_pos[1])
+                trip_dist = dist_to_pickup + dist_pickup_to_drop
+                if t_dict.get("return_to_home"):
+                    trip_dist += dist_pickup_to_drop
+                needed_battery = trip_dist * self.energy_per_cell * self.charging_safety_margin + self.charging_reserve_pct
+                if self.robot.battery_pct < needed_battery:
+                    is_eligible = False
+                    self.log(
+                        f"[Tick {current_tick}] Contract-Net: Ineligible for {tid} due to low battery "
+                        f"({self.robot.battery_pct:.1f}% < {needed_battery:.1f}% needed for trip)."
+                    )
 
                 if (
                     tid
                     and tid not in self.completed_task_ids
                     and tid not in self.known_task_claims
-                    and tid not in self.active_bids
+                    and (tid not in self.active_bids or self.active_bids[tid].get("claimed", False))
                     and self.fsm.state == RobotState.IDLE
                     and not self.task
                     and is_eligible
                 ):
-                    pickup_pos = tuple(t_dict["pickup"]) if "pickup" in t_dict else tuple(self.robot.position)
-                    dist_to_pickup = abs(self.robot.position[0] - pickup_pos[0]) + abs(self.robot.position[1] - pickup_pos[1])
                     battery_penalty = max(0.0, (100.0 - self.robot.battery_pct) * 0.5)
-                    bid_score = float(dist_to_pickup * 10.0 + battery_penalty)
+                    queued_work_penalty = 50.0 if (self.task or self.fsm.state != RobotState.IDLE) else 0.0
+                    urgency_weight = (int(t_dict.get("urgency", 3)) - 1) * 2.0
+                    bid_score = max(0.1, float(dist_to_pickup * 10.0 + battery_penalty + queued_work_penalty - urgency_weight))
 
                     self.active_bids[tid] = {
                         "announced_tick": current_tick,
@@ -2562,11 +2730,52 @@ class RobotNode:
                 # Handle task claim announcement from the winning AMR
                 tid = actual_msg.get("task_id")
                 winner = actual_msg.get("winner_id")
+                peer_score = float(actual_msg.get("bid_score", 0.0))
+                lease_ticks = int(actual_msg.get("lease_ticks", 40))
                 self.known_task_claims.add(tid)
+                self.task_leases[tid] = {
+                    "holder": winner,
+                    "expires_tick": current_tick + lease_ticks,
+                    "bid_score": peer_score,
+                }
                 if tid in self.active_bids:
                     self.active_bids[tid]["claimed"] = True
                     if winner != self.robot.robot_id:
                         self.log(f"[Tick {current_tick}] Contract-Net: Peer {winner} claimed task {tid}. Standing down.")
+
+                # Deterministic duplicate claim resolution
+                if self.task and self.task.task_id == tid and winner != self.robot.robot_id:
+                    my_score = self.active_bids.get(tid, {}).get("my_bid", 999.0)
+                    if (peer_score, winner) < (my_score, self.robot.robot_id):
+                        self.log(
+                            f"[Tick {current_tick}] DUPLICATE CLAIM CONFLICT: Standing down from {tid} "
+                            f"in favor of peer {winner} ({peer_score:.1f} < my {my_score:.1f})."
+                        )
+                        if getattr(self.task, "target_shelf_id", None):
+                            self.release_pod_resource(self.task.target_shelf_id, current_tick)
+                        self.task = None
+                        self.robot.current_task_id = None
+                        self.robot.path = []
+                        self.fsm.state = RobotState.IDLE
+                        self.robot.state = RobotState.IDLE
+
+            elif m_type == "TASK_LEASE_HEARTBEAT":
+                tid = actual_msg.get("task_id")
+                holder = actual_msg.get("robot_id") or actual_msg.get("sender_id")
+                lease_ticks = int(actual_msg.get("lease_ticks", 40))
+                if tid:
+                    self.task_leases[tid] = {
+                        "holder": holder,
+                        "expires_tick": current_tick + lease_ticks,
+                    }
+
+            elif m_type == "TASK_COMPLETED":
+                tid = actual_msg.get("task_id")
+                if tid:
+                    self.completed_task_ids.add(tid)
+                    self.task_leases.pop(tid, None)
+                    self.known_task_claims.add(tid)
+
 
             elif m_type == "INVENTORY_UPDATE":
                 shelf_id = actual_msg.get("shelf_id")
@@ -2807,6 +3016,10 @@ class RobotNode:
                         destination_zone=t_dict.get("destination_zone"),
                         pick_station_id=t_dict.get("pick_station_id"),
                     )
+                    if self.task:
+                        self.task.return_to_home = bool(t_dict.get("return_to_home", True))
+                        self.task.home_slot = tuple(t_dict.get("home_slot", pickup_pos))
+
                     target_shelf = t_dict.get("target_shelf_id")
                     if target_shelf:
                         self.claim_pod_resource(target_shelf, current_tick)
@@ -2816,7 +3029,14 @@ class RobotNode:
                         f"Broadcasting TASK_CLAIM."
                     )
 
-                    # Broadcast signed TASK_CLAIM
+                    # Establish initial lease
+                    self.task_leases[tid] = {
+                        "holder": self.robot.robot_id,
+                        "expires_tick": current_tick + 40,
+                        "bid_score": winning_score,
+                    }
+
+                    # Broadcast signed TASK_CLAIM with lease
                     self.seq += 1
                     claim_payload = {
                         "type": "TASK_CLAIM",
@@ -2825,17 +3045,21 @@ class RobotNode:
                         "task_id": tid,
                         "winner_id": self.robot.robot_id,
                         "bid_score": winning_score,
+                        "lease_ticks": 40,
                         "tick": current_tick,
                     }
                     envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
                     for peer_id in self.peer_ports.keys():
                         if peer_id != self.robot.robot_id:
                             self.transport.send(peer_id, envelope)
+                    if hasattr(self, "halow_transport") and self.halow_transport:
+                        self.halow_transport.send("DASHBOARD", envelope)
                 else:
                     self.log(
                         f"[Tick {current_tick}] CONTRACT-NET LOST: Task {tid} won by {winning_id} "
                         f"({winning_score:.1f} vs my {bid_info['my_bid']:.1f}). Standing down."
                     )
+
 
 
 
@@ -2855,11 +3079,14 @@ def run_robot_process(
     max_ticks: int = 100,
     charging_stations: Optional[Set[Tuple[int, int]]] = None,
     robot_type: str = "GOODS_TO_PERSON",
-    enable_idle_audit: bool = True,
+    enable_idle_audit: Optional[bool] = None,
     pause_event: Optional[mp.Event] = None,
     fleet_roster: Optional[Dict[str, str]] = None,
     start_event: Optional[mp.Event] = None,
     start_barrier: Optional[mp.Barrier] = None,
+    auto_idle_audit: Optional[bool] = None,
+    auto_consolidation: Optional[bool] = None,
+    auto_transfer: Optional[bool] = None,
 ) -> None:
     """
     Process target function for an autonomous robot.
@@ -2880,6 +3107,9 @@ def run_robot_process(
         charging_stations=charging_stations,
         robot_type=robot_type,
         enable_idle_audit=enable_idle_audit,
+        auto_idle_audit=auto_idle_audit,
+        auto_consolidation=auto_consolidation,
+        auto_transfer=auto_transfer,
         fleet_roster=fleet_roster,
     )
 

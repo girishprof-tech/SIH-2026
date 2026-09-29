@@ -36,6 +36,15 @@ log = logging.getLogger(__name__)
 
 cfg = get_settings()
 
+_FLEET_STATE_INSTANCE: Optional["FleetState"] = None
+
+
+def get_fleet_state() -> "FleetState":
+    global _FLEET_STATE_INSTANCE
+    if _FLEET_STATE_INSTANCE is None:
+        _FLEET_STATE_INSTANCE = FleetState()
+    return _FLEET_STATE_INSTANCE
+
 
 class FleetState:
     """
@@ -46,6 +55,8 @@ class FleetState:
     """
 
     def __init__(self) -> None:
+        global _FLEET_STATE_INSTANCE
+        _FLEET_STATE_INSTANCE = self
         self.world: WorldConfig = build_default_world(cfg.GRID_WIDTH, cfg.GRID_HEIGHT)
         self.tick: int = 0
         self.timestamp_ms: int = 0

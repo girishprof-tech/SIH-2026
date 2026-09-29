@@ -16,6 +16,10 @@ export type SocketStatus = 'connected' | 'reconnecting' | 'disconnected'
 export interface FleetStore {
   tick: number
   timestamp_ms: number
+  tick_ms?: number
+  tickIntervalMs?: number
+  lastTickArrival?: number
+  lastTickNumber?: number
   robots: Map<string, Robot>
   robotsArray: Robot[]
   tasks: Task[]
@@ -24,7 +28,7 @@ export interface FleetStore {
   metrics?: Metrics
   inventory?: ShelfRecord[]
   sortation_chutes?: Record<string, { destination_zone: string; x: number; y: number }>
-  fleet_status?: { running: boolean; mode: string; tick: number }
+  fleet_status?: { running: boolean; mode: string; tick: number; armed_state?: string }
   halow_status?: HaLowStatus
   lastUpdated: number
 }
@@ -137,16 +141,36 @@ export function useFleetSocket(
           }
           lastTick.current = currentTick
 
+          const nowPerf = performance.now()
+          if (store.lastTickArrival && currentTick > (store.lastTickNumber ?? 0)) {
+            const delta = nowPerf - store.lastTickArrival
+            if (delta >= 40 && delta <= 5000) {
+              store.tickIntervalMs = delta
+            }
+          }
+          store.lastTickArrival = nowPerf
+          store.lastTickNumber = currentTick
+
+          if (update.tick_ms) {
+            store.tick_ms = update.tick_ms
+            if (!store.tickIntervalMs) store.tickIntervalMs = update.tick_ms
+          } else if (update.metrics?.tick_ms_configured) {
+            store.tick_ms = update.metrics.tick_ms_configured
+            if (!store.tickIntervalMs) store.tickIntervalMs = update.metrics.tick_ms_configured
+          } else if (!store.tickIntervalMs) {
+            store.tickIntervalMs = 500
+          }
+
           store.tick = currentTick
           store.timestamp_ms = update.timestamp_ms ?? Date.now()
-          store.lastUpdated = performance.now()
+          store.lastUpdated = nowPerf
 
           if (update.type === 'TICK_UPDATE') {
             // Full Baseline State on client handshake / reconnect
             store.robots.clear()
             if (update.robots && Array.isArray(update.robots)) {
               for (const r of update.robots) {
-                const norm = normalizeRobot(r)
+                const norm = normalizeRobot({ ...r, tick: currentTick })
                 store.robots.set(norm.robot_id, norm)
               }
             }
@@ -170,7 +194,7 @@ export function useFleetSocket(
                 const rid = r.robot_id ?? r.id
                 if (!rid) continue
                 const existing = store.robots.get(rid)
-                const norm = normalizeRobot(r, existing)
+                const norm = normalizeRobot({ ...r, tick: currentTick }, existing)
                 store.robots.set(rid, norm)
               }
               store.robotsArray = Array.from(store.robots.values())

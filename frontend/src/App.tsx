@@ -14,6 +14,8 @@ import { InventoryPanel } from './components/InventoryPanel'
 import { TransferLogPanel } from './components/TransferLogPanel'
 import { HaLowStatusWidget } from './components/HaLowStatusWidget'
 import { RobotInspectorPanel } from './components/RobotInspectorPanel'
+import { LaunchScreen } from './components/LaunchScreen'
+import { WarehouseMapEditor } from './components/WarehouseMapEditor'
 import { STATE_LABELS } from './state-meta'
 import type {
   HaLowStatus,
@@ -27,6 +29,8 @@ import type {
   TempObstacle,
   TickUpdate,
   World,
+  WarehouseMap,
+  MapPreset,
 } from './types'
 
 const emptyWorld: World = {
@@ -76,6 +80,43 @@ export default function App() {
   const [fleetMode, setFleetMode] = useState<string>('Autonomous (10 AMRs)')
   const [lastSyncedTick, setLastSyncedTick] = useState<number>(0)
   const [cameraFollow, setCameraFollow] = useState<boolean>(true)
+  const [armedState, setArmedState] = useState<string>('ARMED — waiting for tasks')
+
+  // Map launch and editor state
+  const [launchChoiceMade, setLaunchChoiceMade] = useState(false)
+  const [showMapEditor, setShowMapEditor] = useState(false)
+  const [activeMap, setActiveMap] = useState<WarehouseMap | null>(null)
+
+  const handleUseBuiltIn = useCallback(async () => {
+    await api.mapLaunch('test_map.json')
+    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    setWorld(w)
+    setRobots(r)
+    setTasks(t)
+    setLaunchChoiceMade(true)
+    setToast('Standard warehouse fleet launched & armed — zero motion until tasked')
+  }, [])
+
+  const handleSelectPreset = useCallback(async (preset: MapPreset) => {
+    await api.mapLaunch(preset.filename)
+    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    setWorld(w)
+    setRobots(r)
+    setTasks(t)
+    setLaunchChoiceMade(true)
+    setToast(`Preset '${preset.name}' launched & armed — zero motion until tasked`)
+  }, [])
+
+  const handleLaunchFromEditor = useCallback(async (launchedMap: WarehouseMap) => {
+    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    setWorld(w)
+    setRobots(r)
+    setTasks(t)
+    setActiveMap(launchedMap)
+    setShowMapEditor(false)
+    setLaunchChoiceMade(true)
+    setToast(`Custom map '${launchedMap.name}' launched & armed — zero motion until tasked`)
+  }, [])
 
   const [operatorRole, setOperatorRole] = useState<OperatorRole | null>(() => {
     if (typeof window !== 'undefined') {
@@ -242,6 +283,14 @@ export default function App() {
       if (store.fleet_status.mode) {
         setFleetMode(store.fleet_status.mode)
       }
+      if (store.fleet_status.armed_state) {
+        setArmedState(store.fleet_status.armed_state)
+      } else {
+        const hasActive =
+          (store.tasks || []).some((t) => t.status !== 'COMPLETED' && t.status !== 'FAILED' && t.status !== 'UNCLAIMED') ||
+          Array.from(store.robots.values()).some((r) => r.current_task_id != null || ['EN_ROUTE_PICKUP', 'PICKING', 'EN_ROUTE_DROPOFF', 'DROPPING', 'LIFTING', 'LOWERING'].includes(r.state))
+        setArmedState(hasActive ? 'RUNNING' : 'ARMED — waiting for tasks')
+      }
     }
     setHistory((old) =>
       [
@@ -383,10 +432,24 @@ export default function App() {
     return <LoadingScreen theme={theme} durationMs={5000} onComplete={handleLoadingComplete} />
   }
 
+  if (!launchChoiceMade && !showMapEditor) {
+    return (
+      <div className="app-shell" data-theme={theme}>
+        <LaunchScreen
+          onUseBuiltIn={handleUseBuiltIn}
+          onOpenEditor={() => setShowMapEditor(true)}
+          onSelectPreset={handleSelectPreset}
+          theme={theme}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell" data-theme={theme}>
       <ControlBar
         running={status.running}
+        armedState={armedState}
         tick={status.tick}
         lastSyncedTick={lastSyncedTick}
         fleetMode={fleetMode}
@@ -404,6 +467,7 @@ export default function App() {
         onToggleFullscreen={handleToggleFullscreen}
         operatorRole={operatorRole ?? 'AUTHORITY'}
         onOpenRoleModal={() => setShowRoleModal(true)}
+        onOpenMapEditor={() => setShowMapEditor(true)}
         onAction={(action) => {
           if (action === 'start') {
             setStatus((prev) => ({ ...prev, running: true }))
@@ -541,6 +605,8 @@ export default function App() {
                 tasks={tasks}
                 busy={busy}
                 operatorRole={operatorRole ?? 'AUTHORITY'}
+                simulationRunning={status.running}
+                world={world}
                 onJob={(body) =>
                   run(() => api.submitJob(body), 'Mission queued').then((res) => {
                     void api.tasks().then(setTasks)
@@ -548,6 +614,7 @@ export default function App() {
                   })
                 }
               />
+
             </>
           )}
 
@@ -622,6 +689,18 @@ export default function App() {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {showMapEditor && (
+        <WarehouseMapEditor
+          initialMap={activeMap}
+          onLaunch={handleLaunchFromEditor}
+          onCancel={() => {
+            setShowMapEditor(false)
+            if (!activeMap) setLaunchChoiceMade(false)
+          }}
+          theme={theme}
+        />
       )}
 
       <RoleSelectionModal

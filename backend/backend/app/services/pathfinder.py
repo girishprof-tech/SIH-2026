@@ -103,6 +103,13 @@ class SpaceTimeAStarPlanner:
         if self.grid.is_obstacle(start) or self.grid.is_obstacle(goal):
             return []
 
+        if blocked_cells is None and hasattr(self.grid, "_shelf_cells") and self.grid._shelf_cells:
+            blocked_cells = self.grid._shelf_cells
+
+        if blocked_cells and goal in blocked_cells:
+            if allowed_exception is None or goal != allowed_exception:
+                return []
+
         if start == goal:
             return [{"x": start[0], "y": start[1], "t": current_tick}]
 

@@ -1,0 +1,1506 @@
+{
+  "schema_version": "1.0.0",
+  "name": "Standard 30x30 Test Warehouse",
+  "description": "Built-in baseline fulfillment map with 4 storage banks, 8 chutes, and 10 AMRs",
+  "grid": {
+    "width": 30,
+    "height": 30,
+    "cell_size_m": 1.0
+  },
+  "blocked_cells": [],
+  "shelves": [
+    {
+      "id": "POD-A01",
+      "x": 4,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A02",
+      "x": 5,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A03",
+      "x": 6,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A04",
+      "x": 7,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A05",
+      "x": 8,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A06",
+      "x": 9,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A07",
+      "x": 11,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A08",
+      "x": 12,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A09",
+      "x": 13,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A10",
+      "x": 14,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A11",
+      "x": 15,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A12",
+      "x": 16,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A13",
+      "x": 17,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A14",
+      "x": 18,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A15",
+      "x": 20,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A16",
+      "x": 21,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A17",
+      "x": 22,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A18",
+      "x": 23,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A19",
+      "x": 24,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A20",
+      "x": 25,
+      "y": 6,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A21",
+      "x": 4,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A22",
+      "x": 5,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A23",
+      "x": 6,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A24",
+      "x": 7,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A25",
+      "x": 8,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A26",
+      "x": 9,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A27",
+      "x": 11,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A28",
+      "x": 12,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A29",
+      "x": 13,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A30",
+      "x": 14,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A31",
+      "x": 15,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A32",
+      "x": 16,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A33",
+      "x": 17,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A34",
+      "x": 18,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A35",
+      "x": 20,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A36",
+      "x": 21,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A37",
+      "x": 22,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A38",
+      "x": 23,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A39",
+      "x": 24,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-A40",
+      "x": 25,
+      "y": 7,
+      "capacity": 4,
+      "bank": "A"
+    },
+    {
+      "id": "POD-B01",
+      "x": 4,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B02",
+      "x": 5,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B03",
+      "x": 6,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B04",
+      "x": 7,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B05",
+      "x": 8,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B06",
+      "x": 9,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B07",
+      "x": 11,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B08",
+      "x": 12,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B09",
+      "x": 13,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B10",
+      "x": 14,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B11",
+      "x": 15,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B12",
+      "x": 16,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B13",
+      "x": 17,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B14",
+      "x": 18,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B15",
+      "x": 20,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B16",
+      "x": 21,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B17",
+      "x": 22,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B18",
+      "x": 23,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B19",
+      "x": 24,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B20",
+      "x": 25,
+      "y": 11,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B21",
+      "x": 4,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B22",
+      "x": 5,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B23",
+      "x": 6,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B24",
+      "x": 7,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B25",
+      "x": 8,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B26",
+      "x": 9,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B27",
+      "x": 11,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B28",
+      "x": 12,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B29",
+      "x": 13,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B30",
+      "x": 14,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B31",
+      "x": 15,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B32",
+      "x": 16,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B33",
+      "x": 17,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B34",
+      "x": 18,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B35",
+      "x": 20,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B36",
+      "x": 21,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B37",
+      "x": 22,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B38",
+      "x": 23,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B39",
+      "x": 24,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-B40",
+      "x": 25,
+      "y": 12,
+      "capacity": 4,
+      "bank": "B"
+    },
+    {
+      "id": "POD-C01",
+      "x": 4,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C02",
+      "x": 5,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C03",
+      "x": 6,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C04",
+      "x": 7,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C05",
+      "x": 8,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C06",
+      "x": 9,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C07",
+      "x": 11,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C08",
+      "x": 12,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C09",
+      "x": 13,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C10",
+      "x": 14,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C11",
+      "x": 15,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C12",
+      "x": 16,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C13",
+      "x": 17,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C14",
+      "x": 18,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C15",
+      "x": 20,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C16",
+      "x": 21,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C17",
+      "x": 22,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C18",
+      "x": 23,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C19",
+      "x": 24,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C20",
+      "x": 25,
+      "y": 16,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C21",
+      "x": 4,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C22",
+      "x": 5,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C23",
+      "x": 6,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C24",
+      "x": 7,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C25",
+      "x": 8,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C26",
+      "x": 9,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C27",
+      "x": 11,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C28",
+      "x": 12,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C29",
+      "x": 13,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C30",
+      "x": 14,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C31",
+      "x": 15,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C32",
+      "x": 16,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C33",
+      "x": 17,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C34",
+      "x": 18,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C35",
+      "x": 20,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C36",
+      "x": 21,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C37",
+      "x": 22,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C38",
+      "x": 23,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C39",
+      "x": 24,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-C40",
+      "x": 25,
+      "y": 17,
+      "capacity": 4,
+      "bank": "C"
+    },
+    {
+      "id": "POD-D01",
+      "x": 4,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D02",
+      "x": 5,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D03",
+      "x": 6,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D04",
+      "x": 7,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D05",
+      "x": 8,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D06",
+      "x": 9,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D07",
+      "x": 11,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D08",
+      "x": 12,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D09",
+      "x": 13,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D10",
+      "x": 14,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D11",
+      "x": 15,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D12",
+      "x": 16,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D13",
+      "x": 17,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D14",
+      "x": 18,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D15",
+      "x": 20,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D16",
+      "x": 21,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D17",
+      "x": 22,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D18",
+      "x": 23,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D19",
+      "x": 24,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D20",
+      "x": 25,
+      "y": 21,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D21",
+      "x": 4,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D22",
+      "x": 5,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D23",
+      "x": 6,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D24",
+      "x": 7,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D25",
+      "x": 8,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D26",
+      "x": 9,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D27",
+      "x": 11,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D28",
+      "x": 12,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D29",
+      "x": 13,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D30",
+      "x": 14,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D31",
+      "x": 15,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D32",
+      "x": 16,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D33",
+      "x": 17,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D34",
+      "x": 18,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D35",
+      "x": 20,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D36",
+      "x": 21,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D37",
+      "x": 22,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D38",
+      "x": 23,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D39",
+      "x": 24,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    },
+    {
+      "id": "POD-D40",
+      "x": 25,
+      "y": 22,
+      "capacity": 4,
+      "bank": "D"
+    }
+  ],
+  "entry_gates": [
+    {
+      "id": "IN-1",
+      "name": "Import Gate IN-1",
+      "cells": [
+        {
+          "x": 0,
+          "y": 8
+        },
+        {
+          "x": 0,
+          "y": 9
+        },
+        {
+          "x": 0,
+          "y": 10
+        }
+      ]
+    },
+    {
+      "id": "IN-2",
+      "name": "Import Gate IN-2",
+      "cells": [
+        {
+          "x": 0,
+          "y": 13
+        },
+        {
+          "x": 0,
+          "y": 14
+        },
+        {
+          "x": 0,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "id": "IN-3",
+      "name": "Import Gate IN-3",
+      "cells": [
+        {
+          "x": 0,
+          "y": 18
+        },
+        {
+          "x": 0,
+          "y": 19
+        },
+        {
+          "x": 0,
+          "y": 20
+        }
+      ]
+    }
+  ],
+  "exit_gates": [
+    {
+      "id": "OUT-1",
+      "name": "Shipping Gate OUT-1",
+      "cells": [
+        {
+          "x": 29,
+          "y": 8
+        },
+        {
+          "x": 29,
+          "y": 9
+        },
+        {
+          "x": 29,
+          "y": 10
+        }
+      ]
+    },
+    {
+      "id": "OUT-2",
+      "name": "Shipping Gate OUT-2",
+      "cells": [
+        {
+          "x": 29,
+          "y": 13
+        },
+        {
+          "x": 29,
+          "y": 14
+        },
+        {
+          "x": 29,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "id": "OUT-3",
+      "name": "Shipping Gate OUT-3",
+      "cells": [
+        {
+          "x": 29,
+          "y": 18
+        },
+        {
+          "x": 29,
+          "y": 19
+        },
+        {
+          "x": 29,
+          "y": 20
+        }
+      ]
+    }
+  ],
+  "sorting_stations": [
+    {
+      "id": "CHUTE-01",
+      "name": "CHUTE-01",
+      "x": 23,
+      "y": 2,
+      "destination_zone": "ZONE_NORTH",
+      "gate_id": "OUT-1",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-02",
+      "name": "CHUTE-02",
+      "x": 24,
+      "y": 2,
+      "destination_zone": "ZONE_EAST",
+      "gate_id": "OUT-1",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-03",
+      "name": "CHUTE-03",
+      "x": 25,
+      "y": 2,
+      "destination_zone": "ZONE_SOUTH",
+      "gate_id": "OUT-2",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-04",
+      "name": "CHUTE-04",
+      "x": 26,
+      "y": 2,
+      "destination_zone": "ZONE_WEST",
+      "gate_id": "OUT-2",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-05",
+      "name": "CHUTE-05",
+      "x": 23,
+      "y": 4,
+      "destination_zone": "ZONE_EXPRESS",
+      "gate_id": "OUT-2",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-06",
+      "name": "CHUTE-06",
+      "x": 24,
+      "y": 4,
+      "destination_zone": "ZONE_REGIONAL",
+      "gate_id": "OUT-3",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-07",
+      "name": "CHUTE-07",
+      "x": 25,
+      "y": 4,
+      "destination_zone": "ZONE_INTERNATIONAL",
+      "gate_id": "OUT-3",
+      "capacity": 10
+    },
+    {
+      "id": "CHUTE-08",
+      "name": "CHUTE-08",
+      "x": 26,
+      "y": 4,
+      "destination_zone": "OVERFLOW",
+      "gate_id": "OUT-3",
+      "capacity": 20
+    }
+  ],
+  "pick_stations": [
+    {
+      "id": "PICK-01",
+      "name": "PICK-01",
+      "x": 20,
+      "y": 2,
+      "capacity": 4
+    },
+    {
+      "id": "PICK-02",
+      "name": "PICK-02",
+      "x": 20,
+      "y": 3,
+      "capacity": 4
+    },
+    {
+      "id": "PICK-03",
+      "name": "PICK-03",
+      "x": 20,
+      "y": 4,
+      "capacity": 4
+    }
+  ],
+  "chargers": [
+    {
+      "id": "CHG-01",
+      "x": 5,
+      "y": 1,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-02",
+      "x": 5,
+      "y": 28,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-03",
+      "x": 10,
+      "y": 1,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-04",
+      "x": 10,
+      "y": 28,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-05",
+      "x": 19,
+      "y": 1,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-06",
+      "x": 19,
+      "y": 28,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-07",
+      "x": 24,
+      "y": 1,
+      "assigned_robot_id": null
+    },
+    {
+      "id": "CHG-08",
+      "x": 24,
+      "y": 28,
+      "assigned_robot_id": null
+    }
+  ],
+  "robot_starts": [
+    {
+      "id": "AMR-01",
+      "type": "GOODS_TO_PERSON",
+      "x": 2,
+      "y": 4,
+      "battery_pct": 100.0,
+      "urgency": 3
+    },
+    {
+      "id": "AMR-02",
+      "type": "GOODS_TO_PERSON",
+      "x": 2,
+      "y": 7,
+      "battery_pct": 100.0,
+      "urgency": 2
+    },
+    {
+      "id": "AMR-03",
+      "type": "GOODS_TO_PERSON",
+      "x": 2,
+      "y": 10,
+      "battery_pct": 100.0,
+      "urgency": 4
+    },
+    {
+      "id": "AMR-04",
+      "type": "GOODS_TO_PERSON",
+      "x": 2,
+      "y": 13,
+      "battery_pct": 100.0,
+      "urgency": 1
+    },
+    {
+      "id": "AMR-05",
+      "type": "GOODS_TO_PERSON",
+      "x": 2,
+      "y": 16,
+      "battery_pct": 100.0,
+      "urgency": 2
+    },
+    {
+      "id": "AMR-06",
+      "type": "SORTING",
+      "x": 27,
+      "y": 4,
+      "battery_pct": 100.0,
+      "urgency": 3
+    },
+    {
+      "id": "AMR-07",
+      "type": "SORTING",
+      "x": 27,
+      "y": 7,
+      "battery_pct": 100.0,
+      "urgency": 2
+    },
+    {
+      "id": "AMR-08",
+      "type": "SORTING",
+      "x": 27,
+      "y": 10,
+      "battery_pct": 100.0,
+      "urgency": 4
+    },
+    {
+      "id": "AMR-09",
+      "type": "SCANNING_AUDIT",
+      "x": 10,
+      "y": 3,
+      "battery_pct": 100.0,
+      "urgency": 1
+    },
+    {
+      "id": "AMR-10",
+      "type": "SCANNING_AUDIT",
+      "x": 19,
+      "y": 3,
+      "battery_pct": 100.0,
+      "urgency": 2
+    }
+  ],
+  "fixed_stations": [
+    {
+      "id": "AUTHORITY_STATION",
+      "name": "Central Authority Station",
+      "role": "AUTHORITY_STATION",
+      "x": 15,
+      "y": 14,
+      "zone": "TRANSIT_HIGHWAY",
+      "port": 9603,
+      "description": "Single point of authority for fault escalations and global overrides (out of normal critical path)"
+    },
+    {
+      "id": "EXPORT_STATION",
+      "name": "Export Station Omega",
+      "role": "EXPORT_STATION",
+      "x": 28,
+      "y": 14,
+      "zone": "EXPORT_DOCK",
+      "port": 9602,
+      "description": "Fixed command node covering East shipping dock gates OUT-1..3 and sortation"
+    },
+    {
+      "id": "IMPORT_STATION",
+      "name": "Import Station Alpha",
+      "role": "IMPORT_STATION",
+      "x": 1,
+      "y": 14,
+      "zone": "IMPORT_DOCK",
+      "port": 9601,
+      "description": "Fixed command node covering West import dock gates IN-1..3"
+    }
+  ]
+}

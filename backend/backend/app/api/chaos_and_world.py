@@ -89,8 +89,12 @@ async def list_obstacles(request: Request) -> List[ObstacleOut]:
 
 @router.get("/api/world", summary="Get warehouse world configuration")
 async def get_world(request: Request) -> dict:
-    fleet = request.app.state.fleet_state
-    w = fleet.world
+    fleet = getattr(request.app.state, "fleet_state", None)
+    if fleet is not None:
+        w = fleet.world
+    else:
+        from app.models.world import get_active_world
+        w = get_active_world()
     return {
         "width": w.width,
         "height": w.height,
@@ -100,6 +104,19 @@ async def get_world(request: Request) -> dict:
         "pickup_stations": [{"x": x, "y": y, "dock_type": "import"} for x, y in sorted(w.pickup_stations)],
         "dropoff_stations": [{"x": x, "y": y, "dock_type": "export"} for x, y in sorted(w.dropoff_stations)],
         "pod_slots": [{"shelf_id": sid, "x": pos[0], "y": pos[1]} for sid, pos in sorted(w.pod_slots.items())],
+        "sortation_chutes": w.sortation_chutes,
+        "pick_stations": [
+            {"id": ps_id, "x": ps["x"], "y": ps["y"], "bufferCount": len(ps.get("buffer", []))}
+            for ps_id, ps in w.pick_stations.items()
+        ],
+        "entry_gates": [
+            {"id": gid, "cells": [{"x": c[0], "y": c[1]} for c in cells]}
+            for gid, cells in w.import_gates.items()
+        ],
+        "exit_gates": [
+            {"id": gid, "cells": [{"x": c[0], "y": c[1]} for c in cells]}
+            for gid, cells in w.export_gates.items()
+        ],
     }
 
 

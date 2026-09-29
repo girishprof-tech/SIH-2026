@@ -74,7 +74,15 @@ class Settings(BaseSettings):
     CHAOS_ENABLED: bool = False
     CHAOS_PACKET_LOSS_PCT: int = 0
 
+    # ── Autonomous Behavior Gating Flags (Step 1: Default OFF) ───────────────
+    AUTO_IDLE_AUDIT: bool = False
+    AUTO_CONSOLIDATION: bool = False
+    AUTO_TRANSFER: bool = False
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+cfg = get_settings()

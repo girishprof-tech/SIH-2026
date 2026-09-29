@@ -88,12 +88,16 @@ def build_task_announcement_envelope(
             "target_shelf_id": getattr(task, "target_shelf_id", None),
             "sku_to_pick": getattr(task, "sku_to_pick", None),
             "quantity": getattr(task, "quantity", 1),
+            "return_to_home": getattr(task, "return_to_home", True),
+            "home_slot": getattr(task, "home_slot", None) or [task.pickup_x, task.pickup_y],
+            "route_code": getattr(task, "route_code", None),
         },
     }
     if station_role:
         payload["station_role"] = station_role
         payload["station_id"] = station_id or station_role
     return sign_payload(payload, secret_key=secret_key, seq=seq)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -238,6 +242,11 @@ class TaskManager:
         sku_to_pick: Optional[str] = None,
         quantity: int = 1,
         payload_weight_kg: float = 0.0,
+        return_to_home: bool = True,
+        home_slot: Optional[Tuple[int, int]] = None,
+        destination_zone: Optional[str] = None,
+        pick_station_id: Optional[str] = None,
+        route_code: Optional[str] = None,
     ) -> Task:
         # Part D: If payload_weight_kg is 0.0 and task targets a shelf, compute real weight from ledger
         if payload_weight_kg == 0.0 and target_shelf_id and task_type in (TaskType.RETRIEVE_POD, TaskType.RETURN_POD):
@@ -262,13 +271,19 @@ class TaskManager:
             sku_to_pick=sku_to_pick,
             quantity=quantity,
             payload_weight_kg=payload_weight_kg,
+            return_to_home=return_to_home,
+            home_slot=home_slot or (pickup_x, pickup_y),
+            destination_zone=destination_zone,
+            pick_station_id=pick_station_id,
+            route_code=route_code,
         )
         self._tasks[task.task_id] = task
         log.info(
-            "TASK_CREATED task_id=%s urgency=%d type=%s target_shelf=%s sku=%s",
+            "TASK_CREATED task_id=%s urgency=%d type=%s target_shelf=%s sku=%s return_home=%s",
             task.task_id, urgency, task_type.value if hasattr(task_type, "value") else task_type,
-            target_shelf_id, sku_to_pick,
+            target_shelf_id, sku_to_pick, return_to_home,
         )
+
         return task
 
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -378,6 +393,92 @@ class TaskManager:
                 raw = json.dumps(envelope).encode("utf-8")
                 sock.sendto(raw, (host, target_port))
 
+    def record_claim(
+        self,
+        task_id: str,
+        winner_id: str,
+        lease_ticks: int = 40,
+        current_tick: int = 0,
+    ) -> None:
+        """Records winning contract-net claim and establishes worker lease."""
+        task = self._tasks.get(task_id)
+        if task:
+            task.status = TaskStatus.ASSIGNED
+            task.assigned_robot_id = winner_id
+            task._assigned_tick = current_tick
+            task.lease_expires_tick = current_tick + lease_ticks
+            task.unclaimed_reason = None
+            log.info(
+                "TASK_CLAIM_RECORDED task_id=%s winner=%s lease_expires=%d tick=%d",
+                task_id, winner_id, task.lease_expires_tick, current_tick,
+            )
+
+    def record_lease_heartbeat(
+        self,
+        task_id: str,
+        robot_id: str,
+        lease_ticks: int = 40,
+        current_tick: int = 0,
+    ) -> None:
+        """Renews active worker lease for task."""
+        task = self._tasks.get(task_id)
+        if task and (task.assigned_robot_id == robot_id or task.assigned_robot_id is None):
+            task.assigned_robot_id = robot_id
+            task.status = TaskStatus.IN_PROGRESS
+            task.lease_expires_tick = current_tick + lease_ticks
+
+    def mark_completed_by_id(
+        self,
+        task_id: str,
+        robot_id: Optional[str] = None,
+        current_tick: int = 0,
+    ) -> None:
+        """Marks task completed from decentralized notification."""
+        task = self._tasks.get(task_id)
+        if task:
+            task.status = TaskStatus.COMPLETED
+            task._completed_tick = current_tick
+            task.lease_expires_tick = None
+            if robot_id:
+                task.assigned_robot_id = robot_id
+            log.info("TASK_COMPLETED task_id=%s robot=%s tick=%d", task_id, robot_id, current_tick)
+
+    def check_leases_and_unclaimed(
+        self,
+        current_tick: int,
+        peer_ports: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """
+        Evaluates task leases and bidding windows.
+        If a lease expires (worker died or partitioned), re-announces the task.
+        If an announced task receives no bids within N windows, marks UNCLAIMED and periodically re-announces.
+        """
+        for task in list(self._tasks.values()):
+            # 1. Lease expiry on assigned/in-progress tasks
+            if task.status in (TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS):
+                if task.lease_expires_tick is not None and current_tick > task.lease_expires_tick:
+                    log.warning(
+                        "TASK_LEASE_EXPIRED task_id=%s holder=%s expired_at=%d current=%d. Re-announcing.",
+                        task.task_id, task.assigned_robot_id, task.lease_expires_tick, current_tick,
+                    )
+                    task.assigned_robot_id = None
+                    task.status = TaskStatus.UNCLAIMED
+                    task.unclaimed_reason = "Worker lease expired (unresponsive or partitioned)"
+                    task.lease_expires_tick = None
+                    self.dispatch_to_fleet(task, peer_ports=peer_ports, current_tick=current_tick)
+
+            # 2. Unclaimed tasks re-announcement
+            elif task.status in (TaskStatus.PENDING, TaskStatus.ANNOUNCED, TaskStatus.BIDDING, TaskStatus.UNCLAIMED):
+                last_ann = task.last_announced_tick or 0
+                elapsed = current_tick - last_ann
+                if elapsed >= 4 and task.status != TaskStatus.UNCLAIMED:
+                    task.status = TaskStatus.UNCLAIMED
+                    task.unclaimed_reason = "No eligible robots or insufficient battery for trip"
+
+                # Periodically re-announce unclaimed tasks (user choice A3)
+                if elapsed >= 10:
+                    self.dispatch_to_fleet(task, peer_ports=peer_ports, current_tick=current_tick)
+
     def dispatch_to_fleet(
         self,
         task: Task,
@@ -388,11 +489,13 @@ class TaskManager:
         secret_key: str = DEFAULT_SECRET_KEY,
         station_role: Optional[str] = None,
         station_id: Optional[str] = None,
+        current_tick: int = 0,
     ) -> Optional[str]:
         """
-        Assigns/dispatches a pending task.
-        If target_robot_id is provided, unicasts signed TASK_ASSIGNMENT directly (backward compatibility).
-        Otherwise, broadcasts signed TASK_ANNOUNCEMENT to all currently-IDLE robots for decentralized bidding.
+        Dispatches a task to the decentralized fleet.
+        If target_robot_id is provided, sends signed unicast assignment (backward compatibility).
+        Otherwise, broadcasts signed TASK_ANNOUNCEMENT to all robots of eligible type without telemetry dependencies.
+        Robots evaluate contract-net eligibility and submit bids independently.
         """
         ports = peer_ports or get_fleet_peer_ports()
 
@@ -413,6 +516,8 @@ class TaskManager:
 
             task.status = TaskStatus.ASSIGNED
             task.assigned_robot_id = target_robot_id
+            task._assigned_tick = current_tick
+            task.lease_expires_tick = current_tick + 40
             log.info(
                 "TASK_DISPATCHED task_id=%s robot=%s pickup=(%d,%d) dropoff=(%d,%d)",
                 task.task_id, target_robot_id, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
@@ -426,36 +531,49 @@ class TaskManager:
             station_role=station_role,
             station_id=station_id,
         )
-        telemetry_data = read_latest_telemetry()
 
-        # Select candidate robots: prefer currently IDLE robots from telemetry
-        target_rids = []
-        if telemetry_data and telemetry_data.get("robots"):
-            for r in telemetry_data["robots"]:
-                if str(r.get("state", "")).upper() in ("IDLE", "ROBOTSTATE.IDLE"):
-                    rid = r.get("id") or r.get("robot_id")
-                    if rid in ports:
-                        target_rids.append(rid)
+        task_type_str = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
+        eligible_rids = []
+        try:
+            from app.models.world import get_active_world
+            active_w = get_active_world()
+            for r_spec in active_w.robots:
+                rid = r_spec.robot_id
+                rtype = r_spec.robot_type
+                if task_type_str in ("RETRIEVE_POD", "RETURN_POD", "PICK_ITEM") and rtype != "GOODS_TO_PERSON":
+                    continue
+                if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT", "TRANSFER_TO_SORTATION") and rtype != "SORTING":
+                    continue
+                if task_type_str == "AUDIT" and rtype != "SCANNING_AUDIT":
+                    continue
+                if rid in ports:
+                    eligible_rids.append(rid)
+        except Exception:
+            pass
 
-        # If telemetry unavailable or empty, broadcast to all fleet ports
-        if not target_rids:
-            target_rids = list(ports.keys())
+        if not eligible_rids:
+            eligible_rids = list(ports.keys())
 
         broadcast_count = 0
-        for rid in target_rids:
+        for rid in eligible_rids:
             try:
                 self._send_envelope_to_robot(rid, envelope, transport_sender, ports, host)
                 broadcast_count += 1
             except Exception as e:
                 log.debug("Failed sending TASK_ANNOUNCEMENT to %s: %s", rid, e)
 
+        task.status = TaskStatus.ANNOUNCED
+        task.last_announced_tick = current_tick
+        task.announcement_count += 1
+
         if broadcast_count > 0:
             log.debug(
-                "TASK_ANNOUNCED task_id=%s broadcasted to %d robots pickup=(%d,%d) dropoff=(%d,%d)",
+                "TASK_ANNOUNCED task_id=%s broadcasted to %d eligible robots pickup=(%d,%d) dropoff=(%d,%d)",
                 task.task_id, broadcast_count, task.pickup_x, task.pickup_y, task.dropoff_x, task.dropoff_y,
             )
             return f"ANNOUNCED_{broadcast_count}"
 
         return None
+
 
 

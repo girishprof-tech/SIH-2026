@@ -27,6 +27,7 @@ from app.services.robot_node import run_robot_process
 from app.services.station_node import DEFAULT_STATION_PORTS, run_station_process
 from app.services.telemetry_bus import TelemetryBus
 from app.models.world import build_default_world
+from app.core.config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class FleetOrchestrator:
             robot_types = (["GOODS_TO_PERSON"] * 4
                            + ["SORTING"] * 3
                            + ["SCANNING_AUDIT"] * 3)
+            app_cfg = get_settings()
             self.robots_config = [
                 {
                     "robot_id": f"AMR-{index:02d}",
@@ -78,7 +80,9 @@ class FleetOrchestrator:
                     "urgency": 1,
                     "battery_pct": 100.0,
                     "robot_type": robot_types[index - 1],
-                    "enable_idle_audit": (robot_types[index - 1] == "SCANNING_AUDIT"),
+                    "enable_idle_audit": app_cfg.AUTO_IDLE_AUDIT,
+                    "auto_consolidation": app_cfg.AUTO_CONSOLIDATION,
+                    "auto_transfer": app_cfg.AUTO_TRANSFER,
                 }
                 for index, start in enumerate(starts, start=1)
             ]
@@ -115,8 +119,10 @@ class FleetOrchestrator:
 
         # 3. Spawn one OS process per robot
         fleet_roster = {cfg["robot_id"]: cfg.get("robot_type", "GOODS_TO_PERSON") for cfg in self.robots_config}
+        app_cfg = get_settings()
         for cfg in self.robots_config:
             rid = cfg["robot_id"]
+            enable_audit = cfg.get("enable_idle_audit", app_cfg.AUTO_IDLE_AUDIT)
             p = mp.Process(
                 target=run_robot_process,
                 name=f"Process-{rid}",
@@ -136,11 +142,17 @@ class FleetOrchestrator:
                     self.max_ticks,
                     self.charging_stations,
                     cfg.get("robot_type", "GOODS_TO_PERSON"),
-                    cfg.get("enable_idle_audit", True),
+                    enable_audit,
                     self.pause_event,
                     fleet_roster,
                 ),
-                kwargs={"start_event": self.start_event, "start_barrier": self.ready_barrier},
+                kwargs={
+                    "start_event": self.start_event,
+                    "start_barrier": self.ready_barrier,
+                    "auto_idle_audit": enable_audit,
+                    "auto_consolidation": cfg.get("auto_consolidation", app_cfg.AUTO_CONSOLIDATION),
+                    "auto_transfer": cfg.get("auto_transfer", app_cfg.AUTO_TRANSFER),
+                },
             )
 
             p.start()

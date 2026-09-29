@@ -180,31 +180,36 @@ def _resolve_job_points(world, job_type: str, zone: str | None = None):
     global _job_dispatch_counter
 
     if job_type == "fetch_item":
-        if _job_dispatch_counter == 0:
-            pickup = (11, 12)
+        if world.pod_slots:
+            shelf_cells = sorted(list(world.pod_slots.values()))
+            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)]
         else:
             shelf_cells = [
                 (x, y)
                 for x in range(world.width)
                 for y in range(world.height)
-                if 6 <= x <= 23 and 8 <= y <= 21 and (x, y) not in world.static_obstacles
+                if world.zone_for(x, y) == "GOODS_TO_PERSON_ZONE" and (x, y) not in world.static_obstacles
             ]
-            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (11, 12)
+            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (world.width // 4, world.height // 2)
         _job_dispatch_counter += 1
         dropoffs = sorted(list(world.dropoff_stations))
-        dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (29, 9)
+        dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (world.width - 1, world.height // 2)
         return pickup, dropoff, AMRType.GOODS_TO_PERSON
 
     if job_type == "sort_batch":
         pickups = sorted(list(world.pickup_stations))
-        pickup = pickups[_job_dispatch_counter % len(pickups)] if pickups else (0, 9)
-        sorting_candidates = [
-            (x, y)
-            for x in range(world.width)
-            for y in range(world.height)
-            if world.zone_for(x, y) == "SORTING_ZONE" and (x, y) not in world.static_obstacles
-        ]
-        dropoff = sorting_candidates[_job_dispatch_counter % len(sorting_candidates)] if sorting_candidates else (12, 25)
+        pickup = pickups[_job_dispatch_counter % len(pickups)] if pickups else (0, world.height // 2)
+        if world.sortation_chutes:
+            chutes = sorted([(c["x"], c["y"]) for c in world.sortation_chutes.values()])
+            dropoff = chutes[_job_dispatch_counter % len(chutes)]
+        else:
+            sorting_candidates = [
+                (x, y)
+                for x in range(world.width)
+                for y in range(world.height)
+                if world.zone_for(x, y) == "SORTING_ZONE" and (x, y) not in world.static_obstacles
+            ]
+            dropoff = sorting_candidates[_job_dispatch_counter % len(sorting_candidates)] if sorting_candidates else (world.width - 2, world.height // 2)
         return pickup, dropoff, AMRType.SORTING
 
     if job_type == "audit_checkpoint":
@@ -248,18 +253,6 @@ def select_best_shelf_for_sku(
     return candidates[0]
 
 
-def _pick_idle_robot_for_type(fleet, robot_type: AMRType, target: tuple[int, int] | None = None):
-    candidates = [
-        robot for robot in fleet.robots.values()
-        if robot.state == RobotState.IDLE and robot.robot_type == robot_type
-    ]
-    if not candidates:
-        return None
-    if target is None:
-        return min(candidates, key=lambda robot: robot.robot_id)
-    return min(candidates, key=lambda robot: abs(robot.x - target[0]) + abs(robot.y - target[1]))
-
-
 @job_router.post(
     "/job",
     summary="Create a user-facing warehouse job",
@@ -267,6 +260,11 @@ def _pick_idle_robot_for_type(fleet, robot_type: AMRType, target: tuple[int, int
     status_code=200,
 )
 async def create_job(body: JobRequest, request: Request) -> JobOut:
+    """
+    Decentralized task injection for user jobs.
+    The API validates bounds/RBAC, creates the Task, commits to durable journal,
+    and broadcasts signed TASK_ANNOUNCEMENT over UDP. Robots independently bid and claim.
+    """
     fleet = _get_fleet(request)
     task_manager = _get_task_manager(request)
     from app.services.task_manager import get_fleet_peer_ports
@@ -284,79 +282,42 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             "STATION_AUTHORITY_VIOLATION: Operator with role 'EXPORT' cannot issue inbound 'fetch_item' jobs for import dock. Restricted to Import Station.",
         )
 
+    world = fleet.world
+
     if body.job_type == "fetch_item":
         requested_sku = body.sku or body.item_id
+        target_shelf = None
         if requested_sku:
             ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
-            idle_g2ps = [
-                robot for robot in fleet.robots.values()
-                if robot.state == RobotState.IDLE and robot.robot_type == AMRType.GOODS_TO_PERSON
-            ]
             best_shelf = select_best_shelf_for_sku(
                 ledger, requested_sku, quantity=body.quantity,
-                idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+                idle_g2p_robots=None, current_tick=fleet.tick,
             )
             if best_shelf is None:
                 raise HTTPException(404, f"No shelf holds requested SKU {requested_sku!r} with quantity >= {body.quantity}")
-
             pickup = (best_shelf.x, best_shelf.y)
-            dropoffs = sorted(list(fleet.world.dropoff_stations))
-            dropoff = dropoffs[0] if dropoffs else (29, 9)
-            robot_type = AMRType.GOODS_TO_PERSON
-            selected_robot = _pick_idle_robot_for_type(fleet, robot_type, pickup)
-            if selected_robot is None:
-                raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
+            target_shelf = best_shelf.shelf_id
+        elif body.shelf_id:
+            target_shelf = body.shelf_id
+            pos = world.pod_slots.get(target_shelf) if hasattr(world, "pod_slots") else None
+            if not pos:
+                ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+                shelf_rec = ledger.get_shelf(target_shelf)
+                if shelf_rec:
+                    pos = (shelf_rec.x, shelf_rec.y)
+            if not pos:
+                raise HTTPException(404, f"Shelf {target_shelf!r} not found on map")
+            pickup = pos
+        else:
+            pickup, _, _ = _resolve_job_points(world, "fetch_item")
+            target_shelf = world.shelf_at(pickup[0], pickup[1]) or "POD-01"
 
-            task = task_manager.create_task(
-                pickup_x=pickup[0],
-                pickup_y=pickup[1],
-                dropoff_x=dropoff[0],
-                dropoff_y=dropoff[1],
-                urgency=body.urgency,
-                current_tick=fleet.tick,
-                task_type=TaskType.RETRIEVE_POD,
-                target_shelf_id=best_shelf.shelf_id,
-                sku_to_pick=requested_sku,
-                quantity=body.quantity,
-            )
-            fleet.queue_task(task)
-            assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
-            if not assigned_robot:
-                raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
+        if body.dropoff:
+            dropoff = (body.dropoff.x, body.dropoff.y)
+        else:
+            dropoffs = sorted(list(world.dropoff_stations))
+            dropoff = dropoffs[0] if dropoffs else (world.width - 1, world.height // 2)
 
-            journal = getattr(request.app.state, "job_journal", None)
-            if journal:
-                journal.log_submission(
-                    job_id=task.task_id,
-                    job_type=body.job_type,
-                    pickup=pickup,
-                    dropoff=dropoff,
-                    urgency=body.urgency,
-                )
-                journal.log_assignment(
-                    job_id=task.task_id,
-                    assigned_robot_id=assigned_robot,
-                    tick=fleet.tick,
-                )
-
-            task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
-            return JobOut(
-                job_type=body.job_type,
-                robot_type=robot_type.value,
-                task_id=task.task_id,
-                robot_id=assigned_robot,
-                target_shelf_id=best_shelf.shelf_id,
-                sku=requested_sku,
-                quantity=body.quantity,
-                status=task.status.value,
-                message=f"Fetch item job for SKU {requested_sku} assigned to {assigned_robot} (Shelf {best_shelf.shelf_id})",
-            )
-
-        # Legacy fallback without SKU
-        pickup, dropoff, robot_type = _resolve_job_points(fleet.world, "fetch_item")
-        selected_robot = _pick_idle_robot_for_type(fleet, robot_type, pickup)
-        if selected_robot is None:
-            raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
         task = task_manager.create_task(
             pickup_x=pickup[0],
             pickup_y=pickup[1],
@@ -364,13 +325,16 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             dropoff_y=dropoff[1],
             urgency=body.urgency,
             current_tick=fleet.tick,
+            task_type=TaskType.RETRIEVE_POD,
+            target_shelf_id=target_shelf,
+            sku_to_pick=requested_sku,
+            quantity=body.quantity,
+            return_to_home=body.return_to_home,
+            home_slot=pickup,
         )
+        task.status = TaskStatus.ANNOUNCED
         fleet.queue_task(task)
-        assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
-        if not assigned_robot:
-            raise HTTPException(409, "No GOODS_TO_PERSON robot available for fetch_item job")
 
-        # Write-ahead commit to journal
         journal = getattr(request.app.state, "job_journal", None)
         if journal:
             journal.log_submission(
@@ -380,32 +344,47 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
                 dropoff=dropoff,
                 urgency=body.urgency,
             )
-            journal.log_assignment(
-                job_id=task.task_id,
-                assigned_robot_id=assigned_robot,
-                tick=fleet.tick,
-            )
 
         task_manager.dispatch_to_fleet(
             task,
             peer_ports=peer_ports,
-            target_robot_id=assigned_robot,
             station_role=f"{op_role}_STATION",
+            current_tick=fleet.tick,
         )
+
         return JobOut(
             job_type=body.job_type,
-            robot_type=robot_type.value,
+            robot_type=AMRType.GOODS_TO_PERSON.value,
             task_id=task.task_id,
-            robot_id=assigned_robot,
+            robot_id="PENDING",
+            target_shelf_id=target_shelf,
+            sku=requested_sku,
+            quantity=body.quantity,
             status=task.status.value,
-            message="Fetch item job assigned to a GOODS_TO_PERSON robot",
+            message=f"Fetch item job announced for decentralized bidding (Shelf {target_shelf})",
         )
 
     if body.job_type == "sort_batch":
-        pickup, dropoff, robot_type = _resolve_job_points(fleet.world, "sort_batch")
-        selected_robot = _pick_idle_robot_for_type(fleet, robot_type, pickup)
-        if selected_robot is None:
-            raise HTTPException(409, "No SORTING robot available for sort_batch job")
+        # Resolve source gate or pickup
+        if body.source_gate and hasattr(world, "entry_gates") and body.source_gate in world.entry_gates:
+            g = world.entry_gates[body.source_gate]
+            pickup = (g["x"], g["y"])
+        elif body.pickup:
+            pickup = (body.pickup.x, body.pickup.y)
+        else:
+            pickup, _, _ = _resolve_job_points(world, "sort_batch")
+
+        # Resolve destination chute
+        if body.destination_chute and hasattr(world, "sortation_chutes") and body.destination_chute in world.sortation_chutes:
+            c = world.sortation_chutes[body.destination_chute]
+            dropoff = (c["x"], c["y"])
+        elif body.dropoff:
+            dropoff = (body.dropoff.x, body.dropoff.y)
+        else:
+            _, dropoff, _ = _resolve_job_points(world, "sort_batch")
+
+        route_code = body.route_code or body.item_id or "ROUTE-01"
+
         task = task_manager.create_task(
             pickup_x=pickup[0],
             pickup_y=pickup[1],
@@ -413,13 +392,13 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             dropoff_y=dropoff[1],
             urgency=body.urgency,
             current_tick=fleet.tick,
+            task_type=TaskType.INDUCT_BATCH,
+            destination_zone=body.zone or "SORTING_ZONE",
+            route_code=route_code,
         )
+        task.status = TaskStatus.ANNOUNCED
         fleet.queue_task(task)
-        assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
-        if not assigned_robot:
-            raise HTTPException(409, "No SORTING robot available for sort_batch job")
 
-        # Write-ahead commit to journal
         journal = getattr(request.app.state, "job_journal", None)
         if journal:
             journal.log_submission(
@@ -429,76 +408,70 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
                 dropoff=dropoff,
                 urgency=body.urgency,
             )
-            journal.log_assignment(
-                job_id=task.task_id,
-                assigned_robot_id=assigned_robot,
-                tick=fleet.tick,
-            )
 
         task_manager.dispatch_to_fleet(
             task,
             peer_ports=peer_ports,
-            target_robot_id=assigned_robot,
             station_role=f"{op_role}_STATION",
+            current_tick=fleet.tick,
         )
+
         return JobOut(
             job_type=body.job_type,
-            robot_type=robot_type.value,
+            robot_type=AMRType.SORTING.value,
             task_id=task.task_id,
-            robot_id=assigned_robot,
+            robot_id="PENDING",
             status=task.status.value,
-            message="Sort batch job assigned to a SORTING robot",
+            message="Sort batch job announced for decentralized bidding by SORTING AMRs",
         )
 
     if body.job_type == "audit_checkpoint":
-        checkpoint, _, robot_type = _resolve_job_points(fleet.world, "audit_checkpoint")
-        selected_robot = _pick_idle_robot_for_type(fleet, AMRType.SCANNING_AUDIT, checkpoint)
-        if selected_robot is None:
-            raise HTTPException(409, "No SCANNING_AUDIT robot available for audit_checkpoint job")
-        from app.services.audit_mission import AuditMission
-        from app.models.task import Task, TaskStatus
-        mission = AuditMission(checkpoint, audit_id=f"AUDIT-{selected_robot.robot_id}")
-        audit_task = Task(
-            task_id=mission.audit_id,
-            pickup_x=selected_robot.x,
-            pickup_y=selected_robot.y,
+        if body.checkpoint:
+            checkpoint = (body.checkpoint.x, body.checkpoint.y)
+        elif body.shelf_id and hasattr(world, "pod_slots") and body.shelf_id in world.pod_slots:
+            checkpoint = world.pod_slots[body.shelf_id]
+        else:
+            checkpoint, _, _ = _resolve_job_points(world, "audit_checkpoint")
+
+        task = task_manager.create_task(
+            pickup_x=checkpoint[0],
+            pickup_y=checkpoint[1],
             dropoff_x=checkpoint[0],
             dropoff_y=checkpoint[1],
             urgency=body.urgency,
-            created_tick=fleet.tick,
-            status=TaskStatus.ASSIGNED,
-            assigned_robot_id=selected_robot.robot_id,
+            current_tick=fleet.tick,
+            task_type=TaskType.AUDIT,
+            target_shelf_id=body.shelf_id,
         )
-        task_manager._tasks[audit_task.task_id] = audit_task
-        fleet.tasks[audit_task.task_id] = audit_task
-        selected_robot.current_task_id = mission.audit_id
-        selected_robot.path = []
-        selected_robot.state = RobotState.EN_ROUTE
+        task.status = TaskStatus.ANNOUNCED
+        fleet.tasks[task.task_id] = task
+        fleet.queue_task(task)
 
-        # Write-ahead commit to journal
         journal = getattr(request.app.state, "job_journal", None)
         if journal:
             journal.log_submission(
-                job_id=mission.audit_id,
+                job_id=task.task_id,
                 job_type=body.job_type,
                 pickup=checkpoint,
                 dropoff=checkpoint,
                 urgency=body.urgency,
             )
-            journal.log_assignment(
-                job_id=mission.audit_id,
-                assigned_robot_id=selected_robot.robot_id,
-                tick=fleet.tick,
-            )
 
-        task_manager.dispatch_to_fleet(audit_task, peer_ports=peer_ports, target_robot_id=selected_robot.robot_id)
+        task_manager.dispatch_to_fleet(
+            task,
+            peer_ports=peer_ports,
+            station_role=f"{op_role}_STATION",
+            current_tick=fleet.tick,
+        )
+
         return JobOut(
             job_type=body.job_type,
-            robot_type=robot_type.value,
-            audit_id=mission.audit_id,
-            robot_id=selected_robot.robot_id,
-            status="AUDIT_SCHEDULED",
-            message="Audit checkpoint job scheduled on a SCANNING_AUDIT robot",
+            robot_type=AMRType.SCANNING_AUDIT.value,
+            task_id=task.task_id,
+            audit_id=task.task_id,
+            robot_id="PENDING",
+            status=task.status.value,
+            message="Audit mission announced for decentralized bidding by SCANNING_AUDIT robots",
         )
 
     raise HTTPException(400, f"Unsupported job_type: {body.job_type}")
@@ -513,7 +486,7 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
 async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
     """
     Direct SKU order endpoint. Queries InventoryLedger for the optimal shelf holding
-    the requested SKU and dispatches a RETRIEVE_POD task to an idle G2P AMR.
+    the requested SKU and broadcasts a signed TASK_ANNOUNCEMENT to G2P AMRs.
     """
     fleet = _get_fleet(request)
     task_manager = _get_task_manager(request)
@@ -521,13 +494,9 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
     peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
     ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
 
-    idle_g2ps = [
-        robot for robot in fleet.robots.values()
-        if robot.state == RobotState.IDLE and robot.robot_type == AMRType.GOODS_TO_PERSON
-    ]
     best_shelf = select_best_shelf_for_sku(
         ledger, body.sku, quantity=body.quantity,
-        idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+        idle_g2p_robots=None, current_tick=fleet.tick,
     )
     if best_shelf is None:
         raise HTTPException(404, f"No shelf holds SKU {body.sku!r} with quantity >= {body.quantity}")
@@ -537,11 +506,7 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
         dropoff = (body.dropoff.x, body.dropoff.y)
     else:
         dropoffs = sorted(list(fleet.world.dropoff_stations))
-        dropoff = dropoffs[0] if dropoffs else (29, 9)
-
-    selected_robot = _pick_idle_robot_for_type(fleet, AMRType.GOODS_TO_PERSON, pickup)
-    if selected_robot is None:
-        raise HTTPException(409, "No GOODS_TO_PERSON robot available for order")
+        dropoff = dropoffs[0] if dropoffs else (fleet.world.width - 1, fleet.world.height // 2)
 
     task = task_manager.create_task(
         pickup_x=pickup[0],
@@ -554,11 +519,11 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
         target_shelf_id=best_shelf.shelf_id,
         sku_to_pick=body.sku,
         quantity=body.quantity,
+        return_to_home=body.return_to_home,
+        home_slot=pickup,
     )
+    task.status = TaskStatus.ANNOUNCED
     fleet.queue_task(task)
-    assigned_robot = task_manager.try_assign(task, {selected_robot.robot_id: selected_robot}, fleet.tick)
-    if not assigned_robot:
-        raise HTTPException(409, "No GOODS_TO_PERSON robot available for order")
 
     journal = getattr(request.app.state, "job_journal", None)
     if journal:
@@ -569,23 +534,23 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
             dropoff=dropoff,
             urgency=body.urgency,
         )
-        journal.log_assignment(
-            job_id=task.task_id,
-            assigned_robot_id=assigned_robot,
-            tick=fleet.tick,
-        )
 
-    task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, target_robot_id=assigned_robot)
+    task_manager.dispatch_to_fleet(
+        task,
+        peer_ports=peer_ports,
+        current_tick=fleet.tick,
+    )
+
     return JobOut(
         job_type="fetch_item",
         robot_type=AMRType.GOODS_TO_PERSON.value,
         task_id=task.task_id,
-        robot_id=assigned_robot,
+        robot_id="PENDING",
         target_shelf_id=best_shelf.shelf_id,
         sku=body.sku,
         quantity=body.quantity,
         status=task.status.value,
-        message=f"Order for SKU {body.sku} assigned to {assigned_robot} (Shelf {best_shelf.shelf_id})",
+        message=f"Order for SKU {body.sku} announced for decentralized bidding (Shelf {best_shelf.shelf_id})",
     )
 
 
@@ -607,4 +572,5 @@ async def create_sku_job_order(body: OrderRequest, request: Request) -> JobOut:
 )
 async def create_sku_api_order(body: OrderRequest, request: Request) -> JobOut:
     return await create_sku_order(body, request)
+
 

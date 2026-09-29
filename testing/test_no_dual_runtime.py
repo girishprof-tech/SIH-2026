@@ -40,6 +40,12 @@ def test_no_dual_runtime_on_start():
         assert getattr(engine, "ticks_executed", 0) == 0, "SimulationEngine should have executed 0 ticks!"
         print("-> Verified: SimulationEngine tick loop remained completely inert (0 ticks executed).")
 
+        # Cleanly stop orchestrator and any child robot nodes
+        orch = getattr(app.state, "orchestrator", None)
+        if orch is not None:
+            orch.stop()
+
 if __name__ == "__main__":
     test_no_dual_runtime_on_start()
-    print("ALL TESTS PASSED: test_no_dual_runtime.py")
+    print("ALL TESTS PASSED: test_no_dual_runtime.py", flush=True)
+    sys.stdout.flush()

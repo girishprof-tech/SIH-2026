@@ -23,6 +23,7 @@ def test_audit_mission_live():
         start_pos=(6, 4),
         goal_pos=None,
         transport=transport,
+        auto_idle_audit=True,
     )
     assert node.fsm.state == RobotState.IDLE
     assert node.task is None

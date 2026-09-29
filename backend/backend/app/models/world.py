@@ -355,3 +355,117 @@ def build_default_world(width: int = 30, height: int = 30) -> WorldConfig:
         import_gates=dict(DEFAULT_IMPORT_GATES),
         fixed_stations=dict(DEFAULT_FIXED_STATIONS),
     )
+
+
+def build_world_from_map_dict(map_data: Dict[str, Any]) -> Tuple[WorldConfig, List[Dict[str, Any]]]:
+    """Derive complete warehouse WorldConfig and robot starts from versioned map dictionary."""
+    grid_info = map_data.get("grid", {})
+    width = int(grid_info.get("width", 30))
+    height = int(grid_info.get("height", 30))
+    cell_size = float(grid_info.get("cell_size_m", 1.0))
+
+    static_obstacles = frozenset(
+        (int(c["x"]), int(c["y"]))
+        for c in map_data.get("blocked_cells", [])
+        if isinstance(c, dict) and "x" in c and "y" in c
+    )
+
+    charging_stations = frozenset(
+        (int(c["x"]), int(c["y"]))
+        for c in map_data.get("chargers", [])
+        if isinstance(c, dict) and "x" in c and "y" in c
+    )
+
+    pod_slots: Dict[str, Tuple[int, int]] = {
+        s["id"]: (int(s["x"]), int(s["y"]))
+        for s in map_data.get("shelves", [])
+        if isinstance(s, dict) and "id" in s
+    }
+
+    sortation_chutes: Dict[str, Dict[str, Any]] = {
+        s["id"]: {**s, "x": int(s["x"]), "y": int(s["y"])}
+        for s in map_data.get("sorting_stations", [])
+        if isinstance(s, dict) and "id" in s
+    }
+
+    pick_stations: Dict[str, Dict[str, Any]] = {
+        ps["id"]: {**ps, "x": int(ps["x"]), "y": int(ps["y"])}
+        for ps in map_data.get("pick_stations", [])
+        if isinstance(ps, dict) and "id" in ps
+    }
+
+    import_gates: Dict[str, List[Tuple[int, int]]] = {}
+    for g in map_data.get("entry_gates", []):
+        gid = g.get("id", "IN")
+        cells = g.get("cells", [])
+        if not cells and "x" in g and "y" in g:
+            cells = [{"x": g["x"], "y": g["y"]}]
+        import_gates[gid] = [(int(c["x"]), int(c["y"])) for c in cells if "x" in c and "y" in c]
+
+    export_gates: Dict[str, List[Tuple[int, int]]] = {}
+    for g in map_data.get("exit_gates", []):
+        gid = g.get("id", "OUT")
+        cells = g.get("cells", [])
+        if not cells and "x" in g and "y" in g:
+            cells = [{"x": g["x"], "y": g["y"]}]
+        export_gates[gid] = [(int(c["x"]), int(c["y"])) for c in cells if "x" in c and "y" in c]
+
+    pickup_stations = frozenset(c for cells in import_gates.values() for c in cells)
+    dropoff_stations = frozenset(c for cells in export_gates.values() for c in cells)
+
+    fixed_stations = {
+        s["id"]: {**s, "x": int(s["x"]), "y": int(s["y"])}
+        for s in map_data.get("fixed_stations", [])
+        if isinstance(s, dict) and "id" in s
+    }
+    if not fixed_stations:
+        fixed_stations = dict(DEFAULT_FIXED_STATIONS)
+
+    sortation_zone = map_data.get("sortation_zone") or {
+        "bounds": {"min_x": int(width * 0.73), "max_x": int(width * 0.9), "min_y": 2, "max_y": 5},
+        "entrances": [(int(width * 0.7), 3), (int(width * 0.7), 4)],
+    }
+
+    world = WorldConfig(
+        width=width,
+        height=height,
+        cell_size_m=cell_size,
+        static_obstacles=static_obstacles,
+        charging_stations=charging_stations,
+        pickup_stations=pickup_stations,
+        dropoff_stations=dropoff_stations,
+        pod_slots=pod_slots,
+        sortation_chutes=sortation_chutes,
+        pick_stations=pick_stations,
+        sortation_zone=sortation_zone,
+        export_gates=export_gates,
+        import_gates=import_gates,
+        fixed_stations=fixed_stations,
+    )
+
+    robot_starts: List[Dict[str, Any]] = map_data.get("robot_starts", [])
+    return world, robot_starts
+
+
+_ACTIVE_WORLD: Optional[WorldConfig] = None
+_ACTIVE_MAP_DATA: Optional[Dict[str, Any]] = None
+
+
+def get_active_world() -> WorldConfig:
+    global _ACTIVE_WORLD
+    if _ACTIVE_WORLD is None:
+        _ACTIVE_WORLD = build_default_world()
+    return _ACTIVE_WORLD
+
+
+def get_active_map_data() -> Optional[Dict[str, Any]]:
+    global _ACTIVE_MAP_DATA
+    return _ACTIVE_MAP_DATA
+
+
+def set_active_world(world: WorldConfig, map_data: Optional[Dict[str, Any]] = None) -> None:
+    global _ACTIVE_WORLD, _ACTIVE_MAP_DATA
+    _ACTIVE_WORLD = world
+    if map_data is not None:
+        _ACTIVE_MAP_DATA = dict(map_data)
+

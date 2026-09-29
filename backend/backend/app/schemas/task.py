@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class Position(BaseModel):
-    x: int = Field(..., ge=0, le=29, description="Column (0–29)")
-    y: int = Field(..., ge=0, le=29, description="Row (0–29)")
+    x: int = Field(..., ge=0, description="Column (x >= 0)")
+    y: int = Field(..., ge=0, description="Row (y >= 0)")
 
 
 class TaskInjectRequest(BaseModel):
@@ -38,16 +38,32 @@ class TaskOut(BaseModel):
     status: str
     assigned_robot_id: Optional[str] = None
     created_tick: int
+    task_type: Optional[str] = None
+    target_shelf_id: Optional[str] = None
+    return_to_home: Optional[bool] = None
+    lease_expires_tick: Optional[int] = None
+    unclaimed_reason: Optional[str] = None
 
 
 class JobRequest(BaseModel):
     """User-facing job request to drive dispatch without raw pickup/dropoff coords."""
-    job_type: Literal["fetch_item", "sort_batch", "audit_checkpoint"]
+    job_type: str = Field(..., description="Task category: fetch_item, sort_batch, audit_checkpoint, relocate")
     item_id: Optional[str] = None
     sku: Optional[str] = None
     quantity: int = 1
     zone: Optional[str] = None
-    urgency: int = Field(..., ge=1, le=5, description="Task urgency 1 (low) – 5 (critical)")
+    urgency: int = Field(3, ge=1, le=5, description="Task urgency 1 (low) – 5 (critical)")
+
+    # Step 6 adaptive task form parameters
+    shelf_id: Optional[str] = None
+    pickup: Optional[Position] = None
+    dropoff: Optional[Position] = None
+    return_to_home: bool = True
+    source_gate: Optional[str] = None
+    destination_chute: Optional[str] = None
+    route_code: Optional[str] = None
+    checkpoint: Optional[Position] = None
+    target_robot_id: Optional[str] = None
 
     @field_validator("urgency")
     @classmethod
@@ -63,6 +79,7 @@ class OrderRequest(BaseModel):
     quantity: int = Field(1, ge=1, description="Quantity to pick")
     urgency: int = Field(3, ge=1, le=5, description="Order urgency 1-5")
     dropoff: Optional[Position] = None
+    return_to_home: bool = True
 
 
 class JobOut(BaseModel):
@@ -76,4 +93,7 @@ class JobOut(BaseModel):
     quantity: Optional[int] = None
     status: str
     message: str
+    lease_expires_tick: Optional[int] = None
+    unclaimed_reason: Optional[str] = None
+
 

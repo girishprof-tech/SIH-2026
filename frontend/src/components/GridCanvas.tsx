@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Maximize, Minimize, RotateCcw, ZoomIn, ZoomOut, Crosshair } from 'lucide-react'
+import { Maximize, Minimize, RotateCcw, ZoomIn, ZoomOut, Crosshair, Compass, Focus } from 'lucide-react'
 import type { Conflict, Point, Robot, Task, TempObstacle, World } from '../types'
 import { Warehouse3DCanvas } from './Warehouse3DCanvas'
 import type { FleetStore } from '../hooks/useFleetSocket'
@@ -81,6 +81,8 @@ export function GridCanvas({
   const handleToggleCameraFollow = onToggleCameraFollow ?? (() => setInternalCameraFollow((prev) => !prev))
 
   const onResetViewRef = useRef<(() => void) | null>(null)
+  const onFitWarehouseRef = useRef<(() => void) | null>(null)
+  const onTopDownRef = useRef<(() => void) | null>(null)
   const onZoomInRef = useRef<(() => void) | null>(null)
   const onZoomOutRef = useRef<(() => void) | null>(null)
 
@@ -98,6 +100,21 @@ export function GridCanvas({
     onResetViewRef.current?.()
   }
 
+  const handleFitWarehouse = () => {
+    onFitWarehouseRef.current?.()
+  }
+
+  const handleTopDown = () => {
+    onTopDownRef.current?.()
+  }
+
+  const handleUserInteraction = () => {
+    // Camera-follow must release immediately when the user pans/rotates
+    if (propCameraFollow === undefined) {
+      setInternalCameraFollow(false)
+    }
+  }
+
   return (
     <div className={`grid-shell ${isFullscreen ? 'fullscreen' : ''}`}>
       <div className="grid-caption">
@@ -106,7 +123,7 @@ export function GridCanvas({
             <i className="legend-dot" style={{ backgroundColor: 'var(--accent-primary)' }} /> Live warehouse floor
           </span>
           <span className="grid-dimensions">
-            {world.width} × {world.height} grid, isometric
+            {world.width} × {world.height} grid, free camera
           </span>
           {isFullscreen && (
             <span className="fullscreen-badge">
@@ -146,8 +163,11 @@ export function GridCanvas({
           onRobot={onRobot}
           onCell={onCell}
           onResetViewRef={onResetViewRef}
+          onFitWarehouseRef={onFitWarehouseRef}
+          onTopDownRef={onTopDownRef}
           onZoomInRef={onZoomInRef}
           onZoomOutRef={onZoomOutRef}
+          onUserInteraction={handleUserInteraction}
         />
       </div>
 
@@ -163,6 +183,24 @@ export function GridCanvas({
             <Crosshair size={14} />
           </button>
         )}
+
+        <button
+          className="canvas-hud-btn"
+          onClick={handleTopDown}
+          title="Top-Down Preset View"
+          aria-label="Top-Down View"
+        >
+          <Compass size={14} />
+        </button>
+
+        <button
+          className="canvas-hud-btn"
+          onClick={handleFitWarehouse}
+          title="Fit to Warehouse"
+          aria-label="Fit to Warehouse"
+        >
+          <Focus size={14} />
+        </button>
 
         <button
           className="canvas-hud-btn"
@@ -183,8 +221,8 @@ export function GridCanvas({
         <button
           className="canvas-hud-btn"
           onClick={handleResetView}
-          title="Reset View / Isometric Center"
-          aria-label="Reset canvas view"
+          title="Reset Camera (Perspective)"
+          aria-label="Reset Camera view"
         >
           <RotateCcw size={13} />
         </button>
