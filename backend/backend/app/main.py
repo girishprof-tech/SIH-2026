@@ -24,8 +24,11 @@ import socket
 import sys
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+ROOT_DIR = Path(__file__).resolve().parents[3]
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
@@ -149,6 +152,116 @@ def process_telemetry_frame(
         telemetry.record_planner(avg_planner)
 
 
+def _clean_stale_udp_ports(ports: range | list = range(9001, 9011)) -> None:
+    """Terminates any stale/zombie processes holding AMR UDP ports on Windows."""
+    if sys.platform != "win32":
+        return
+    import subprocess
+    try:
+        out = subprocess.check_output(["netstat", "-ano", "-p", "udp"], text=True)
+        my_pid = os.getpid()
+        killed = set()
+        for line in out.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 4 and parts[0].upper() == "UDP":
+                addr = parts[1]
+                pid_str = parts[-1]
+                for p in ports:
+                    if f":{p}" in addr:
+                        try:
+                            pid = int(pid_str)
+                            if pid != my_pid and pid not in killed and pid > 0:
+                                subprocess.run(
+                                    ["taskkill", "/F", "/PID", str(pid)],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                                killed.add(pid)
+                        except Exception:
+                            pass
+        if killed:
+            time.sleep(0.3)
+    except Exception:
+        pass
+
+
+def _is_udp_port_bound(port: int = 9001, host: str = "127.0.0.1") -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError:
+            return True
+
+
+def _is_external_fleet_active() -> bool:
+    """Checks whether an external fleet is genuinely running and actively publishing telemetry."""
+    from app.services.telemetry_bus import TELEMETRY_FILE
+    if not _is_udp_port_bound(9001):
+        return False
+    if not TELEMETRY_FILE.exists():
+        return False
+    try:
+        mtime = TELEMETRY_FILE.stat().st_mtime
+        return (time.time() - mtime) < 2.5
+    except Exception:
+        return False
+
+
+def run_startup_preflight() -> None:
+    """
+    Tiny preflight check before starting backend:
+    1. Python version >= 3.11
+    2. Required imports (fastapi, uvicorn, cryptography, pydantic, numpy, networkx, scipy)
+    3. Port 8000 free (or bound by server process)
+    4. UDP 9001+/9601-9603 free (cleaned of stale zombies)
+    5. data/ writable
+    """
+    if sys.version_info < (3, 11):
+        msg = f"[PREFLIGHT FATAL] Python 3.11+ required. Found: {sys.version}"
+        log.critical(msg)
+        raise RuntimeError(msg)
+
+    import importlib
+    required_pkgs = ["fastapi", "uvicorn", "cryptography", "pydantic", "numpy", "networkx", "scipy"]
+    for pkg in required_pkgs:
+        try:
+            importlib.import_module(pkg)
+        except ImportError as exc:
+            msg = f"[PREFLIGHT FATAL] Required package '{pkg}' missing: {exc}. Run: pip install -r requirements.txt"
+            log.critical(msg)
+            raise RuntimeError(msg)
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            res = s.connect_ex(("127.0.0.1", 8000))
+            if res == 0:
+                log.info("[PREFLIGHT] Port 8000 is active (bound by server).")
+            else:
+                log.info("[PREFLIGHT] Port 8000 is free and available.")
+    except Exception as exc:
+        log.warning("[PREFLIGHT] Port 8000 check skipped: %s", exc)
+
+    _clean_stale_udp_ports(range(9001, 9011))
+    _clean_stale_udp_ports([9601, 9602, 9603])
+
+    from pathlib import Path
+    data_dir = Path(__file__).resolve().parents[3] / "data"
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        test_file = data_dir / ".preflight_write_test"
+        test_file.write_text("ok", encoding="utf-8")
+        if test_file.exists():
+            test_file.unlink()
+    except Exception as exc:
+        msg = f"[PREFLIGHT FATAL] Directory '{data_dir}' is not writable: {exc}"
+        log.critical(msg)
+        raise RuntimeError(msg)
+
+    log.info("[PREFLIGHT] Environment preflight passed: Python %s, packages, ports & data/ verified.", sys.version.split()[0])
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Application Lifespan
 # ─────────────────────────────────────────────────────────────────────────────
@@ -159,12 +272,15 @@ async def lifespan(app: FastAPI):
     Initialize all services on startup, tear down on shutdown.
     Services are stored in app.state for dependency injection via Request.
     """
+    run_startup_preflight()
     log.info("Initializing SIH2026 simulation backend...")
 
     # ── Core services ─────────────────────────────────────────────────────────
     fleet_state = FleetState()
     reservation_manager = ReservationManager()
     task_manager = TaskManager()
+    from app.services.order_manager import OrderManager
+    order_manager = OrderManager()
     telemetry = Telemetry()
     telemetry.tick_ms_configured = cfg.SIM_TICK_MS
     connection_manager = ConnectionManager(max_queue=cfg.WS_MAX_QUEUE)
@@ -190,16 +306,44 @@ async def lifespan(app: FastAPI):
         planner=planner,
     )
 
+    # ── Load initial map configuration ─────────────────────────────────────────
+    current_map_path = ROOT_DIR / "maps" / "current_map.json"
+    test_map_path = ROOT_DIR / "maps" / "test_map.json"
+    active_map_dict = None
+    if current_map_path.exists():
+        try:
+            with open(current_map_path, "r", encoding="utf-8") as f:
+                active_map_dict = json.load(f)
+        except Exception:
+            pass
+    if active_map_dict is None and test_map_path.exists():
+        try:
+            with open(test_map_path, "r", encoding="utf-8") as f:
+                active_map_dict = json.load(f)
+        except Exception:
+            pass
+
+    if active_map_dict:
+        from app.models.world import build_world_from_map_dict, set_active_world
+        init_world, _ = build_world_from_map_dict(active_map_dict)
+        fleet_state.world = init_world
+        set_active_world(init_world, active_map_dict)
+
     # ── SPOF Hardening: Recover in-flight jobs from write-ahead journal ────────
     from app.services.inventory_ledger import InventoryLedger
     inventory_ledger = InventoryLedger()
-    inventory_ledger.seed_default_inventory(fleet_state.world)
+    if active_map_dict:
+        inventory_ledger.seed_from_map(active_map_dict, fleet_state.world)
+    else:
+        inventory_ledger.seed_default_inventory(fleet_state.world)
 
     from app.services.job_journal import JobJournal
     job_journal = JobJournal()
     recovered_jobs = job_journal.recover_uncompleted_jobs()
-    if recovered_jobs:
-        log.info("[SPOF RECOVERY] Replaying %d uncompleted jobs from journal...", len(recovered_jobs))
+    auto_recover = os.environ.get("ENABLE_AUTO_RECOVERY", "0") == "1"
+
+    if recovered_jobs and auto_recover:
+        log.info("[SPOF RECOVERY] Auto-recovery enabled: replaying %d uncompleted jobs from journal...", len(recovered_jobs))
         for r_job in recovered_jobs:
             try:
                 pickup = r_job.get("pickup") or [2, 2]
@@ -218,59 +362,15 @@ async def lifespan(app: FastAPI):
                 fleet_state.queue_task(t)
             except Exception as ex:
                 log.warning("[SPOF RECOVERY] Error replaying job %s: %s", r_job.get("job_id"), ex)
-
-    def _clean_stale_udp_ports(ports: range = range(9001, 9011)) -> None:
-        """Terminates any stale/zombie processes holding AMR UDP ports on Windows."""
-        if sys.platform != "win32":
-            return
-        import subprocess
-        try:
-            out = subprocess.check_output(["netstat", "-ano", "-p", "udp"], text=True)
-            my_pid = os.getpid()
-            killed = set()
-            for line in out.splitlines():
-                parts = line.strip().split()
-                if len(parts) >= 4 and parts[0].upper() == "UDP":
-                    addr = parts[1]
-                    pid_str = parts[-1]
-                    for p in ports:
-                        if f":{p}" in addr:
-                            try:
-                                pid = int(pid_str)
-                                if pid != my_pid and pid not in killed and pid > 0:
-                                    subprocess.run(
-                                        ["taskkill", "/F", "/PID", str(pid)],
-                                        stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL,
-                                    )
-                                    killed.add(pid)
-                            except Exception:
-                                pass
-            if killed:
-                time.sleep(0.3)
-        except Exception:
-            pass
-
-    def _is_udp_port_bound(port: int = 9001, host: str = "127.0.0.1") -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            try:
-                s.bind((host, port))
-                return False
-            except OSError:
-                return True
-
-    def _is_external_fleet_active() -> bool:
-        """Checks whether an external fleet is genuinely running and actively publishing telemetry."""
-        from app.services.telemetry_bus import TELEMETRY_FILE
-        if not _is_udp_port_bound(9001):
-            return False
-        if not TELEMETRY_FILE.exists():
-            return False
-        try:
-            mtime = TELEMETRY_FILE.stat().st_mtime
-            return (time.time() - mtime) < 2.5
-        except Exception:
-            return False
+        uncompleted_pending = []
+    else:
+        if recovered_jobs:
+            log.info(
+                "[SPOF RECOVERY] Found %d uncompleted jobs from previous session. "
+                "Startup recovery is opt-in (default OFF). Pending user action via API/UI.",
+                len(recovered_jobs),
+            )
+        uncompleted_pending = recovered_jobs
 
     # ── Autonomous Decentralized Fleet Orchestrator ───────────────────────────
     orchestrator = None
@@ -288,11 +388,41 @@ async def lifespan(app: FastAPI):
             _clean_stale_udp_ports()
 
         fleet_mode = "spawned_new_fleet"
+        from app.services.fleet_orchestrator import FleetOrchestrator
+        orchestrator = FleetOrchestrator(
+            map_data=active_map_dict,
+            tick_interval_s=cfg.SIM_TICK_MS / 1000.0,
+            max_ticks=0,
+        )
+        orchestrator.reset_logs()
+
+        # Populate initial robots into fleet_state
+        for c in orchestrator.robots_config:
+            rid = c["robot_id"]
+            from app.models.robot import Robot, AMRType
+            rtype_str = c.get("robot_type", "GOODS_TO_PERSON")
+            try:
+                rtype_enum = AMRType(rtype_str)
+            except Exception:
+                rtype_enum = AMRType.GOODS_TO_PERSON
+            r = Robot(
+                robot_id=rid,
+                x=c["start"][0],
+                y=c["start"][1],
+                heading=Heading.NORTH,
+                state=RobotState.IDLE,
+                battery_pct=100.0,
+                current_task_id=None,
+                priority_score=0,
+                last_updated_tick=0,
+                robot_type=rtype_enum,
+            )
+            fleet_state.robots[rid] = r
+
         log.info(
             "[FLEET STARTUP] Mode: SPAWNED NEW FLEET (Spawning %d autonomous AMR OS processes on ports 9001+)...",
-            cfg.FLEET_SIZE,
+            len(orchestrator.robots_config),
         )
-        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0, max_ticks=0)
         orchestrator.start()
     else:
         fleet_mode = "no_fleet_detected_robots_not_running"
@@ -314,6 +444,8 @@ async def lifespan(app: FastAPI):
     app.state.fleet_mode = fleet_mode
     app.state.job_journal = job_journal
     app.state.inventory_ledger = inventory_ledger
+    app.state.uncompleted_jobs_pending = uncompleted_pending
+    app.state.order_manager = order_manager
 
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
@@ -408,6 +540,7 @@ async def lifespan(app: FastAPI):
                             "mode": getattr(app.state, "fleet_mode", "spawned_new_fleet"),
                             "tick": fleet_state.tick,
                             "armed_state": ("RUNNING" if has_active_tasks else "ARMED — waiting for tasks") if fleet_state.is_running else "STOPPED",
+                            "pending_recovery_count": len(getattr(app.state, "uncompleted_jobs_pending", [])),
                         }
                         # Include live inventory ledger snapshot and sortation chutes
                         try:
@@ -415,6 +548,34 @@ async def lifespan(app: FastAPI):
                             data["sortation_chutes"] = fleet_state.world.sortation_chutes
                         except Exception:
                             pass
+
+                        # Update OrderManager lifecycle tracking (Step 5)
+                        try:
+                            for r in fleet_state.robots.values():
+                                if r.carrying_pod_id:
+                                    order_manager.on_pod_lifted(r.carrying_pod_id, r.robot_id, fleet_state.tick)
+                            for sid, st in fleet_state.world.pick_stations.items():
+                                for carton in st.get("buffer_items", []):
+                                    oid = getattr(carton, "order_id", None) or (carton.get("order_id") if isinstance(carton, dict) else None)
+                                    if oid:
+                                        ord_obj = order_manager.get_order(oid)
+                                        if ord_obj:
+                                            order_manager.on_at_pick_station(ord_obj.shelf_id or "", sid, fleet_state.tick)
+                            for t in task_manager.all_tasks().values():
+                                oid = getattr(t, "order_id", None)
+                                if oid and t.status in (TaskStatus.COMPLETED, "COMPLETED"):
+                                    ttype = str(getattr(t, "task_type", ""))
+                                    if "CONSOLIDATE" in ttype:
+                                        order_manager.on_shipped(oid, fleet_state.tick)
+                                    elif "TRANSFER" in ttype:
+                                        dest_zone = getattr(t, "destination_zone", "")
+                                        chute_id = fleet_state.world.chute_for_destination(dest_zone)
+                                        if chute_id:
+                                            order_manager.on_in_chute(oid, chute_id, fleet_state.tick)
+                            order_manager.update_stuck_reasons(fleet_state.tick)
+                            data["orders"] = [o.to_dict() for o in order_manager.all_orders()]
+                        except Exception as e:
+                            log.debug("Order tracking update error: %s", e)
 
                         full_json = json.dumps(data, separators=(",", ":"))
                         connection_manager.latest_baseline_json = full_json
@@ -453,13 +614,52 @@ async def lifespan(app: FastAPI):
                         payload = envelope.get("payload", {})
                         m_type = payload.get("type", "")
 
-                        if m_type == "TASK_CLAIM":
+                        if m_type == "TASK_ANNOUNCEMENT":
+                            t_dict = payload.get("task", {})
+                            t_id = t_dict.get("task_id")
+                            oid = t_dict.get("order_id")
+                            if t_id and oid:
+                                order_manager.link_task(t_id, oid)
+                            if t_id and t_id not in task_manager._tasks:
+                                from app.models.task import Task, TaskType, TaskStatus
+                                p_pos = t_dict.get("pickup", [0, 0])
+                                d_pos = t_dict.get("dropoff", [0, 0])
+                                try:
+                                    t_type_enum = TaskType(t_dict.get("task_type", "STANDARD"))
+                                except Exception:
+                                    t_type_enum = TaskType.STANDARD
+                                auto_t = Task(
+                                    task_id=t_id,
+                                    pickup_x=p_pos[0],
+                                    pickup_y=p_pos[1],
+                                    dropoff_x=d_pos[0],
+                                    dropoff_y=d_pos[1],
+                                    urgency=int(t_dict.get("urgency", 3)),
+                                    created_tick=int(payload.get("tick", fleet_state.tick)),
+                                    status=TaskStatus.ANNOUNCED,
+                                    task_type=t_type_enum,
+                                    destination_zone=t_dict.get("destination_zone"),
+                                    pick_station_id=t_dict.get("pick_station_id"),
+                                    order_id=oid,
+                                    destination_gate=t_dict.get("destination_gate"),
+                                )
+                                task_manager._tasks[t_id] = auto_t
+
+                        elif m_type == "TASK_CLAIM":
                             t_id = payload.get("task_id")
                             w_id = payload.get("winner_id") or payload.get("robot_id")
                             l_ticks = int(payload.get("lease_ticks", 40))
                             c_tick = int(payload.get("tick", fleet_state.tick))
+                            oid = payload.get("order_id")
+                            t_type = payload.get("task_type")
+                            if t_id and oid:
+                                order_manager.link_task(t_id, oid)
                             if t_id and w_id:
                                 task_manager.record_claim(t_id, w_id, l_ticks, c_tick)
+                                t_obj = task_manager._tasks.get(t_id)
+                                if not t_type:
+                                    t_type = str(getattr(t_obj, "task_type", "")) if t_obj else ""
+                                order_manager.on_task_claimed(t_id, w_id, t_type, c_tick)
 
                         elif m_type == "TASK_LEASE_HEARTBEAT":
                             t_id = payload.get("task_id")
@@ -473,8 +673,23 @@ async def lifespan(app: FastAPI):
                             t_id = payload.get("task_id")
                             r_id = payload.get("robot_id") or payload.get("sender_id")
                             c_tick = int(payload.get("tick", fleet_state.tick))
+                            oid = payload.get("order_id")
+                            ttype = str(payload.get("task_type") or "")
                             if t_id:
                                 task_manager.mark_completed_by_id(t_id, r_id, c_tick)
+                                t_obj = task_manager._tasks.get(t_id)
+                                if not oid and t_obj:
+                                    oid = getattr(t_obj, "order_id", None)
+                                if not ttype and t_obj:
+                                    ttype = str(getattr(t_obj, "task_type", ""))
+                                if oid:
+                                    if "CONSOLIDATE" in t_id or "CONSOLIDATE" in ttype:
+                                        order_manager.on_shipped(oid, c_tick)
+                                    elif "TRANSFER" in t_id or "TRANSFER" in ttype:
+                                        dest_zone = payload.get("destination_zone") or getattr(t_obj, "destination_zone", "")
+                                        chute_id = fleet_state.world.chute_for_destination(dest_zone)
+                                        if chute_id:
+                                            order_manager.on_in_chute(oid, chute_id, c_tick)
 
                         elif m_type in ("INVENTORY_UPDATE", "INVENTORY_SYNC") or "shelf_id" in payload:
                             sync_msg = {
@@ -546,6 +761,8 @@ async def lifespan(app: FastAPI):
         await engine.pause()
     if orchestrator is not None:
         orchestrator.stop()
+    if hasattr(job_journal, "close"):
+        job_journal.close()
     log.info("Backend shutdown complete.")
 
 
@@ -585,6 +802,47 @@ app.include_router(robots.router)
 app.include_router(websocket.router)
 app.include_router(world_router)
 app.include_router(map_router)
+
+
+# ── Product Catalog ───────────────────────────────────────────────────────────
+@app.get("/api/catalog", tags=["Catalog"])
+def get_product_catalog(request: Request) -> List[Dict[str, Any]]:
+    """Returns the live product catalog and aggregated in-stock quantities."""
+    from app.models.world import get_active_map_data
+    ledger = getattr(request.app.state, "inventory_ledger", None)
+    active_data = get_active_map_data() or {}
+    map_catalog = active_data.get("catalog", [])
+    default_catalog = [
+        {"sku": "SKU-A10", "name": "Standard Bolt Pack", "weight_kg": 2.5},
+        {"sku": "SKU-A20", "name": "Precision Bearings", "weight_kg": 1.8},
+        {"sku": "SKU-B10", "name": "Hydraulic Seals", "weight_kg": 0.9},
+        {"sku": "SKU-B20", "name": "Motor Brushes", "weight_kg": 1.2},
+        {"sku": "SKU-C10", "name": "Control Cables", "weight_kg": 3.1},
+        {"sku": "SKU-C20", "name": "Optical Sensors", "weight_kg": 0.5},
+        {"sku": "SKU-D10", "name": "Lithium Battery Cells", "weight_kg": 4.0},
+        {"sku": "SKU-D20", "name": "Terminal Relays", "weight_kg": 1.1},
+        {"sku": "SKU-E10", "name": "Industrial Fasteners", "weight_kg": 2.2},
+        {"sku": "SKU-E20", "name": "Servo Couplers", "weight_kg": 1.4},
+        {"sku": "SKU-F10", "name": "Fiber Optic Patch", "weight_kg": 0.3},
+        {"sku": "SKU-F20", "name": "Pneumatic Valve Kit", "weight_kg": 2.8},
+    ]
+    catalog = map_catalog if map_catalog else default_catalog
+    stock_counts: Dict[str, int] = {}
+    if ledger:
+        for shelf in ledger.get_all_shelves():
+            for sku, qty in shelf.sku_manifest.items():
+                stock_counts[sku] = stock_counts.get(sku, 0) + int(qty)
+
+    result = []
+    for item in catalog:
+        sku = item["sku"]
+        result.append({
+            "sku": sku,
+            "name": item.get("name", sku),
+            "weight_kg": float(item.get("weight_kg", 2.0)),
+            "total_stock": stock_counts.get(sku, 0),
+        })
+    return result
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

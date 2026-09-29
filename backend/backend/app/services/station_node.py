@@ -455,6 +455,9 @@ def run_station_process(
     secret_key: str = DEFAULT_SECRET_KEY,
     start_event: Optional[mp.Event] = None,
     start_barrier: Optional[mp.Barrier] = None,
+    pause_event: Optional[mp.Event] = None,
+    speed_multiplier: Optional[Any] = None,
+    **kwargs: Any,
 ) -> None:
     """
     Entrypoint function executed in an independent OS process for each StationNode.
@@ -482,20 +485,22 @@ def run_station_process(
         station.close()
         return
 
-    start_time = time.time()
     tick = 0
     try:
         while not stop_event.is_set():
+            if pause_event is not None and pause_event.is_set():
+                time.sleep(0.1)
+                continue
+            step_start = time.time()
             station.poll_and_step(tick)
             tick += 1
-            now = time.time()
-            target_time = start_time + tick * tick_interval_s
-            sleep_time = target_time - now
+            step_duration = time.time() - step_start
+            speed = float(speed_multiplier.value) if speed_multiplier is not None else 1.0
+            effective_interval = tick_interval_s / max(0.1, min(speed, 10.0))
+            sleep_time = effective_interval - step_duration
             if sleep_time > 0:
                 time.sleep(sleep_time)
-            elif now - target_time > 0.5:
-                start_time = now - tick * tick_interval_s
             else:
-                time.sleep(0.0001)
+                time.sleep(0.0005)
     finally:
         station.close()

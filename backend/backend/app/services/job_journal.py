@@ -216,11 +216,23 @@ class JobJournal:
             extra={"reason": reason},
         )
 
+    def log_failure(
+        self,
+        job_id: str,
+        reason: str = "failed",
+    ) -> Dict[str, Any]:
+        return self.append_entry(
+            event="FAILED",
+            job_id=job_id,
+            status="FAILED",
+            extra={"reason": reason},
+        )
+
     def recover_uncompleted_jobs(self) -> List[Dict[str, Any]]:
         """
         Reads the journal from the beginning and reconstructs the active state
         of all submitted jobs.
-        Returns all jobs whose latest status is NOT 'COMPLETED' and NOT 'CANCELLED'.
+        Returns all jobs whose latest status is NOT 'COMPLETED', 'CANCELLED', or 'FAILED'.
         """
         self.flush()
         if not self.journal_path.exists():
@@ -256,7 +268,7 @@ class JobJournal:
 
         # Filter uncompleted jobs (SUBMITTED, ASSIGNED, IN_PROGRESS)
         uncompleted: List[Dict[str, Any]] = []
-        terminal_statuses = {"COMPLETED", "CANCELLED"}
+        terminal_statuses = {"COMPLETED", "CANCELLED", "FAILED"}
 
         for jid in order:
             job = jobs_by_id[jid]
@@ -271,3 +283,39 @@ class JobJournal:
             len(uncompleted),
         )
         return uncompleted
+
+    def rotate_session(self) -> Optional[Path]:
+        """
+        Rotates/archives the current job log into data/archive/job_log_<timestamp>.jsonl
+        and creates a fresh, empty data/job_log.jsonl for the current session.
+        """
+        with self._lock:
+            if self._file and not self._file.closed:
+                try:
+                    self._file.flush()
+                    os.fsync(self._file.fileno())
+                    self._file.close()
+                except Exception:
+                    pass
+                self._file = None
+
+            if self.journal_path.exists() and self.journal_path.stat().st_size > 0:
+                archive_dir = self.journal_path.parent / "archive"
+                archive_dir.mkdir(parents=True, exist_ok=True)
+                ts = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+                archive_path = archive_dir / f"job_log_{ts}.jsonl"
+                try:
+                    import shutil
+                    shutil.copy2(self.journal_path, archive_path)
+                    with open(self.journal_path, "w", encoding="utf-8"):
+                        pass
+                    log.info("[JobJournal] Rotated journal session to %s", archive_path)
+                    return archive_path
+                except Exception as ex:
+                    log.error("[JobJournal] Failed to rotate journal: %s", ex)
+                    return None
+            else:
+                self.journal_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(self.journal_path, "w", encoding="utf-8"):
+                    pass
+                return None

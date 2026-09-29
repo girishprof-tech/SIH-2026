@@ -532,6 +532,184 @@ select {
   flex-shrink: 0;
 }
 
+.topbar-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.map-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background-color: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.map-chip-icon {
+  color: var(--accent-primary);
+}
+
+.map-chip-name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-chip-dims {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.control-button.change-map-btn {
+  background-color: var(--bg-surface-subtle);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.control-button.change-map-btn:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--accent-text);
+}
+
+.sim-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.control-button.sim-btn {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0 12px;
+}
+
+.control-button.sim-btn.start-state {
+  background-color: #16a34a;
+  border-color: #15803d;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(22, 163, 74, 0.35);
+}
+
+.control-button.sim-btn.start-state:hover:not(:disabled) {
+  background-color: #15803d;
+}
+
+.control-button.sim-btn.pause-state {
+  background-color: #f59e0b;
+  border-color: #d97706;
+  color: #1e1e1e;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
+.control-button.sim-btn.pause-state:hover:not(:disabled) {
+  background-color: #d97706;
+}
+
+.speed-selector-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 5px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.speed-icon {
+  margin: 0 3px 0 3px;
+  color: var(--text-muted);
+}
+
+.speed-pill {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.speed-pill:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.speed-pill.selected {
+  background: var(--accent-primary);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(255, 107, 53, 0.4);
+}
+
+.robot-breakdown-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.robot-breakdown-chip .fleet-icon {
+  color: #38bdf8;
+}
+
+.robot-breakdown-chip .count-total {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.robot-breakdown-chip .count-divider {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.robot-breakdown-chip .count-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.robot-breakdown-chip .count-tag.g2p {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.robot-breakdown-chip .count-tag.sort {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.robot-breakdown-chip .count-tag.audit {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.tick-rate-readout strong {
+  color: #38bdf8;
+}
+
 .brand-name {
   font-size: 15px;
   font-weight: 700;
@@ -609,6 +787,55 @@ select {
   opacity: 0.85;
   padding-left: 6px;
   border-left: 1px solid currentColor;
+}
+
+/* Unfinished Recovery Jobs Banner */
+.recovery-jobs-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background-color: rgba(59, 130, 246, 0.15);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+  animation: banner-slide-down 0.2s ease-out;
+  z-index: 18;
+}
+
+.recovery-jobs-banner .recovery-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recovery-jobs-banner .recovery-actions button {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  transition: all 0.15s ease;
+}
+
+.recovery-jobs-banner .recovery-actions button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.recovery-jobs-banner .recovery-actions .btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.recovery-jobs-banner .recovery-actions .btn-primary:hover {
+  background: #1d4ed8;
 }
 
 .sync-indicator strong {
@@ -3225,6 +3452,89 @@ select {
   color: var(--text-muted);
   padding-top: 8px;
   border-top: 1px dashed var(--border-subtle);
+}
+
+/* ==========================================================================
+   Backend Offline Banner
+   ========================================================================== */
+.backend-offline-banner {
+  background: #DC2626;
+  color: #FFFFFF;
+  padding: 8px 16px;
+  width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+}
+
+.backend-offline-banner .banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+  gap: 12px;
+}
+
+.backend-offline-banner .banner-icon {
+  flex-shrink: 0;
+  color: #FEE2E2;
+}
+
+.backend-offline-banner .banner-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-grow: 1;
+}
+
+.backend-offline-banner .banner-title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.backend-offline-banner code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #FEF08A;
+}
+
+.backend-offline-banner .banner-command-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #F3F4F6;
+}
+
+.backend-offline-banner .banner-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFFFF;
+  color: #991B1B;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.backend-offline-banner .banner-retry-btn:hover {
+  background: #FEE2E2;
+}
+
+.backend-offline-banner .banner-retry-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 

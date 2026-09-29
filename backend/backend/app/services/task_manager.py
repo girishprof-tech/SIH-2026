@@ -91,6 +91,8 @@ def build_task_announcement_envelope(
             "return_to_home": getattr(task, "return_to_home", True),
             "home_slot": getattr(task, "home_slot", None) or [task.pickup_x, task.pickup_y],
             "route_code": getattr(task, "route_code", None),
+            "order_id": getattr(task, "order_id", None),
+            "destination_gate": getattr(task, "destination_gate", None),
         },
     }
     if station_role:
@@ -247,6 +249,9 @@ class TaskManager:
         destination_zone: Optional[str] = None,
         pick_station_id: Optional[str] = None,
         route_code: Optional[str] = None,
+        task_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        destination_gate: Optional[str] = None,
     ) -> Task:
         # Part D: If payload_weight_kg is 0.0 and task targets a shelf, compute real weight from ledger
         if payload_weight_kg == 0.0 and target_shelf_id and task_type in (TaskType.RETRIEVE_POD, TaskType.RETURN_POD):
@@ -258,7 +263,7 @@ class TaskManager:
                 pass
 
         task = Task(
-            task_id=Task.generate_id(),
+            task_id=task_id or Task.generate_id(),
             pickup_x=pickup_x,
             pickup_y=pickup_y,
             dropoff_x=dropoff_x,
@@ -276,6 +281,8 @@ class TaskManager:
             destination_zone=destination_zone,
             pick_station_id=pick_station_id,
             route_code=route_code,
+            order_id=order_id,
+            destination_gate=destination_gate,
         )
         self._tasks[task.task_id] = task
         log.info(
@@ -353,6 +360,11 @@ class TaskManager:
             "TASK_COMPLETED task_id=%s robot=%s tick=%d",
             task_id, robot.robot_id, current_tick,
         )
+        try:
+            from app.services.job_journal import JobJournal
+            JobJournal().log_completion(job_id=task_id, robot_id=robot.robot_id, tick=current_tick)
+        except Exception:
+            pass
 
     # ── Tick processing ───────────────────────────────────────────────────────
 
@@ -442,6 +454,39 @@ class TaskManager:
             if robot_id:
                 task.assigned_robot_id = robot_id
             log.info("TASK_COMPLETED task_id=%s robot=%s tick=%d", task_id, robot_id, current_tick)
+            try:
+                from app.services.job_journal import JobJournal
+                JobJournal().log_completion(job_id=task_id, robot_id=robot_id, tick=current_tick)
+            except Exception:
+                pass
+
+    def cancel_task(self, task_id: str, reason: str = "operator_cancel") -> bool:
+        task = self._tasks.get(task_id)
+        if not task:
+            return False
+        task.status = TaskStatus.CANCELLED
+        task.lease_expires_tick = None
+        log.info("TASK_CANCELLED task_id=%s reason=%s", task_id, reason)
+        try:
+            from app.services.job_journal import JobJournal
+            JobJournal().log_cancellation(job_id=task_id, reason=reason)
+        except Exception:
+            pass
+        return True
+
+    def mark_failed(self, task_id: str, reason: str = "execution_failed") -> bool:
+        task = self._tasks.get(task_id)
+        if not task:
+            return False
+        task.status = TaskStatus.FAILED
+        task.lease_expires_tick = None
+        log.info("TASK_FAILED task_id=%s reason=%s", task_id, reason)
+        try:
+            from app.services.job_journal import JobJournal
+            JobJournal().log_failure(job_id=task_id, reason=reason)
+        except Exception:
+            pass
+        return True
 
     def check_leases_and_unclaimed(
         self,
@@ -461,10 +506,17 @@ class TaskManager:
                         "TASK_LEASE_EXPIRED task_id=%s holder=%s expired_at=%d current=%d. Re-announcing.",
                         task.task_id, task.assigned_robot_id, task.lease_expires_tick, current_tick,
                     )
+                    dead_bot = task.assigned_robot_id
                     task.assigned_robot_id = None
                     task.status = TaskStatus.UNCLAIMED
                     task.unclaimed_reason = "Worker lease expired (unresponsive or partitioned)"
                     task.lease_expires_tick = None
+                    if task.target_shelf_id and dead_bot:
+                        try:
+                            from app.services.reservations import release_pod
+                            release_pod(task.target_shelf_id, dead_bot)
+                        except Exception:
+                            pass
                     self.dispatch_to_fleet(task, peer_ports=peer_ports, current_tick=current_tick)
 
             # 2. Unclaimed tasks re-announcement

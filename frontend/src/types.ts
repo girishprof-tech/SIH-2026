@@ -41,6 +41,7 @@ export type JobRequest = {
 export type JobResponse = {
   job_type: JobType | string
   robot_type: RobotType | string
+  order_id?: string | null
   task_id?: string | null
   audit_id?: string | null
   robot_id?: string | null
@@ -104,11 +105,46 @@ export type TickUpdate = {
   active_conflicts: Conflict[]
   temporary_obstacles: TempObstacle[]
   tasks?: Task[]
+  orders?: OrderInfo[]
   metrics?: Metrics
   fleet_status?: { running: boolean; mode: string; tick: number; armed_state?: string }
   inventory?: ShelfRecord[]
   sortation_chutes?: Record<string, { destination_zone: string; x: number; y: number }>
   halow_status?: HaLowStatus
+}
+
+export type OrderStage =
+  | 'Announced'
+  | 'G2P assigned'
+  | 'Pod lifted'
+  | 'At pick station'
+  | 'Sorting assigned'
+  | 'In chute'
+  | 'Shipped'
+
+export type OrderInfo = {
+  order_id: string
+  sku: string
+  quantity: number
+  destination_gate: string
+  urgency: number
+  created_tick: number
+  stage: OrderStage | string
+  g2p_robot_id?: string | null
+  sorting_robot_id?: string | null
+  shelf_id?: string | null
+  pick_station_id?: string | null
+  chute_id?: string | null
+  stuck_reason?: string | null
+  stage_ticks?: Record<string, number>
+  task_ids?: string[]
+}
+
+export type CatalogProduct = {
+  sku: string
+  name: string
+  weight_kg: number
+  total_stock: number
 }
 export type Task = {
   task_id: string
@@ -140,7 +176,7 @@ export type World = {
   exit_gates?: Array<{ id: string; cells: Point[] }>
 }
 export type Metrics = { tick_ms_configured: number; last_tick_processing_ms: number; planner_latency_ms: number; broadcast_latency_ms: number; connected_clients: number; active_robots: number; active_conflicts: number; replans: number; total_ticks: number; task_injection_latency_ms: number; conflict_resolution_latency_ms: number }
-export type SimulationStatus = { running: boolean; tick: number; timestamp_ms: number; fleet_size: number; tick_ms: number }
+export type SimulationStatus = { running: boolean; tick: number; timestamp_ms: number; fleet_size: number; tick_ms: number; speed?: number }
 export type HealthStatus = { status: string; tick: number; running: boolean; is_paused?: boolean; robots: number; fleet_mode: string; fleet_mode_description: string }
 
 export type WarehouseMap = {
@@ -149,7 +185,7 @@ export type WarehouseMap = {
   description?: string
   grid: { width: number; height: number; cell_size_m?: number }
   blocked_cells: Point[]
-  shelves: Array<{ id: string; x: number; y: number; capacity?: number; bank?: string }>
+  shelves: Array<{ id: string; x: number; y: number; capacity?: number; bank?: string; stock?: Record<string, number> }>
   entry_gates: Array<{ id: string; name?: string; cells: Point[] }>
   exit_gates: Array<{ id: string; name?: string; cells: Point[] }>
   sorting_stations: Array<{ id: string; name?: string; x: number; y: number; destination_zone?: string; capacity?: number; gate_id?: string }>
@@ -157,6 +193,7 @@ export type WarehouseMap = {
   chargers: Array<{ id: string; x: number; y: number; assigned_robot_id?: string | null }>
   robot_starts: Array<{ id: string; type: RobotType; x: number; y: number; battery_pct?: number; urgency?: number }>
   fixed_stations?: Array<{ id: string; name?: string; role?: string; x: number; y: number; port?: number }>
+  catalog?: Array<{ sku: string; name: string; weight_kg?: number }>
 }
 
 export type MapValidationResult = {

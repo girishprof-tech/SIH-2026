@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, Cpu, Radio } from 'lucide-react'
+import { api } from '../api'
 
 interface LoadingScreenProps {
   theme?: 'light' | 'dark'
@@ -24,23 +25,56 @@ export function LoadingScreen({ theme = 'dark', durationMs = 5000, onComplete }:
   useEffect(() => {
     const startTime = Date.now()
     let completed = false
+    let backendReady = false
+
+    // Poll /health immediately and every 200ms
+    const checkHealth = () => {
+      api.health()
+        .then(() => {
+          backendReady = true
+        })
+        .catch(() => {
+          /* Will keep polling */
+        })
+    }
+    checkHealth()
+    const healthInterval = window.setInterval(checkHealth, 200)
 
     const interval = window.setInterval(() => {
       const elapsed = Date.now() - startTime
-      const currentPct = Math.min(100, Math.round((elapsed / durationMs) * 100))
-      setProgress(currentPct)
+      setProgress((prev) => {
+        let next: number
+        if (backendReady) {
+          // Accelerate quickly to 100% once backend is ready
+          next = Math.min(100, prev + 12)
+        } else {
+          // Progress smoothly up to 75% while awaiting /health
+          const targetPct = Math.min(75, Math.round((elapsed / durationMs) * 75))
+          next = Math.max(prev, targetPct)
+        }
 
-      if (currentPct >= 100 && !completed) {
-        completed = true
-        window.clearInterval(interval)
-        setFading(true)
-        window.setTimeout(() => {
-          onCompleteRef.current?.()
-        }, 250)
-      }
-    }, 40)
+        // Cap at 100% if elapsed >= durationMs even if health didn't respond
+        if (elapsed >= durationMs) {
+          next = 100
+        }
 
-    return () => window.clearInterval(interval)
+        if (next >= 100 && !completed) {
+          completed = true
+          window.clearInterval(interval)
+          window.clearInterval(healthInterval)
+          setFading(true)
+          window.setTimeout(() => {
+            onCompleteRef.current?.()
+          }, 200)
+        }
+        return next
+      })
+    }, 35)
+
+    return () => {
+      window.clearInterval(interval)
+      window.clearInterval(healthInterval)
+    }
   }, [durationMs])
 
   const handleSkip = () => {

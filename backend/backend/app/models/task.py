@@ -20,6 +20,7 @@ class TaskStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     UNCLAIMED = "UNCLAIMED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 class TaskType(str, enum.Enum):
@@ -58,6 +59,8 @@ class Task:
     quantity: int = 1
     destination_zone: Optional[str] = None
     pick_station_id: Optional[str] = None
+    order_id: Optional[str] = None
+    destination_gate: Optional[str] = None
 
     # Step 6: Decentralized contract-net, lease tracking & G2P return
     return_to_home: bool = False

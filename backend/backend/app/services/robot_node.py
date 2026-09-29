@@ -138,6 +138,7 @@ class RobotNode:
         fleet_roster: Optional[Dict[str, str]] = None,
         world: Optional[WorldConfig] = None,
         proximity_radius: Optional[float] = None,
+        map_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.robot_id = robot_id
         self.start_pos = start_pos
@@ -157,11 +158,16 @@ class RobotNode:
         self.telemetry_queue = telemetry_queue
         self.tick_interval_s = tick_interval_s
         self.secret_key = secret_key
-        default_world = world or build_default_world()
-        self.world = default_world
-        self.charging_stations = charging_stations or set(default_world.charging_stations)
-        self.dropoff_stations: Set[Tuple[int, int]] = set(default_world.dropoff_stations)
-        self.pickup_stations: Set[Tuple[int, int]] = set(default_world.pickup_stations)
+        if world is not None:
+            self.world = world
+        elif map_data is not None:
+            from app.models.world import build_world_from_map_dict
+            self.world, _ = build_world_from_map_dict(map_data)
+        else:
+            self.world = build_default_world()
+        self.charging_stations = charging_stations or set(self.world.charging_stations)
+        self.dropoff_stations: Set[Tuple[int, int]] = set(self.world.dropoff_stations)
+        self.pickup_stations: Set[Tuple[int, int]] = set(self.world.pickup_stations)
         self.charger_target: Optional[Tuple[int, int]] = None
         self.active_claimed_pods: Set[str] = set()
         self.robot_type = robot_type
@@ -216,11 +222,11 @@ class RobotNode:
         self.replay_guard = ReplayGuard(freshness_window_s=5.0)
 
         # 4. Grid and Local Reservations
-        grid_w = getattr(default_world, "width", 30) if default_world else 30
-        grid_h = getattr(default_world, "height", 30) if default_world else 30
+        grid_w = getattr(self.world, "width", 30) if self.world else 30
+        grid_h = getattr(self.world, "height", 30) if self.world else 30
         self.grid = WarehouseGrid(obstacles=self.obstacles, width=grid_w, height=grid_h)
-        if hasattr(default_world, "pod_slots") and default_world.pod_slots:
-            self.grid.register_shelf_cells(default_world.pod_slots.values())
+        if hasattr(self.world, "pod_slots") and self.world.pod_slots:
+            self.grid.register_shelf_cells(self.world.pod_slots.values())
         self.local_reservations: Dict[Tuple[int, int, int], str] = {}
         self.HOLD = 30
 
@@ -230,7 +236,6 @@ class RobotNode:
         self.failsafe_hold_ticks = 0
 
         # 6. Mission & Task Management & Local Inventory Cache
-        self.world = default_world
         from app.services.reservations import register_pod_slots
         if hasattr(self.world, "pod_slots") and self.world.pod_slots:
             register_pod_slots(self.world.pod_slots)
@@ -312,11 +317,16 @@ class RobotNode:
             self._assign_initial_task(self.goal_pos, self.urgency)
 
     def trigger_autonomous_consolidation(
-        self, chute_id: str, current_tick: int, force: bool = False
+        self,
+        chute_id: str,
+        current_tick: int,
+        force: bool = False,
+        order_id: Optional[str] = None,
+        destination_gate: Optional[str] = None,
     ) -> Optional[Task]:
         """
-        Autonomously spawns and broadcasts a CONSOLIDATE_EXPORT task when a sortation chute is full.
-        Gated by self.auto_consolidation unless force=True (direct consequence of user task).
+        Autonomously spawns and broadcasts a CONSOLIDATE_EXPORT task when a sortation chute is full
+        or an order reaches chute stage. Gated by self.auto_consolidation unless force=True.
         """
         if not self.auto_consolidation and not force:
             return None
@@ -325,16 +335,27 @@ class RobotNode:
             return None
 
         chute_pos = (chute_info["x"], chute_info["y"])
-        gate_id = chute_info.get("gate_id", "OUT-2")
-        export_dock_pos = self.world.gate_position(gate_id)
+        # Resolve destination gate ID safely (destination_gate might be a zone name or None)
+        valid_gates = getattr(self.world, "export_gates", {}) or {}
+        if destination_gate and destination_gate in valid_gates:
+            gate_id = destination_gate
+        else:
+            gate_id = chute_info.get("gate_id", "OUT-2")
+            if gate_id not in valid_gates and valid_gates:
+                gate_id = list(valid_gates.keys())[0]
+
+        try:
+            export_dock_pos = self.world.gate_position(gate_id)
+        except Exception:
+            export_dock_pos = (self.world.width - 1, self.world.height // 2)
 
         consolidation_task_id = f"CONSOLIDATE-{chute_id}-{current_tick}"
         if consolidation_task_id in self.known_task_claims:
             return None
 
-        self.log(f"[Tick {current_tick}] Chute {chute_id} reached full capacity ({self.chute_occupancy.get(chute_id, 0)} items). Autonomously triggering {consolidation_task_id}!")
+        self.log(f"[Tick {current_tick}] Chute {chute_id} consolidation triggered for {consolidation_task_id} (order={order_id}, gate={gate_id}).")
 
-        # Broadcast decentralized TASK_ANNOUNCEMENT to all peers
+        # Broadcast decentralized TASK_ANNOUNCEMENT to all peers and DASHBOARD
         self.seq += 1
         t_dict = {
             "task_id": consolidation_task_id,
@@ -342,7 +363,10 @@ class RobotNode:
             "pickup": list(chute_pos),
             "dropoff": list(export_dock_pos),
             "urgency": 5,
-            "payload_weight_kg": float(self.chute_occupancy.get(chute_id, 5) * 2.0),
+            "payload_weight_kg": float(max(1, self.chute_occupancy.get(chute_id, 1)) * 2.0),
+            "order_id": order_id,
+            "destination_gate": gate_id,
+            "chute_id": chute_id,
         }
         announcement_payload = {
             "type": "TASK_ANNOUNCEMENT",
@@ -354,6 +378,8 @@ class RobotNode:
         for peer_id in self.peer_ports.keys():
             if peer_id != self.robot.robot_id:
                 self.transport.send(peer_id, envelope)
+        if hasattr(self, "halow_transport") and self.halow_transport:
+            self.halow_transport.send("DASHBOARD", envelope)
 
         # Reset chute occupancy count once scheduled
         self.chute_occupancy[chute_id] = 0
@@ -366,6 +392,8 @@ class RobotNode:
             urgency=5,
             created_tick=current_tick,
             task_type=TaskType.CONSOLIDATE_EXPORT,
+            order_id=order_id,
+            destination_gate=gate_id,
         )
 
     def trigger_autonomous_transfer(
@@ -398,8 +426,10 @@ class RobotNode:
         sku = getattr(carton, "sku", "SKU-ITEM") if carton else "SKU-ITEM"
         dest_zone = getattr(carton, "destination_zone", "ZONE_NORTH") if carton else "ZONE_NORTH"
         qty = getattr(carton, "qty", 1) if carton else 1
+        oid = getattr(carton, "order_id", None)
+        dest_gate = getattr(carton, "destination_gate", None)
 
-        self.log(f"[Tick {current_tick}] Carton available at {pick_station_id}. Autonomously triggering {transfer_task_id}!")
+        self.log(f"[Tick {current_tick}] Carton available at {pick_station_id}. Autonomously triggering {transfer_task_id} (order={oid})!")
 
         # Broadcast decentralized TASK_ANNOUNCEMENT to all peers
         self.seq += 1
@@ -414,6 +444,8 @@ class RobotNode:
             "destination_zone": dest_zone,
             "pick_station_id": pick_station_id,
             "quantity": qty,
+            "order_id": oid,
+            "destination_gate": dest_gate,
         }
         announcement_payload = {
             "type": "TASK_ANNOUNCEMENT",
@@ -425,6 +457,8 @@ class RobotNode:
         for peer_id in self.peer_ports.keys():
             if peer_id != self.robot.robot_id:
                 self.transport.send(peer_id, envelope)
+        if hasattr(self, "halow_transport") and self.halow_transport:
+            self.halow_transport.send("DASHBOARD", envelope)
 
         return Task(
             task_id=transfer_task_id,
@@ -437,6 +471,8 @@ class RobotNode:
             payload_weight_kg=weight,
             task_type=TaskType.TRANSFER_TO_SORTATION,
             destination_zone=dest_zone,
+            order_id=oid,
+            destination_gate=dest_gate,
         )
 
     def decant_batch_item(self, item: Dict[str, Any], tick: int) -> str:
@@ -450,9 +486,11 @@ class RobotNode:
             self.world.sortation_chutes[chute_id]["current_count"] = self.world.sortation_chutes[chute_id].get("current_count", 0) + 1
         self.log(f"[Tick {tick}] SORTING Robot decanted item {item.get('item_id', 'ITEM')} (dest={dest_zone}) into {chute_id} (count={self.chute_occupancy[chute_id]}).")
 
-        # Check full threshold
-        if self.chute_occupancy[chute_id] >= self.chute_full_threshold:
-            self.trigger_autonomous_consolidation(chute_id, tick, force=True)
+        order_id = item.get("order_id")
+        destination_gate = item.get("destination_gate") or dest_zone
+        # Check full threshold or if this is an explicit order decant, trigger autonomous consolidation
+        if order_id or self.chute_occupancy[chute_id] >= self.chute_full_threshold:
+            self.trigger_autonomous_consolidation(chute_id, tick, force=True, order_id=order_id, destination_gate=destination_gate)
 
         return chute_id
 
@@ -498,10 +536,11 @@ class RobotNode:
 
     def _setup_logger(self) -> None:
         self.logger = logging.getLogger(f"RobotNode.{self.robot_id}")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         self.logger.handlers.clear()
 
         fh = logging.FileHandler(self.log_file, mode="w", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
         formatter = logging.Formatter("[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
@@ -509,6 +548,9 @@ class RobotNode:
 
     def log(self, message: str) -> None:
         self.logger.info(message)
+
+    def log_debug(self, message: str) -> None:
+        self.logger.debug(message)
 
     def close(self) -> None:
         try:
@@ -542,6 +584,8 @@ class RobotNode:
         quantity: int = 1,
         destination_zone: Optional[str] = None,
         pick_station_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        destination_gate: Optional[str] = None,
     ) -> None:
         """Assigns an initial mission and plans the initial route."""
         tid = task_id or f"TASK-{self.robot_id}"
@@ -580,6 +624,8 @@ class RobotNode:
             sku_to_pick=sku_to_pick,
             quantity=quantity,
             destination_zone=destination_zone,
+            order_id=order_id,
+            destination_gate=destination_gate,
         )
         if pick_station_id:
             setattr(self.task, "pick_station_id", pick_station_id)
@@ -1353,6 +1399,8 @@ class RobotNode:
                         source_shelf_id=pod_id,
                         created_tick=tick,
                         weight_kg=carton_weight,
+                        order_id=getattr(self.task, "order_id", None),
+                        destination_gate=getattr(self.task, "destination_gate", None),
                     )
                     deposited_st = self.world.deposit_carton_to_pick_station(carton, preferred_station_id=pref_station)
                     if deposited_st is None:
@@ -1443,7 +1491,12 @@ class RobotNode:
             if self.task and getattr(self.task, "task_type", None) in (TaskType.TRANSFER_TO_SORTATION, "TRANSFER_TO_SORTATION"):
                 dest_zone = getattr(self.task, "destination_zone", "ZONE_NORTH")
                 sku = getattr(self.task, "sku_to_pick", "ITEM")
-                decant_item = {"item_id": sku, "destination_zone": dest_zone}
+                decant_item = {
+                    "item_id": sku,
+                    "destination_zone": dest_zone,
+                    "order_id": getattr(self.task, "order_id", None),
+                    "destination_gate": getattr(self.task, "destination_gate", None),
+                }
                 chute_id = self.decant_batch_item(decant_item, tick)
                 self.log(f"[Tick {tick}] SORTING Robot transferred carton to sortation zone and decanted to chute {chute_id}.")
 
@@ -1462,6 +1515,9 @@ class RobotNode:
                     "robot_id": self.robot.robot_id,
                     "task_id": completed_tid,
                     "tick": tick,
+                    "order_id": getattr(self.task, "order_id", None),
+                    "task_type": str(getattr(self.task, "task_type", "")),
+                    "destination_zone": getattr(self.task, "destination_zone", None),
                 }
                 comp_env = sign_payload(comp_payload, secret_key=self.secret_key, seq=self.seq)
                 for peer_id in self.peer_ports.keys():
@@ -2144,9 +2200,15 @@ class RobotNode:
             self.robot.path = []
             self.goal_pos = None
             if self.task:
-                self.completed_task_ids.add(self.task.task_id)
+                completed_tid = self.task.task_id
+                self.completed_task_ids.add(completed_tid)
                 self.task.status = "COMPLETED"
                 self.task = None
+                try:
+                    from app.services.job_journal import JobJournal
+                    JobJournal().log_completion(job_id=completed_tid, robot_id=self.robot_id, tick=tick)
+                except Exception:
+                    pass
             action_taken = "COMPLETED"
             self.log(f"[Tick {tick}] REACHED DESTINATION {self.robot.position}! Mission COMPLETED.")
 
@@ -2715,7 +2777,7 @@ class RobotNode:
                     for peer_id in self.peer_ports.keys():
                         if peer_id != self.robot.robot_id:
                             self.transport.send(peer_id, envelope)
-                    self.log(f"[Tick {current_tick}] Contract-Net: Received TASK_ANNOUNCEMENT {tid}. Broadcasted TASK_BID={bid_score:.1f}.")
+                    self.log_debug(f"[Tick {current_tick}] Contract-Net: Received TASK_ANNOUNCEMENT {tid}. Broadcasted TASK_BID={bid_score:.1f}.")
 
             elif m_type == "TASK_BID":
                 # Handle competing bid from a peer AMR
@@ -2724,7 +2786,7 @@ class RobotNode:
                 score = float(actual_msg.get("bid_score", float("inf")))
                 if tid in self.active_bids:
                     self.active_bids[tid]["peer_bids"][bidder] = score
-                    self.log(f"[Tick {current_tick}] Contract-Net: Received TASK_BID from {bidder} for {tid}: {score:.1f}")
+                    self.log_debug(f"[Tick {current_tick}] Contract-Net: Received TASK_BID from {bidder} for {tid}: {score:.1f}")
 
             elif m_type == "TASK_CLAIM":
                 # Handle task claim announcement from the winning AMR
@@ -3015,6 +3077,8 @@ class RobotNode:
                         quantity=int(t_dict.get("quantity", 1)),
                         destination_zone=t_dict.get("destination_zone"),
                         pick_station_id=t_dict.get("pick_station_id"),
+                        order_id=t_dict.get("order_id"),
+                        destination_gate=t_dict.get("destination_gate"),
                     )
                     if self.task:
                         self.task.return_to_home = bool(t_dict.get("return_to_home", True))
@@ -3047,6 +3111,8 @@ class RobotNode:
                         "bid_score": winning_score,
                         "lease_ticks": 40,
                         "tick": current_tick,
+                        "order_id": t_dict.get("order_id"),
+                        "task_type": t_dict.get("task_type"),
                     }
                     envelope = sign_payload(claim_payload, secret_key=self.secret_key, seq=self.seq)
                     for peer_id in self.peer_ports.keys():
@@ -3076,7 +3142,7 @@ def run_robot_process(
     stop_event: mp.Event,
     log_dir_str: str,
     tick_interval_s: float = 0.1,
-    max_ticks: int = 100,
+    max_ticks: int = 0,
     charging_stations: Optional[Set[Tuple[int, int]]] = None,
     robot_type: str = "GOODS_TO_PERSON",
     enable_idle_audit: Optional[bool] = None,
@@ -3087,6 +3153,9 @@ def run_robot_process(
     auto_idle_audit: Optional[bool] = None,
     auto_consolidation: Optional[bool] = None,
     auto_transfer: Optional[bool] = None,
+    map_data: Optional[Dict[str, Any]] = None,
+    world: Optional[Any] = None,
+    **kwargs: Any,
 ) -> None:
     """
     Process target function for an autonomous robot.
@@ -3111,6 +3180,8 @@ def run_robot_process(
         auto_consolidation=auto_consolidation,
         auto_transfer=auto_transfer,
         fleet_roster=fleet_roster,
+        world=world,
+        map_data=map_data,
     )
 
     if start_barrier is not None:
@@ -3125,25 +3196,33 @@ def run_robot_process(
         node.close()
         return
 
-    start_time = time.time()
+    speed_mult = kwargs.get("speed_multiplier")
     tick = 0
     try:
         while not stop_event.is_set() and (max_ticks <= 0 or tick < max_ticks):
             if pause_event is not None and pause_event.is_set():
-                time.sleep(0.2)
-                start_time = time.time() - tick * tick_interval_s
+                time.sleep(0.1)
                 continue
+            step_start = time.time()
             node.step(tick)
             tick += 1
-
-            now = time.time()
-            target_time = start_time + tick * tick_interval_s
-            sleep_time = target_time - now
+            step_duration = time.time() - step_start
+            speed = float(speed_mult.value) if speed_mult is not None else 1.0
+            effective_interval = tick_interval_s / max(0.1, min(speed, 10.0))
+            sleep_time = effective_interval - step_duration
             if sleep_time > 0:
                 time.sleep(sleep_time)
             else:
-                # Overrun: yield minimally to prevent CPU starvation while catching up to global clock
-                time.sleep(0.0001)
+                time.sleep(0.0005)
+    except Exception as e:
+        import traceback
+        err_msg = f"FATAL EXCEPTION in {robot_id} at tick {tick}: {e}\n{traceback.format_exc()}"
+        print(err_msg, flush=True)
+        try:
+            node.log(err_msg)
+        except Exception:
+            pass
+        raise
     finally:
         node.close()
 

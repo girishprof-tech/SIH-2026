@@ -471,7 +471,12 @@ function Robot3D({
       </mesh>
 
       {/* Floating Robot ID Tag & Battery Mini Gauge */}
-      <Html position={[0, 1.4 + (robot.carrying_pod_id ? 0.7 : 0), 0]} center distanceFactor={18}>
+      <Html
+        position={[0, 1.4 + (robot.carrying_pod_id ? 0.7 : 0), 0]}
+        center
+        distanceFactor={18}
+        zIndexRange={isSelected ? [15, 20] : [1, 10]}
+      >
         <div
           style={{
             background: isSelected

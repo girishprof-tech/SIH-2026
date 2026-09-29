@@ -74,9 +74,10 @@ class JobRequest(BaseModel):
 
 
 class OrderRequest(BaseModel):
-    """Direct SKU order request for G2P retrieval."""
+    """Direct SKU order request for G2P retrieval and autonomous sortation."""
     sku: str = Field(..., description="Requested item SKU")
     quantity: int = Field(1, ge=1, description="Quantity to pick")
+    destination_gate: Optional[str] = Field(None, description="Exit gate destination")
     urgency: int = Field(3, ge=1, le=5, description="Order urgency 1-5")
     dropoff: Optional[Position] = None
     return_to_home: bool = True
@@ -85,12 +86,14 @@ class OrderRequest(BaseModel):
 class JobOut(BaseModel):
     job_type: str
     robot_type: str
+    order_id: Optional[str] = None
     task_id: Optional[str] = None
     audit_id: Optional[str] = None
     robot_id: Optional[str] = None
     target_shelf_id: Optional[str] = None
     sku: Optional[str] = None
     quantity: Optional[int] = None
+    destination_gate: Optional[str] = None
     status: str
     message: str
     lease_expires_tick: Optional[int] = None

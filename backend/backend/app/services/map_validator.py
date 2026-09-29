@@ -83,10 +83,15 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
     shelves: Dict[str, Tuple[int, int]] = {}
     shelf_coords: Set[Tuple[int, int]] = set()
     for idx, s in enumerate(data.get("shelves", [])):
-        sid = s.get("id") or f"SHELF-{idx+1:02d}"
-        if sid in shelves:
-            errors.append(f"Duplicate shelf ID: '{sid}'.")
         sx, sy = int(s.get("x", -1)), int(s.get("y", -1))
+        sid = s.get("id") or f"POD-R{sy:02d}C{sx:02d}"
+        if sid in shelves:
+            norm_id = f"POD-R{sy:02d}C{sx:02d}"
+            if norm_id in shelves or norm_id == sid:
+                norm_id = f"{sid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate shelf ID '{sid}' at ({sx}, {sy}) to '{norm_id}'.")
+            sid = norm_id
+            s["id"] = norm_id
         if not in_bounds(sx, sy):
             errors.append(f"Shelf '{sid}' at ({sx}, {sy}) is out of bounds.")
         if (sx, sy) in blocked_cells:
@@ -97,16 +102,20 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
         shelf_coords.add((sx, sy))
 
     # Chargers
-    # Chargers
     chargers: Dict[str, Tuple[int, int]] = {}
     charger_coords: Set[Tuple[int, int]] = set()
     seen_charger_ids: Set[str] = set()
     for idx, chg in enumerate(data.get("chargers", [])):
-        cid = chg.get("id") or f"CHG-{idx+1:02d}"
-        if cid in seen_charger_ids:
-            errors.append(f"Duplicate charger ID: '{cid}'.")
-        seen_charger_ids.add(cid)
         cx, cy = int(chg.get("x", -1)), int(chg.get("y", -1))
+        cid = chg.get("id") or f"CHG-R{cy:02d}C{cx:02d}"
+        if cid in seen_charger_ids:
+            norm_cid = f"CHG-R{cy:02d}C{cx:02d}"
+            if norm_cid in seen_charger_ids or norm_cid == cid:
+                norm_cid = f"{cid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate charger ID '{cid}' at ({cx}, {cy}) to '{norm_cid}'.")
+            cid = norm_cid
+            chg["id"] = norm_cid
+        seen_charger_ids.add(cid)
         if not in_bounds(cx, cy):
             errors.append(f"Charger '{cid}' at ({cx}, {cy}) is out of bounds.")
         if (cx, cy) in blocked_cells:
@@ -121,10 +130,13 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
     exit_gates = data.get("exit_gates", [])
     gate_coords: Set[Tuple[int, int]] = set()
     seen_gate_ids: Set[str] = set()
-    for g in list(entry_gates) + list(exit_gates):
-        gid = g.get("id", "GATE")
+    for idx, g in enumerate(list(entry_gates) + list(exit_gates)):
+        gid = g.get("id", f"GATE-{idx+1}")
         if gid in seen_gate_ids:
-            errors.append(f"Duplicate gate ID: '{gid}'.")
+            norm_gid = f"{gid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate gate ID '{gid}' to '{norm_gid}'.")
+            gid = norm_gid
+            g["id"] = norm_gid
         seen_gate_ids.add(gid)
         cells = g.get("cells", [])
         if not cells and "x" in g and "y" in g:
@@ -143,12 +155,17 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
     sorting_stations = data.get("sorting_stations", [])
     chute_coords: Set[Tuple[int, int]] = set()
     seen_chute_ids: Set[str] = set()
-    for s in sorting_stations:
-        sid = s.get("id", "CHUTE")
-        if sid in seen_chute_ids:
-            errors.append(f"Duplicate sorting station ID: '{sid}'.")
-        seen_chute_ids.add(sid)
+    for idx, s in enumerate(sorting_stations):
         sx, sy = int(s.get("x", -1)), int(s.get("y", -1))
+        sid = s.get("id") or f"CHUTE-R{sy:02d}C{sx:02d}"
+        if sid in seen_chute_ids:
+            norm_sid = f"CHUTE-R{sy:02d}C{sx:02d}"
+            if norm_sid in seen_chute_ids or norm_sid == sid:
+                norm_sid = f"{sid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate sorting station ID '{sid}' at ({sx}, {sy}) to '{norm_sid}'.")
+            sid = norm_sid
+            s["id"] = norm_sid
+        seen_chute_ids.add(sid)
         if not in_bounds(sx, sy):
             errors.append(f"Sorting station '{sid}' at ({sx}, {sy}) is out of bounds.")
         if (sx, sy) in blocked_cells:
@@ -157,16 +174,37 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
             errors.append(f"Sorting station '{sid}' at ({sx}, {sy}) overlaps with a shelf.")
         chute_coords.add((sx, sy))
 
+        # 4c: Auto-assign chute "feeds exit gate" (default: nearest exit gate)
+        if not s.get("gate_id") and not s.get("destination_zone"):
+            nearest_gid = None
+            min_dist = float("inf")
+            for eg in exit_gates:
+                eg_id = eg.get("id", "OUT-1")
+                for c in eg.get("cells", []):
+                    gx, gy = int(c.get("x", 0)), int(c.get("y", 0))
+                    d = abs(sx - gx) + abs(sy - gy)
+                    if d < min_dist:
+                        min_dist = d
+                        nearest_gid = eg_id
+            if nearest_gid:
+                s["gate_id"] = nearest_gid
+                s["destination_zone"] = nearest_gid
+
     # Pick Stations
     pick_stations = data.get("pick_stations", [])
     pick_coords: Set[Tuple[int, int]] = set()
     seen_pick_ids: Set[str] = set()
-    for ps in pick_stations:
-        pid = ps.get("id", "PICK")
-        if pid in seen_pick_ids:
-            errors.append(f"Duplicate pick station ID: '{pid}'.")
-        seen_pick_ids.add(pid)
+    for idx, ps in enumerate(pick_stations):
         px, py = int(ps.get("x", -1)), int(ps.get("y", -1))
+        pid = ps.get("id") or f"PICK-R{py:02d}C{px:02d}"
+        if pid in seen_pick_ids:
+            norm_pid = f"PICK-R{py:02d}C{px:02d}"
+            if norm_pid in seen_pick_ids or norm_pid == pid:
+                norm_pid = f"{pid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate pick station ID '{pid}' at ({px}, {py}) to '{norm_pid}'.")
+            pid = norm_pid
+            ps["id"] = norm_pid
+        seen_pick_ids.add(pid)
         if not in_bounds(px, py):
             errors.append(f"Pick station '{pid}' at ({px}, {py}) is out of bounds.")
         if (px, py) in blocked_cells:
@@ -181,15 +219,20 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
     robot_types: Set[str] = set()
     seen_robot_ids: Set[str] = set()
     for idx, r in enumerate(robot_starts):
-        rid = r.get("id") or f"AMR-{idx+1:02d}"
+        rx, ry = int(r.get("x", -1)), int(r.get("y", -1))
+        rid = r.get("id") or f"AMR-R{ry:02d}C{rx:02d}"
         if rid in seen_robot_ids:
-            errors.append(f"Duplicate robot ID: '{rid}'.")
+            norm_rid = f"AMR-R{ry:02d}C{rx:02d}"
+            if norm_rid in seen_robot_ids or norm_rid == rid:
+                norm_rid = f"{rid}-DUP{idx+1}"
+            warnings.append(f"Normalized duplicate robot ID '{rid}' to '{norm_rid}'.")
+            rid = norm_rid
+            r["id"] = norm_rid
         seen_robot_ids.add(rid)
         rtype = r.get("type", "GOODS_TO_PERSON")
         robot_types.add(rtype)
-        rx, ry = int(r.get("x", -1)), int(r.get("y", -1))
         if not in_bounds(rx, ry):
-            errors.append(f"Robot '{rid}' start position ({rx}, {ry}) is out of bounds.")
+            errors.append(f"Robot '{rid}' start cell ({rx}, {ry}) is out of bounds [0..{width-1}, 0..{height-1}].")
         if (rx, ry) in blocked_cells:
             errors.append(f"Robot '{rid}' start position ({rx}, {ry}) overlaps with a blocked cell.")
         if (rx, ry) in shelf_coords:
@@ -206,15 +249,20 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
     if len(chargers) < 1:
         errors.append("Map must configure at least one charging station.")
 
-    if "GOODS_TO_PERSON" in robot_types:
-        if len(shelves) < 1:
-            errors.append("GOODS_TO_PERSON robots are present but zero storage shelves are configured.")
-        if len(exit_gates) < 1 and len(pick_coords) < 1:
-            errors.append("GOODS_TO_PERSON robots require at least one exit gate or pick station for dropoff.")
+    has_g2p = "GOODS_TO_PERSON" in robot_types
+    has_sorting = "SORTING" in robot_types
+    has_audit = "SCANNING_AUDIT" in robot_types
 
-    if "SORTING" in robot_types:
-        if len(sorting_stations) < 1:
-            errors.append("SORTING robots are present but zero sorting stations/chutes are configured.")
+    if not has_g2p or not has_sorting:
+        if has_audit and not has_g2p and not has_sorting:
+            warnings.append("Only audit robots are configured. Warehouse will not accept customer orders until G2P and Sorting robots are added.")
+        else:
+            missing = []
+            if not has_g2p:
+                missing.append("Goods-to-Person (G2P)")
+            if not has_sorting:
+                missing.append("Sorting")
+            warnings.append(f"Missing {' and '.join(missing)} robot(s). At least one G2P and one Sorting robot are required to accept orders.")
 
     # 5. Graph Connectivity & Reachability (BFS)
     # Walkway graph: all cells that are in-bounds, not blocked, not shelves
@@ -294,6 +342,50 @@ def validate_warehouse_map(data: Any) -> Dict[str, Any]:
 
         if not has_target:
             errors.append(f"Robot '{rid}' at ({rx}, {ry}) is isolated from all operational warehouse targets.")
+
+        # Type-aware reachability checks (Step 4d)
+        rtype = r.get("type", "GOODS_TO_PERSON")
+        if rtype == "GOODS_TO_PERSON":
+            can_reach_shelf = False
+            for sid, spos in shelves.items():
+                for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                    if (spos[0] + dx, spos[1] + dy) in reached_cells:
+                        can_reach_shelf = True
+                        break
+                if can_reach_shelf:
+                    break
+            can_reach_pick = any(pc in reached_cells for pc in pick_coords)
+            if not can_reach_shelf or not can_reach_pick:
+                reasons = []
+                if not can_reach_shelf:
+                    reasons.append("storage shelf")
+                if not can_reach_pick:
+                    reasons.append("pick station")
+                errors.append(f"G2P Robot '{rid}' cannot reach {' and '.join(reasons)}.")
+        elif rtype == "SORTING":
+            can_reach_pick = any(pc in reached_cells for pc in pick_coords)
+            can_reach_chute = any(cc in reached_cells for cc in chute_coords)
+            can_reach_exit = False
+            for eg in exit_gates:
+                cells = eg.get("cells", [])
+                if not cells and "x" in eg and "y" in eg:
+                    cells = [{"x": eg["x"], "y": eg["y"]}]
+                for c in cells:
+                    gx, gy = int(c.get("x", -1)), int(c.get("y", -1))
+                    if (gx, gy) in reached_cells:
+                        can_reach_exit = True
+                        break
+                if can_reach_exit:
+                    break
+            if not can_reach_pick or not can_reach_chute or not can_reach_exit:
+                reasons = []
+                if not can_reach_pick:
+                    reasons.append("pick station")
+                if not can_reach_chute:
+                    reasons.append("chute")
+                if not can_reach_exit:
+                    reasons.append("exit gate")
+                errors.append(f"Sorting Robot '{rid}' cannot reach {' and '.join(reasons)}.")
 
     # 5C. Every Gate & Station Reachable by Fleet
     # Union of all cells reachable by any robot start

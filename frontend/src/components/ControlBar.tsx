@@ -13,6 +13,10 @@ import {
   Maximize,
   Minimize,
   Edit3,
+  FolderOpen,
+  Gauge,
+  Bot,
+  MapPin,
 } from 'lucide-react'
 import type { SocketStatus } from '../hooks/useFleetSocket'
 
@@ -40,6 +44,13 @@ type Props = {
   onAction: (action: 'start' | 'pause' | 'reset') => void
   onChaos: (enabled: boolean, loss: number) => void
   onDemo: () => void
+  activeMapName?: string
+  gridDimensions?: { width: number; height: number }
+  robotCounts?: { g2p: number; sorting: number; audit: number; total: number }
+  tickRateHz?: number
+  speed?: number
+  onSetSpeed?: (speed: number) => void
+  onChangeMap?: () => void
 }
 
 export function ControlBar({
@@ -66,63 +77,130 @@ export function ControlBar({
   onAction,
   onChaos,
   onDemo,
+  activeMapName = 'Standard 30x30 Test Warehouse',
+  gridDimensions = { width: 30, height: 30 },
+  robotCounts = { g2p: 4, sorting: 3, audit: 3, total: 10 },
+  tickRateHz,
+  speed = 1.0,
+  onSetSpeed,
+  onChangeMap,
 }: Props) {
   const connectionLabel =
     socket === 'connected' ? 'P2P Mesh Active' : socket === 'reconnecting' ? 'Reconnecting' : 'Offline'
 
-  const formattedMode =
-    fleetMode === 'spawned_new_fleet'
-      ? 'Autonomous (10 AMRs)'
-      : fleetMode === 'attached_to_existing_fleet'
-      ? 'Attached Fleet'
-      : fleetMode.replace(/_/g, ' ')
+  const effectiveHz = tickRateHz !== undefined ? tickRateHz : (6.7 * speed)
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <div className="brand-icon">
-          <Layers size={18} strokeWidth={2.2} />
+      {/* ── Left: Brand & Active Map Info ── */}
+      <div className="topbar-section left-section">
+        <div className="brand">
+          <div className="brand-icon">
+            <Layers size={18} strokeWidth={2.2} />
+          </div>
+          <span className="brand-name">Kinetix</span>
         </div>
-        <span className="brand-name">Kinetix</span>
+
+        {/* Active Map & Grid Chip */}
+        <div className="map-info-chip" title={`Active Map: ${activeMapName} (${gridDimensions.width}x${gridDimensions.height})`}>
+          <MapPin size={12} className="map-chip-icon" />
+          <span className="map-chip-name">{activeMapName}</span>
+          <span className="map-chip-dims">{gridDimensions.width}×{gridDimensions.height}</span>
+        </div>
+
+        {onChangeMap && (
+          <button
+            className="control-button change-map-btn"
+            onClick={onChangeMap}
+            title="Cleanly switch to another warehouse map preset or editor without full page reload"
+            aria-label="Change map"
+          >
+            <FolderOpen size={13} />
+            <span>Change map</span>
+          </button>
+        )}
+
+        {onOpenMapEditor && (
+          <button
+            className="control-button map-editor-btn"
+            onClick={onOpenMapEditor}
+            title="Open interactive warehouse map editor"
+            aria-label="Open Map Editor"
+          >
+            <Edit3 size={13} />
+            <span>Map Editor</span>
+          </button>
+        )}
       </div>
 
-      <div className="top-controls">
-        <div className="button-group">
+      {/* ── Center: Simulation Engine Controls (Start/Pause, Speed, Reset) ── */}
+      <div className="topbar-section center-section">
+        <div className="button-group sim-actions">
+          {running ? (
+            <button
+              className="control-button sim-btn pause-state active"
+              disabled={busy}
+              onClick={() => onAction('pause')}
+              aria-label="Pause simulation"
+              title="Pause autonomous simulation and robot process ticks"
+            >
+              <Pause size={14} fill="currentColor" />
+              <span>PAUSE</span>
+            </button>
+          ) : (
+            <button
+              className="control-button sim-btn start-state active"
+              disabled={busy}
+              onClick={() => onAction('start')}
+              aria-label="Start simulation"
+              title="Start / Resume autonomous simulation"
+            >
+              <Play size={14} fill="currentColor" />
+              <span>START</span>
+            </button>
+          )}
+
+          {/* Speed Selector (0.5x, 1x, 2x, 4x) */}
+          <div className="speed-selector-group" role="group" aria-label="Simulation speed selector">
+            <Gauge size={12} className="speed-icon" />
+            {[0.5, 1, 2, 4].map((s) => (
+              <button
+                key={s}
+                className={`speed-pill ${Math.abs(speed - s) < 0.05 ? 'selected' : ''}`}
+                onClick={() => onSetSpeed && onSetSpeed(s)}
+                disabled={busy}
+                title={`Scale simulation tick speed to ${s}x`}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
+
+          {/* Reset Simulation Button */}
           <button
-            className="control-button primary"
-            disabled={busy || running}
-            onClick={() => onAction('start')}
-            aria-label="Start simulation"
-          >
-            <Play size={14} fill="currentColor" /> Start
-          </button>
-          <button
-            className="control-button"
-            disabled={busy || !running}
-            onClick={() => onAction('pause')}
-            aria-label="Pause simulation"
-          >
-            <Pause size={14} fill="currentColor" /> Pause
-          </button>
-          <button
-            className="icon-button"
+            className="control-button reset-btn"
             disabled={busy}
             aria-label="Reset simulation"
             onClick={() => onAction('reset')}
+            title="Reset simulation state, robots, tasks, orders, and reseed inventory"
           >
-            <RotateCcw size={15} />
+            <RotateCcw size={13} />
+            <span>Reset</span>
           </button>
+
           <button
             className="control-button demo-button"
             disabled={busy}
             onClick={onDemo}
             aria-label="Run demo scenario"
+            title="Run simulated multi-robot cross-traffic demo"
           >
-            <Sparkles size={14} /> Demo scenario
+            <Sparkles size={13} />
+            <span>Demo</span>
           </button>
         </div>
 
-        {/* Dashboard state: ARMED — waiting for tasks vs RUNNING */}
+        {/* Dashboard state: ARMED vs RUNNING vs PAUSED */}
         {running ? (
           <div
             className={`fleet-armed-badge ${armedState === 'RUNNING' ? 'running' : 'armed'}`}
@@ -130,9 +208,9 @@ export function ControlBar({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
+              padding: '4px 10px',
               borderRadius: '9999px',
-              fontSize: '11px',
+              fontSize: '10.5px',
               fontWeight: 700,
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
@@ -159,9 +237,9 @@ export function ControlBar({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '5px 12px',
+              padding: '4px 10px',
               borderRadius: '9999px',
-              fontSize: '11px',
+              fontSize: '10.5px',
               fontWeight: 600,
               background: 'rgba(148, 163, 184, 0.12)',
               color: '#94a3b8',
@@ -172,6 +250,42 @@ export function ControlBar({
             PAUSED
           </div>
         )}
+      </div>
+
+      {/* ── Right: Robot Counts, Readouts & View Controls ── */}
+      <div className="topbar-section right-section">
+        {/* Robot Counts breakdown */}
+        <div className="robot-breakdown-chip" title="Robot Fleet breakdown">
+          <Bot size={13} className="fleet-icon" />
+          <span className="count-total"><b>{robotCounts.total}</b> AMRs</span>
+          <span className="count-divider">•</span>
+          <span className="count-tag g2p" title="Goods-to-Person AMRs">{robotCounts.g2p} G2P</span>
+          <span className="count-tag sort" title="Sorting AMRs">{robotCounts.sorting} Sort</span>
+          <span className="count-tag audit" title="Scanning & Audit AMRs">{robotCounts.audit} Audit</span>
+        </div>
+
+        <div className="readout tick-rate-readout" title="Simulation Tick Rate">
+          <span className="label">Rate</span>
+          <strong>{effectiveHz.toFixed(1)} Hz</strong>
+        </div>
+
+        <div className="readout">
+          <span className="label">Tick</span>
+          <strong>{String(tick).padStart(5, '0')}</strong>
+        </div>
+
+        <div className={`link-status ${socket}`} title="Decentralized UDP Peer Telemetry Stream">
+          <span className="status-dot" />
+          <Network size={13} />
+          <span>{connectionLabel}</span>
+        </div>
+
+        {skipped > 0 && (
+          <div className="loss-alert">
+            <AlertTriangle size={13} />
+            <span>{skipped} lost</span>
+          </div>
+        )}
 
         <button
           className={`control-button mesh-toggle ${showMeshLinks ? 'active' : ''}`}
@@ -180,20 +294,8 @@ export function ControlBar({
           aria-label="Toggle P2P Mesh Links"
         >
           <Share2 size={13} />
-          <span>P2P Mesh</span>
+          <span>Mesh</span>
         </button>
-
-        {onOpenMapEditor && (
-          <button
-            className="control-button map-editor-btn"
-            onClick={onOpenMapEditor}
-            title="Open interactive warehouse map editor"
-            aria-label="Open Map Editor"
-          >
-            <Edit3 size={13} />
-            <span>Map Editor</span>
-          </button>
-        )}
 
         {onToggleFullscreen && (
           <button
@@ -203,44 +305,11 @@ export function ControlBar({
             aria-label={isFullscreen ? 'Exit Full Screen' : 'View Simulation in Full Screen'}
           >
             {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
-            <span>{isFullscreen ? 'Exit Full' : 'Full Screen'}</span>
           </button>
         )}
 
-        <div className="readout">
-          <span className="label">Tick</span>
-          <strong>{String(tick).padStart(5, '0')}</strong>
-        </div>
-
-        <div className="readout clock">
-          <span className="label">Sim clock</span>
-          <strong>
-            {timestamp
-              ? new Date(timestamp).toLocaleTimeString([], { hour12: false })
-              : '--:--:--'}
-          </strong>
-        </div>
-
-        <div className="readout sync-indicator" title="Authoritative tick received via WebSocket">
-          <span className="label">Sync</span>
-          <strong>#{String(lastSyncedTick).padStart(5, '0')}</strong>
-        </div>
-
-        <div className={`link-status ${socket}`} title="Decentralized UDP Peer Telemetry Stream">
-          <span className="status-dot" />
-          <Network size={14} />
-          <span>{connectionLabel}</span>
-        </div>
-
-        {skipped > 0 && (
-          <div className="loss-alert">
-            <AlertTriangle size={14} />
-            <span>{skipped} ticks lost</span>
-          </div>
-        )}
-
         <div className="chaos-control">
-          <Radio size={14} />
+          <Radio size={13} />
           <span>Chaos</span>
           <button
             className={`toggle ${chaos ? 'on' : ''}`}
@@ -292,17 +361,16 @@ export function ControlBar({
                 ? 'EXPORT 9602'
                 : 'AUTHORITY 9603'}
             </span>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>Switch</span>
           </button>
         )}
 
         <button
-          className="icon-button"
+          className="icon-button theme-toggle-btn"
           onClick={onToggleTheme}
           aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
       </div>
     </header>

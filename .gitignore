@@ -16,3 +16,8 @@ logs/
 *.tmp
 frontend/.agent/
 .agents/
+data/inventory.db*
+data/job_log*.jsonl
+data/archive/
+temp_e2e_run/
+scratch/

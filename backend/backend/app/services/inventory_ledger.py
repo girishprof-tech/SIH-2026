@@ -550,3 +550,69 @@ class InventoryLedger:
             )
             self.upsert_shelf(record)
         log.info(f"Seeded inventory for {len(world.pod_slots)} pod slots in {self.db_path}.")
+
+    def seed_from_map(self, map_data: Dict[str, Any], world: Optional[WorldConfig] = None) -> None:
+        """
+        Reseeds the inventory ledger from the map's shelf stock (Step 3 & Step 5).
+        Clears existing stale shelves and populates from map shelves[].stock or catalog.
+        """
+        with self._get_connection() as conn:
+            conn.execute("BEGIN IMMEDIATE;")
+            conn.execute("DELETE FROM shelves;")
+            conn.execute("DELETE FROM audit_logs;")
+            conn.execute("DELETE FROM transaction_logs;")
+            conn.execute("COMMIT;")
+
+        shelves_list = map_data.get("shelves", [])
+        catalog = map_data.get("catalog", [])
+
+        default_catalog = [
+            {"sku": "SKU-A10", "name": "Standard Bolt Pack", "weight_kg": 2.5},
+            {"sku": "SKU-A20", "name": "Precision Bearings", "weight_kg": 1.8},
+            {"sku": "SKU-B10", "name": "Hydraulic Seals", "weight_kg": 0.9},
+            {"sku": "SKU-B20", "name": "Motor Brushes", "weight_kg": 1.2},
+            {"sku": "SKU-C10", "name": "Control Cables", "weight_kg": 3.1},
+            {"sku": "SKU-C20", "name": "Optical Sensors", "weight_kg": 0.5},
+            {"sku": "SKU-D10", "name": "Lithium Battery Cells", "weight_kg": 4.0},
+            {"sku": "SKU-D20", "name": "Terminal Relays", "weight_kg": 1.1},
+            {"sku": "SKU-E10", "name": "Industrial Fasteners", "weight_kg": 2.2},
+            {"sku": "SKU-E20", "name": "Servo Couplers", "weight_kg": 1.4},
+            {"sku": "SKU-F10", "name": "Fiber Optic Patch", "weight_kg": 0.3},
+            {"sku": "SKU-F20", "name": "Pneumatic Valve Kit", "weight_kg": 2.8},
+        ]
+        cat_items = catalog if catalog else default_catalog
+
+        for idx, s in enumerate(shelves_list):
+            sid = s.get("id", f"POD-{idx+1:02d}")
+            sx = int(s.get("x", 0))
+            sy = int(s.get("y", 0))
+            cap = int(s.get("capacity", 80))
+
+            stock = s.get("stock")
+            if stock and isinstance(stock, dict):
+                manifest = {k: int(v) for k, v in stock.items()}
+            else:
+                rng = random.Random(f"STOCK-{sid}")
+                num_skus = rng.randint(1, 3)
+                selected_skus = rng.sample(cat_items, min(num_skus, len(cat_items)))
+                manifest = {}
+                for item in selected_skus:
+                    item_sku = item["sku"]
+                    qty = rng.randint(10, 25)
+                    manifest[item_sku] = qty
+
+            total_boxes = sum(manifest.values())
+            rec = ShelfRecord(
+                shelf_id=sid,
+                x=sx,
+                y=sy,
+                capacity_boxes=cap,
+                current_box_count=total_boxes,
+                sku_manifest=manifest,
+                last_audited_tick=0,
+                last_audited_by=None,
+                confidence=1.0,
+                version=1,
+            )
+            self.upsert_shelf(rec)
+        log.info(f"Reseeded inventory from map for {len(shelves_list)} shelves in {self.db_path}.")

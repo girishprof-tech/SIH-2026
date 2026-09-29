@@ -382,12 +382,6 @@ def build_world_from_map_dict(map_data: Dict[str, Any]) -> Tuple[WorldConfig, Li
         if isinstance(s, dict) and "id" in s
     }
 
-    sortation_chutes: Dict[str, Dict[str, Any]] = {
-        s["id"]: {**s, "x": int(s["x"]), "y": int(s["y"])}
-        for s in map_data.get("sorting_stations", [])
-        if isinstance(s, dict) and "id" in s
-    }
-
     pick_stations: Dict[str, Dict[str, Any]] = {
         ps["id"]: {**ps, "x": int(ps["x"]), "y": int(ps["y"])}
         for ps in map_data.get("pick_stations", [])
@@ -410,6 +404,36 @@ def build_world_from_map_dict(map_data: Dict[str, Any]) -> Tuple[WorldConfig, Li
             cells = [{"x": g["x"], "y": g["y"]}]
         export_gates[gid] = [(int(c["x"]), int(c["y"])) for c in cells if "x" in c and "y" in c]
 
+    sortation_chutes: Dict[str, Dict[str, Any]] = {}
+    for s in map_data.get("sorting_stations", []):
+        if not isinstance(s, dict) or "id" not in s:
+            continue
+        sx = int(s["x"])
+        sy = int(s["y"])
+        gate_id = s.get("gate_id") or s.get("destination_zone")
+        if not gate_id or gate_id not in export_gates:
+            nearest_gid = None
+            min_dist = float("inf")
+            for eg_id, eg_cells in export_gates.items():
+                for gx, gy in eg_cells:
+                    d = abs(sx - gx) + abs(sy - gy)
+                    if d < min_dist:
+                        min_dist = d
+                        nearest_gid = eg_id
+            if nearest_gid:
+                gate_id = nearest_gid
+            elif export_gates:
+                gate_id = list(export_gates.keys())[0]
+            else:
+                gate_id = "OUT-1"
+        sortation_chutes[s["id"]] = {
+            **s,
+            "x": sx,
+            "y": sy,
+            "gate_id": gate_id,
+            "destination_zone": s.get("destination_zone") or gate_id,
+        }
+
     pickup_stations = frozenset(c for cells in import_gates.values() for c in cells)
     dropoff_stations = frozenset(c for cells in export_gates.values() for c in cells)
 
@@ -419,7 +443,57 @@ def build_world_from_map_dict(map_data: Dict[str, Any]) -> Tuple[WorldConfig, Li
         if isinstance(s, dict) and "id" in s
     }
     if not fixed_stations:
-        fixed_stations = dict(DEFAULT_FIXED_STATIONS)
+        # Position fixed stations (Import/Export/Authority) from entry/exit gates
+        if import_gates:
+            first_gate_cells = list(import_gates.values())[0]
+            ix, iy = first_gate_cells[0]
+            import_x = min(ix + 1 if ix == 0 else ix, width - 1)
+            import_y = min(iy, height - 1)
+        else:
+            import_x = min(1, width - 1)
+            import_y = min(14, max(0, height // 2))
+
+        if export_gates:
+            first_exit_cells = list(export_gates.values())[0]
+            ex, ey = first_exit_cells[0]
+            export_x = max(ex - 1 if ex == width - 1 else ex, 0)
+            export_y = min(ey, height - 1)
+        else:
+            export_x = max(0, width - 2)
+            export_y = min(14, max(0, height // 2))
+
+        auth_x = max(0, min(width - 1, width // 2))
+        auth_y = max(0, min(height - 1, height // 2))
+
+        fixed_stations = {
+            "IMPORT_STATION": {
+                "id": "IMPORT_STATION",
+                "name": "Import Station Alpha",
+                "role": "IMPORT_STATION",
+                "x": import_x,
+                "y": import_y,
+                "zone": "IMPORT_DOCK",
+                "port": 9601,
+            },
+            "EXPORT_STATION": {
+                "id": "EXPORT_STATION",
+                "name": "Export Station Omega",
+                "role": "EXPORT_STATION",
+                "x": export_x,
+                "y": export_y,
+                "zone": "EXPORT_DOCK",
+                "port": 9602,
+            },
+            "AUTHORITY_STATION": {
+                "id": "AUTHORITY_STATION",
+                "name": "Authority Station Central",
+                "role": "AUTHORITY_STATION",
+                "x": auth_x,
+                "y": auth_y,
+                "zone": "GENERAL",
+                "port": 9603,
+            },
+        }
 
     sortation_zone = map_data.get("sortation_zone") or {
         "bounds": {"min_x": int(width * 0.73), "max_x": int(width * 0.9), "min_y": 2, "max_y": 5},

@@ -4,6 +4,7 @@ import type {
   Conflict,
   HaLowStatus,
   Metrics,
+  OrderInfo,
   Point,
   Robot,
   ShelfRecord,
@@ -23,6 +24,7 @@ export interface FleetStore {
   robots: Map<string, Robot>
   robotsArray: Robot[]
   tasks: Task[]
+  orders?: OrderInfo[]
   conflicts: Conflict[]
   obstacles: TempObstacle[]
   metrics?: Metrics
@@ -130,6 +132,19 @@ export function useFleetSocket(
             return
           }
 
+          if (update.type === 'MAP_LAUNCHED') {
+            const store = storeRef.current
+            store.robots.clear()
+            store.robotsArray = []
+            store.tasks = []
+            store.orders = []
+            store.conflicts = []
+            store.obstacles = []
+            lastTick.current = null
+            onUiSyncRef.current?.(store)
+            return
+          }
+
           if (update.type !== 'TICK_UPDATE' && update.type !== 'TICK_DELTA') {
             return
           }
@@ -177,6 +192,7 @@ export function useFleetSocket(
             store.robotsArray = Array.from(store.robots.values())
 
             if (update.tasks) store.tasks = update.tasks
+            if (update.orders) store.orders = update.orders
             store.conflicts = update.active_conflicts ?? []
             store.obstacles = update.temporary_obstacles ?? []
             if (update.metrics) store.metrics = update.metrics
@@ -201,6 +217,7 @@ export function useFleetSocket(
             }
 
             if (update.tasks) store.tasks = update.tasks
+            if (update.orders) store.orders = update.orders
             if (update.temporary_obstacles) store.obstacles = update.temporary_obstacles
             if (update.active_conflicts !== undefined) store.conflicts = update.active_conflicts
             if (update.metrics) store.metrics = update.metrics

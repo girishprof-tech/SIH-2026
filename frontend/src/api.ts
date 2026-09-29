@@ -42,6 +42,7 @@ export const api = {
   metrics: () => request<Metrics>('/api/metrics'),
   status: () => request<SimulationStatus>('/api/simulation/status'),
   simulation: (action: 'start' | 'pause' | 'reset') => request(`/api/simulation/${action}`, { method: 'POST' }),
+  setSimulationSpeed: (speed: number) => request<{ status: string; speed: number }>('/api/simulation/speed', { method: 'POST', body: JSON.stringify({ speed }) }),
   chaos: (packet_loss_pct: number) => request('/api/chaos/toggle', { method: 'POST', body: JSON.stringify({ packet_loss_pct }) }),
   chaosStatus: () => request<{ enabled: boolean; packet_loss_pct: number }>('/api/chaos/status'),
   submitJob: (body: JobRequest) => request<JobResponse>('/api/job', { method: 'POST', body: JSON.stringify(body) }),
@@ -55,6 +56,15 @@ export const api = {
   mapLaunch: (mapData: import('./types').WarehouseMap | string) => request<any>('/api/map/launch', { method: 'POST', body: JSON.stringify(typeof mapData === 'string' ? { filename: mapData } : mapData) }),
   mapCurrent: () => request<import('./types').WarehouseMap>('/api/map/current'),
   mapPresets: () => request<import('./types').MapPreset[]>('/api/map/presets'),
+  mapSave: (name: string, mapData: import('./types').WarehouseMap) => request<{ status: string; filename: string; path: string }>('/api/map/save', { method: 'POST', body: JSON.stringify({ name, map_data: mapData }) }),
+  mapTemplate: () => request<import('./types').WarehouseMap>('/api/map/template'),
+  catalog: () => request<Array<{ sku: string; name: string; weight_kg: number; total_stock: number }>>('/api/catalog'),
+  createOrder: (body: { sku: string; quantity: number; destination_gate?: string; urgency?: number }) =>
+    request<JobResponse>('/api/order', { method: 'POST', body: JSON.stringify(body) }),
+  getOrders: () => request<import('./types').OrderInfo[]>('/api/orders'),
+  recoveryPending: () => request<{ count: number; jobs: any[] }>('/api/tasks/recovery/pending'),
+  recoveryResume: () => request<{ resumed_count: number; discarded_count: number; resumed_task_ids: string[] }>('/api/tasks/recovery/resume', { method: 'POST' }),
+  recoveryDiscard: () => request<{ discarded_count: number; message: string }>('/api/tasks/recovery/discard', { method: 'POST' }),
 }
 
 

@@ -363,3 +363,6 @@ def clear_all_claims() -> None:
         SHARED_CHARGER_CLAIMS.clear()
 
 
+clear_all_reservations = clear_all_claims
+
+

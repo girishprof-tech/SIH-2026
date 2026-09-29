@@ -99,7 +99,46 @@ The 30×30 warehouse features a multi-cell import dock on the west side, a multi
 
 ## Quick Start
 
-### 1. Run Automated Test Suites
+### 1. Create & Activate Virtual Environment
+```bash
+# Windows
+python -m venv .venv
+.venv\Scripts\activate
+
+# Linux / macOS
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Start Backend & Edge Fleet
+Run the backend with this working-directory-independent command:
+```bash
+python -m uvicorn app.main:app --app-dir backend/backend --port 8000
+```
+> **Note**: Do not pass `--reload` in production or normal development; file-system watchers restart the entire multi-process robot fleet on every disk write.
+
+Alternatively, use the convenience bootstrapping scripts:
+- Windows: `scripts\start_backend.bat`
+- Linux/macOS: `./scripts/start_backend.sh`
+
+### 4. Start Frontend Operations Dashboard
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open `http://localhost:5173` to access the live operations cockpit.
+
+---
+
+## Automated Test Suites
+
+### 1. Unit & Safety Test Suites
 ```bash
 # Run backend and conflict-engine unit tests (92 tests)
 python -m pytest backend/backend/app/tests conflict-engine/tests -v
@@ -114,9 +153,9 @@ python testing/test_decentralization.py
 python testing/verify_no_swap.py
 ```
 
-### 2. Run Part 6 Master Attack & E2E Suites
+### 2. Master Regression & E2E Suites
 ```bash
-# Run Part 6 cumulative regression suite (8 suites: idle fleet, motion, camera, collision, map, tasks, E2E)
+# Run cumulative regression suite (8 suites: idle fleet, motion, camera, collision, map, tasks, E2E)
 python testing/run_all_part6.py
 
 # Run comprehensive E2E 5-scenario verifier on both 30x30 and custom 20x20 maps
@@ -128,22 +167,6 @@ python testing/attack_step6_decentralized_tasks.py
 # Run map editor format fuzzing & validator suite (5 attack vectors)
 python testing/attack_step5_map_editor.py
 ```
-
-### 3. Start Backend & Fleet
-```bash
-cd backend/backend
-python -m uvicorn app.main:app --port 8000 --reload
-```
-
-### 4. Start Frontend Dashboard
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open `http://localhost:5173` to view the live operations control room.
-
----
 
 ## Future Roadmap: "Later" Ideas & Technical Risks
 

@@ -598,10 +598,10 @@ def test_api_sku_order_endpoint_known_and_unknown_sku():
 
     with patch.dict(os.environ, {"SPAWN_FLEET_ORCHESTRATOR": "0"}):
         with TestClient(app) as client:
-            # 1. Unknown SKU test on /api/task/order -> Expect 404
+            # 1. Unknown SKU test on /api/task/order -> Expect 400 or 404
             resp_unknown = client.post("/api/task/order", json={"sku": "NONEXISTENT-SKU-999", "quantity": 1, "urgency": 3})
-            assert resp_unknown.status_code == 404, f"Expected 404 for unknown SKU, got {resp_unknown.status_code}"
-            assert "No shelf holds SKU" in resp_unknown.json()["detail"]
+            assert resp_unknown.status_code in (400, 404), f"Expected 400 or 404 for unknown SKU, got {resp_unknown.status_code}"
+            assert any(msg in resp_unknown.json()["detail"] for msg in ("No shelf holds SKU", "Unknown product"))
 
             # 2. Unknown SKU test on /api/job -> Expect 404
             resp_job_unknown = client.post("/api/job", json={"job_type": "fetch_item", "sku": "NONEXISTENT-SKU-999", "urgency": 3})

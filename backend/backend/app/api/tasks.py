@@ -9,6 +9,7 @@ GET  /api/tasks/{id}  — get single task
 from __future__ import annotations
 
 import time
+import uuid
 import logging
 from typing import List
 
@@ -228,6 +229,7 @@ def select_best_shelf_for_sku(
     quantity: int = 1,
     idle_g2p_robots: Optional[List[Robot]] = None,
     current_tick: Optional[int] = None,
+    excluded_shelf_ids: Optional[Set[str]] = None,
 ) -> Optional[ShelfRecord]:
     """
     Selects the optimal shelf holding the requested SKU per FIX 4:
@@ -237,6 +239,10 @@ def select_best_shelf_for_sku(
       4. Deterministic tie-break by shelf_id.
     """
     candidates = ledger.get_shelves_for_sku(sku, min_qty=quantity, current_tick=current_tick)
+    if excluded_shelf_ids:
+        filtered = [c for c in candidates if c.shelf_id not in excluded_shelf_ids]
+        if filtered:
+            candidates = filtered
     if not candidates:
         return None
 
@@ -477,37 +483,142 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
     raise HTTPException(400, f"Unsupported job_type: {body.job_type}")
 
 
-@router.post(
+@job_router.post(
     "/order",
-    summary="Create a SKU-based order for G2P pod retrieval",
+    summary="Create a SKU-based user order for autonomous fulfillment",
     response_model=JobOut,
     status_code=201,
 )
 async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
     """
-    Direct SKU order endpoint. Queries InventoryLedger for the optimal shelf holding
-    the requested SKU and broadcasts a signed TASK_ANNOUNCEMENT to G2P AMRs.
+    Consolidated user order endpoint (Step 5).
+    Rejects early:
+      - Unknown product
+      - Insufficient stock (showing available quantity)
+      - No G2P or Sorting robot in current fleet
+      - Destination gate unreachable / no feeding chute
+    Automated multi-agent pipeline:
+      1. G2P claims retrieval, brings pod to nearest free pick station.
+      2. Item pick produces Carton tagged with order_id and destination.
+      3. Sorting AMR claims carton from pick-station buffer, transfers to chute.
+      4. Consolidation delivers carton to destination gate (SHIPPED).
+      5. G2P returns pod to home slot.
     """
     fleet = _get_fleet(request)
     task_manager = _get_task_manager(request)
+    ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+    order_manager = getattr(request.app.state, "order_manager", None)
     from app.services.task_manager import get_fleet_peer_ports
     peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
-    ledger = getattr(request.app.state, "inventory_ledger", None) or InventoryLedger()
+
+    # 1. Early rejection: Unknown product
+    all_shelves = ledger.get_all_shelves()
+    known_skus = set()
+    for sh in all_shelves:
+        known_skus.update(sh.sku_manifest.keys())
+    # Also check map catalog
+    map_catalog = getattr(fleet.world, "catalog", []) or []
+    for item in map_catalog:
+        if isinstance(item, dict) and "sku" in item:
+            known_skus.add(item["sku"])
+
+    if body.sku not in known_skus:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown product '{body.sku}'. Please select a valid product from the catalog.",
+        )
+
+    # 2. Early rejection: Insufficient stock (show available)
+    total_available = sum(sh.sku_manifest.get(body.sku, 0) for sh in all_shelves)
+    if total_available < body.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient stock for product '{body.sku}': requested {body.quantity}, but only {total_available} available.",
+        )
+
+    # 3. Early rejection: Fleet capability check
+    # Check running robots in fleet_state or configured robots in world
+    active_robots = list(fleet.robots.values())
+    has_g2p = any(r.robot_type == AMRType.GOODS_TO_PERSON or str(r.robot_type).endswith("GOODS_TO_PERSON") for r in active_robots)
+    has_sorting = any(r.robot_type == AMRType.SORTING or str(r.robot_type).endswith("SORTING") for r in active_robots)
+
+    if not has_g2p:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot fulfill order: no Goods-to-Person (G2P) robots are configured in this warehouse.",
+        )
+    if not has_sorting:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot fulfill order: no Sorting robots are configured in this warehouse.",
+        )
+
+    # 4. Early rejection: Destination gate and chute reachability
+    dest_gate = body.destination_gate
+    if not dest_gate or (dest_gate == "OUT-1" and "OUT-1" not in fleet.world.export_gates):
+        dest_gate = list(fleet.world.export_gates.keys())[0] if fleet.world.export_gates else "OUT-1"
+    if dest_gate not in fleet.world.export_gates:
+        avail_gates = list(fleet.world.export_gates.keys())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Destination exit gate '{dest_gate}' not found in active map. Available gates: {avail_gates}.",
+        )
+
+    # Check feeding chute
+    chute_id = fleet.world.chute_for_destination(dest_gate)
+    if not chute_id:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Destination gate '{dest_gate}' is unreachable or has no feeding sortation chute.",
+        )
+
+    # 5. Pod Selection: Avoid targeting same pod twice simultaneously
+    active_claimed_shelves = {
+        t.target_shelf_id for t in task_manager.all_tasks().values()
+        if t.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED) and t.target_shelf_id
+    }
+    idle_g2ps = [
+        r for r in active_robots
+        if (r.robot_type == AMRType.GOODS_TO_PERSON or str(r.robot_type).endswith("GOODS_TO_PERSON"))
+        and r.state in (RobotState.IDLE, "IDLE")
+        and r.current_task_id is None
+    ]
 
     best_shelf = select_best_shelf_for_sku(
         ledger, body.sku, quantity=body.quantity,
-        idle_g2p_robots=None, current_tick=fleet.tick,
+        idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+        excluded_shelf_ids=active_claimed_shelves,
     )
     if best_shelf is None:
-        raise HTTPException(404, f"No shelf holds SKU {body.sku!r} with quantity >= {body.quantity}")
+        # Fallback to general best shelf if all have in-flight orders (queueing)
+        best_shelf = select_best_shelf_for_sku(
+            ledger, body.sku, quantity=body.quantity,
+            idle_g2p_robots=idle_g2ps, current_tick=fleet.tick,
+        )
 
+    if best_shelf is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Could not locate a valid shelf holding SKU '{body.sku}' with quantity >= {body.quantity}.",
+        )
+
+    # 6. Nearest Pick Station Dropoff
     pickup = (best_shelf.x, best_shelf.y)
-    if body.dropoff:
-        dropoff = (body.dropoff.x, body.dropoff.y)
+    pick_stations = list(fleet.world.pick_stations.items())
+    if pick_stations:
+        nearest_ps_id, nearest_ps = min(
+            pick_stations,
+            key=lambda item: abs(item[1]["x"] - pickup[0]) + abs(item[1]["y"] - pickup[1]),
+        )
+        dropoff = (nearest_ps["x"], nearest_ps["y"])
+        ps_id = nearest_ps.get("id", nearest_ps_id)
     else:
-        dropoffs = sorted(list(fleet.world.dropoff_stations))
-        dropoff = dropoffs[0] if dropoffs else (fleet.world.width - 1, fleet.world.height // 2)
+        dropoff = (fleet.world.width - 1, fleet.world.height // 2)
+        ps_id = "PICK-01"
 
+    order_id = f"ORD-{uuid.uuid4().hex[:6].upper()}"
+
+    # 7. Create Task
     task = task_manager.create_task(
         pickup_x=pickup[0],
         pickup_y=pickup[1],
@@ -522,19 +633,42 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
         return_to_home=body.return_to_home,
         home_slot=pickup,
     )
+    task.order_id = order_id
+    task.destination_gate = dest_gate
+    task.destination_zone = dest_gate
+    task.pick_station_id = ps_id
     task.status = TaskStatus.ANNOUNCED
     fleet.queue_task(task)
 
+    # 8. Register in OrderManager
+    from app.services.order_manager import Order, OrderStage
+    if order_manager:
+        order = Order(
+            order_id=order_id,
+            sku=body.sku,
+            quantity=body.quantity,
+            destination_gate=dest_gate,
+            urgency=body.urgency,
+            created_tick=fleet.tick,
+            stage=OrderStage.ANNOUNCED.value,
+            shelf_id=best_shelf.shelf_id,
+            pick_station_id=ps_id,
+            task_ids=[task.task_id],
+        )
+        order_manager.add_order(order)
+
+    # 9. Journal logging
     journal = getattr(request.app.state, "job_journal", None)
     if journal:
         journal.log_submission(
             job_id=task.task_id,
-            job_type="fetch_item",
+            job_type="order",
             pickup=pickup,
             dropoff=dropoff,
             urgency=body.urgency,
         )
 
+    # 10. Dispatch to fleet over signed UDP Contract-Net
     task_manager.dispatch_to_fleet(
         task,
         peer_ports=peer_ports,
@@ -542,35 +676,148 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
     )
 
     return JobOut(
-        job_type="fetch_item",
+        job_type="order",
         robot_type=AMRType.GOODS_TO_PERSON.value,
+        order_id=order_id,
         task_id=task.task_id,
         robot_id="PENDING",
         target_shelf_id=best_shelf.shelf_id,
         sku=body.sku,
         quantity=body.quantity,
+        destination_gate=dest_gate,
         status=task.status.value,
-        message=f"Order for SKU {body.sku} announced for decentralized bidding (Shelf {best_shelf.shelf_id})",
+        message=f"Order {order_id} announced for decentralized bidding (Pod {best_shelf.shelf_id} -> {ps_id} -> {dest_gate})",
     )
 
 
-@job_router.post(
-    "/job/order",
-    summary="Create a SKU-based order via /api/job/order",
-    response_model=JobOut,
-    status_code=201,
-)
-async def create_sku_job_order(body: OrderRequest, request: Request) -> JobOut:
+# Thin aliases for backward compatibility (flagged for deprecation)
+@job_router.post("/job/order", summary="[Deprecated] Alias to /api/order", response_model=JobOut, status_code=201)
+async def create_sku_job_order_alias(body: OrderRequest, request: Request) -> JobOut:
     return await create_sku_order(body, request)
 
 
-@job_router.post(
-    "/order",
-    summary="Create a SKU-based order via /api/order",
-    response_model=JobOut,
-    status_code=201,
-)
-async def create_sku_api_order(body: OrderRequest, request: Request) -> JobOut:
+@router.post("/order", summary="[Deprecated] Alias to /api/order", response_model=JobOut, status_code=201)
+async def create_sku_task_order_alias(body: OrderRequest, request: Request) -> JobOut:
     return await create_sku_order(body, request)
+
+
+@job_router.get("/orders", summary="Get all active and past orders with stage timelines", status_code=200)
+async def list_orders(request: Request) -> List[Dict[str, Any]]:
+    """Returns all orders with full timeline stages and robot assignments."""
+    order_manager = getattr(request.app.state, "order_manager", None)
+    if order_manager:
+        return [o.to_dict() for o in order_manager.all_orders()]
+    return []
+
+
+@job_router.get(
+    "/tasks/recovery/pending",
+    summary="Get pending uncompleted jobs from previous session",
+    status_code=200,
+)
+async def get_pending_recovery_jobs(request: Request):
+    pending = getattr(request.app.state, "uncompleted_jobs_pending", [])
+    return {"count": len(pending), "jobs": pending}
+
+
+@job_router.post(
+    "/tasks/recovery/resume",
+    summary="Resume uncompleted jobs whose coordinates are valid in active world",
+    status_code=200,
+)
+async def resume_recovery_jobs(request: Request):
+    fleet = _get_fleet(request)
+    task_manager = _get_task_manager(request)
+    world = fleet.world
+    pending = getattr(request.app.state, "uncompleted_jobs_pending", [])
+
+    from app.services.task_manager import get_fleet_peer_ports
+    peer_ports = get_fleet_peer_ports(getattr(request.app.state, "orchestrator", None))
+
+    resumed_ids = []
+    discarded_ids = []
+
+    journal = getattr(request.app.state, "job_journal", None)
+    for r_job in list(pending):
+        jid = r_job.get("job_id", "")
+        pickup = r_job.get("pickup")
+        dropoff = r_job.get("dropoff")
+        if not pickup or not dropoff or len(pickup) < 2 or len(dropoff) < 2:
+            discarded_ids.append(jid)
+            if journal and jid:
+                journal.log_cancellation(jid, reason="invalid_coordinates")
+            continue
+
+        px, py = int(pickup[0]), int(pickup[1])
+        dx, dy = int(dropoff[0]), int(dropoff[1])
+
+        # Validate against active world
+        if (
+            not world.in_bounds(px, py)
+            or world.is_static_blocked(px, py)
+            or not world.in_bounds(dx, dy)
+            or world.is_static_blocked(dx, dy)
+        ):
+            log.warning("[SPOF RECOVERY] Discarding job %s: coordinates out of bounds or blocked in active world", jid)
+            discarded_ids.append(jid)
+            if journal and jid:
+                journal.log_cancellation(jid, reason="invalid_world_coordinates")
+            continue
+
+        t = task_manager.create_task(
+            pickup_x=px,
+            pickup_y=py,
+            dropoff_x=dx,
+            dropoff_y=dy,
+            urgency=r_job.get("urgency", 3),
+            current_tick=fleet.tick,
+            task_id=jid,
+        )
+        if r_job.get("assigned_robot_id"):
+            t.assigned_robot_id = r_job["assigned_robot_id"]
+        fleet.queue_task(t)
+        task_manager.dispatch_to_fleet(t, peer_ports=peer_ports, current_tick=fleet.tick)
+        resumed_ids.append(jid)
+
+    request.app.state.uncompleted_jobs_pending = []
+    return {
+        "resumed_count": len(resumed_ids),
+        "discarded_count": len(discarded_ids),
+        "resumed_task_ids": resumed_ids,
+        "discarded_task_ids": discarded_ids,
+    }
+
+
+@job_router.post(
+    "/tasks/recovery/discard",
+    summary="Discard all unfinished jobs from previous session and archive journal",
+    status_code=200,
+)
+async def discard_recovery_jobs(request: Request):
+    pending = getattr(request.app.state, "uncompleted_jobs_pending", [])
+    count = len(pending)
+    journal = getattr(request.app.state, "job_journal", None)
+    if journal:
+        for r_job in pending:
+            jid = r_job.get("job_id")
+            if jid:
+                journal.log_cancellation(jid, reason="recovery_discarded")
+        journal.rotate_session()
+
+    request.app.state.uncompleted_jobs_pending = []
+    return {"discarded_count": count, "message": "All unfinished jobs discarded and journal archived"}
+
+
+@router.post(
+    "/{task_id}/cancel",
+    summary="Cancel a task",
+    status_code=200,
+)
+async def cancel_task_endpoint(task_id: str, request: Request):
+    task_manager = _get_task_manager(request)
+    success = task_manager.cancel_task(task_id, reason="operator_cancel")
+    if not success:
+        raise HTTPException(404, f"Task {task_id!r} not found")
+    return {"task_id": task_id, "status": "CANCELLED"}
 
 

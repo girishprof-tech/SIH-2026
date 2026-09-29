@@ -42,57 +42,74 @@ class FleetOrchestrator:
         robots_config: Optional[List[Dict[str, Any]]] = None,
         obstacles: Optional[List[Tuple[int, int]]] = None,
         tick_interval_s: float = 0.15,
-        max_ticks: int = 150,
+        max_ticks: int = 0,
         log_dir: Optional[Path] = None,
+        map_data: Optional[Dict[str, Any]] = None,
     ) -> None:
-        default_world = build_default_world()
-        self.obstacles = obstacles if obstacles is not None else sorted(list(default_world.static_obstacles))
-        self.charging_stations = set(default_world.charging_stations)
+        self.map_data = map_data
+        app_cfg = get_settings()
+
+        if map_data is not None:
+            from app.models.world import build_world_from_map_dict
+            self.world, robot_starts = build_world_from_map_dict(map_data)
+            self.obstacles = obstacles if obstacles is not None else sorted(list(self.world.static_obstacles))
+            self.charging_stations = set(self.world.charging_stations)
+            if robots_config is None:
+                self.robots_config = [
+                    {
+                        "robot_id": r.get("id") or f"AMR-{idx:02d}",
+                        "start": (int(r["x"]), int(r["y"])),
+                        "goal": None,
+                        "urgency": 1,
+                        "battery_pct": 100.0,
+                        "robot_type": r.get("type") or r.get("robot_type", "GOODS_TO_PERSON"),
+                        "enable_idle_audit": app_cfg.AUTO_IDLE_AUDIT,
+                        "auto_consolidation": app_cfg.AUTO_CONSOLIDATION,
+                        "auto_transfer": app_cfg.AUTO_TRANSFER,
+                    }
+                    for idx, r in enumerate(robot_starts, start=1)
+                ]
+            else:
+                self.robots_config = robots_config
+        else:
+            default_world = build_default_world()
+            self.world = default_world
+            self.obstacles = obstacles if obstacles is not None else sorted(list(default_world.static_obstacles))
+            self.charging_stations = set(default_world.charging_stations)
+            if robots_config is None:
+                starts = [
+                    (2, 4), (2, 9), (2, 15), (2, 24),
+                    (27, 4), (27, 12), (27, 18), (27, 24),
+                    (10, 3), (19, 3),
+                ]
+                robot_types = (["GOODS_TO_PERSON"] * 4 + ["SORTING"] * 3 + ["SCANNING_AUDIT"] * 3)
+                self.robots_config = [
+                    {
+                        "robot_id": f"AMR-{index:02d}",
+                        "start": start,
+                        "goal": None,
+                        "urgency": 1,
+                        "battery_pct": 100.0,
+                        "robot_type": robot_types[index - 1],
+                        "enable_idle_audit": app_cfg.AUTO_IDLE_AUDIT,
+                        "auto_consolidation": app_cfg.AUTO_CONSOLIDATION,
+                        "auto_transfer": app_cfg.AUTO_TRANSFER,
+                    }
+                    for index, start in enumerate(starts, start=1)
+                ]
+            else:
+                self.robots_config = robots_config
+
         self.tick_interval_s = tick_interval_s
         self.max_ticks = max_ticks
         self.log_dir = log_dir or (ROOT_DIR / "logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        if robots_config is None:
-            # Distributed starting positions across West inbound docks, East outbound docks,
-            # and North/South transit highway staging lanes with immediate highway egress.
-            starts = [
-                (2, 4),   # AMR-01: West highway staging bay 1
-                (2, 9),   # AMR-02: West highway staging bay 2
-                (2, 15),  # AMR-03: West highway staging bay 3
-                (2, 24),  # AMR-04: West highway staging bay 4
-                (27, 4),  # AMR-05: East highway staging bay 1
-                (27, 12), # AMR-06: East highway staging bay 2
-                (27, 18), # AMR-07: East highway staging bay 3
-                (27, 24), # AMR-08: East highway staging bay 4
-                (10, 3),  # AMR-09: North central cross-highway (x=10)
-                (19, 3),  # AMR-10: North central cross-highway (x=19)
-            ]
-            robot_types = (["GOODS_TO_PERSON"] * 4
-                           + ["SORTING"] * 3
-                           + ["SCANNING_AUDIT"] * 3)
-            app_cfg = get_settings()
-            self.robots_config = [
-                {
-                    "robot_id": f"AMR-{index:02d}",
-                    "start": start,
-                    "goal": None,
-                    "urgency": 1,
-                    "battery_pct": 100.0,
-                    "robot_type": robot_types[index - 1],
-                    "enable_idle_audit": app_cfg.AUTO_IDLE_AUDIT,
-                    "auto_consolidation": app_cfg.AUTO_CONSOLIDATION,
-                    "auto_transfer": app_cfg.AUTO_TRANSFER,
-                }
-                for index, start in enumerate(starts, start=1)
-            ]
-        else:
-            self.robots_config = robots_config
-
         self.telemetry_queue: mp.Queue = mp.Queue()
         self.stop_event: mp.Event = mp.Event()
         self.pause_event: mp.Event = mp.Event()
         self.start_event: mp.Event = mp.Event()
+        self.speed_multiplier: mp.Value = mp.Value('d', 1.0)
         self.ready_barrier: Optional[mp.Barrier] = None
         # Distinct UDP ports for real decentralized networking (e.g. 9000 + N for robots, 9601..9603 for stations)
         self.peer_ports: Dict[str, int] = {
@@ -152,6 +169,8 @@ class FleetOrchestrator:
                     "auto_idle_audit": enable_audit,
                     "auto_consolidation": cfg.get("auto_consolidation", app_cfg.AUTO_CONSOLIDATION),
                     "auto_transfer": cfg.get("auto_transfer", app_cfg.AUTO_TRANSFER),
+                    "map_data": self.map_data,
+                    "speed_multiplier": self.speed_multiplier,
                 },
             )
 
@@ -159,14 +178,24 @@ class FleetOrchestrator:
             self.processes.append(p)
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")
 
-        # 4. Spawn 3 fixed-infrastructure Station processes if enabled
+        # 4. Spawn fixed-infrastructure Station processes if enabled
         if enable_stations:
-            print("[FleetOrchestrator] Spawning 3 fixed station processes (Import, Export, Authority)...")
-            station_specs = [
-                ("IMPORT_STATION", "IMPORT_STATION", (1, 14), DEFAULT_STATION_PORTS["IMPORT_STATION"]),
-                ("EXPORT_STATION", "EXPORT_STATION", (28, 14), DEFAULT_STATION_PORTS["EXPORT_STATION"]),
-                ("AUTHORITY_STATION", "AUTHORITY_STATION", (15, 14), DEFAULT_STATION_PORTS["AUTHORITY_STATION"]),
-            ]
+            print("[FleetOrchestrator] Spawning fixed station processes (Import, Export, Authority)...")
+            station_specs = []
+            if hasattr(self, "world") and self.world and getattr(self.world, "fixed_stations", None):
+                for st in self.world.fixed_stations.values():
+                    station_specs.append((
+                        st["id"],
+                        st["role"],
+                        (st["x"], st["y"]),
+                        st.get("port", DEFAULT_STATION_PORTS.get(st["role"], 9601)),
+                    ))
+            else:
+                station_specs = [
+                    ("IMPORT_STATION", "IMPORT_STATION", (1, 14), DEFAULT_STATION_PORTS["IMPORT_STATION"]),
+                    ("EXPORT_STATION", "EXPORT_STATION", (28, 14), DEFAULT_STATION_PORTS["EXPORT_STATION"]),
+                    ("AUTHORITY_STATION", "AUTHORITY_STATION", (15, 14), DEFAULT_STATION_PORTS["AUTHORITY_STATION"]),
+                ]
             for st_id, st_role, st_pos, st_port in station_specs:
                 sp = mp.Process(
                     target=run_station_process,
@@ -181,7 +210,12 @@ class FleetOrchestrator:
                         str(self.log_dir),
                         self.tick_interval_s,
                     ),
-                    kwargs={"start_event": self.start_event, "start_barrier": self.ready_barrier},
+                    kwargs={
+                        "start_event": self.start_event,
+                        "start_barrier": self.ready_barrier,
+                        "pause_event": self.pause_event,
+                        "speed_multiplier": self.speed_multiplier,
+                    },
                 )
                 sp.start()
                 self.station_processes.append(sp)
@@ -258,10 +292,12 @@ class FleetOrchestrator:
         time.sleep(0.25)
         self.reset_logs()
 
+        current_speed = self.get_speed()
         # Re-initialize events and queue
         self.stop_event = mp.Event()
         self.pause_event = mp.Event()
         self.start_event = mp.Event()
+        self.speed_multiplier = mp.Value('d', current_speed)
         if pause_on_reset:
             self.pause_event.set()
         self.telemetry_queue = mp.Queue()
@@ -270,6 +306,17 @@ class FleetOrchestrator:
 
         self.start()
         print("[FleetOrchestrator] Robot processes restarted in initial state.")
+
+    def set_speed(self, speed: float) -> None:
+        """Sets the simulation speed multiplier across all processes."""
+        if hasattr(self, "speed_multiplier"):
+            self.speed_multiplier.value = float(max(0.1, min(speed, 10.0)))
+
+    def get_speed(self) -> float:
+        """Gets the current simulation speed multiplier."""
+        if hasattr(self, "speed_multiplier"):
+            return float(self.speed_multiplier.value)
+        return 1.0
 
     def _run_bus(self) -> None:
         """Background thread collecting telemetry frames from robot processes."""

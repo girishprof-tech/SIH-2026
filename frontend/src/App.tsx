@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Battery, Bot, X, Package, Activity, Radio, Layers, ShieldCheck, Box, Sliders } from 'lucide-react'
-import { api, setApiOperatorRole } from './api'
+import { useCallback, useEffect, useState, useMemo } from 'react'
+import { AlertCircle, Battery, Bot, X, Package, Activity, Radio, Layers, ShieldCheck, Box, Sliders, AlertTriangle, RefreshCw, ShoppingCart } from 'lucide-react'
+import { api, setApiOperatorRole, API_BASE } from './api'
 import { useFleetSocket, type FleetStore } from './hooks/useFleetSocket'
 import { ControlBar } from './components/ControlBar'
 import { RoleSelectionModal, type OperatorRole } from './components/RoleSelectionModal'
 import { GridCanvas } from './components/GridCanvas'
 import { FleetSidebar } from './components/FleetSidebar'
 import { TaskPanel } from './components/TaskPanel'
+import { OrdersPanel } from './components/OrdersPanel'
 import { ObstaclePanel } from './components/ObstaclePanel'
 import { MetricsPanel } from './components/MetricsPanel'
 import { LoadingScreen } from './components/LoadingScreen'
@@ -21,6 +22,7 @@ import type {
   HaLowStatus,
   InventoryUpdateEvent,
   Metrics,
+  OrderInfo,
   Point,
   Robot,
   ShelfRecord,
@@ -47,6 +49,7 @@ export default function App() {
   const [world, setWorld] = useState(emptyWorld)
   const [robots, setRobots] = useState<Robot[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [orders, setOrders] = useState<OrderInfo[]>([])
   const [obstacles, setObstacles] = useState<TempObstacle[]>([])
   const [inventory, setInventory] = useState<ShelfRecord[]>([])
   const [transferLogs, setTransferLogs] = useState<InventoryUpdateEvent[]>([])
@@ -57,7 +60,7 @@ export default function App() {
     bitrate_kbps: 150,
     packets_received: 0,
   })
-  const [activeTab, setActiveTab] = useState<'fleet' | 'inventory' | 'sync_log' | 'obstacles'>('fleet')
+  const [activeTab, setActiveTab] = useState<'fleet' | 'orders' | 'inventory' | 'sync_log' | 'obstacles'>('fleet')
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [status, setStatus] = useState<SimulationStatus>({
     running: false,
@@ -86,37 +89,96 @@ export default function App() {
   const [launchChoiceMade, setLaunchChoiceMade] = useState(false)
   const [showMapEditor, setShowMapEditor] = useState(false)
   const [activeMap, setActiveMap] = useState<WarehouseMap | null>(null)
+  const [simSpeed, setSimSpeed] = useState<number>(1.0)
+
+  useEffect(() => {
+    api.mapCurrent().then((m) => {
+      if (m) setActiveMap(m)
+    }).catch(() => {})
+  }, [])
 
   const handleUseBuiltIn = useCallback(async () => {
     await api.mapLaunch('test_map.json')
-    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    const [w, r, t, o, m] = await Promise.all([
+      api.world(),
+      api.robots(),
+      api.tasks(),
+      api.getOrders().catch(() => []),
+      api.mapCurrent().catch(() => null),
+    ])
     setWorld(w)
     setRobots(r)
     setTasks(t)
+    setOrders(o || [])
+    if (m) setActiveMap(m)
     setLaunchChoiceMade(true)
     setToast('Standard warehouse fleet launched & armed — zero motion until tasked')
   }, [])
 
   const handleSelectPreset = useCallback(async (preset: MapPreset) => {
     await api.mapLaunch(preset.filename)
-    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    const [w, r, t, o, m] = await Promise.all([
+      api.world(),
+      api.robots(),
+      api.tasks(),
+      api.getOrders().catch(() => []),
+      api.mapCurrent().catch(() => null),
+    ])
     setWorld(w)
     setRobots(r)
     setTasks(t)
+    setOrders(o || [])
+    if (m) setActiveMap(m)
     setLaunchChoiceMade(true)
     setToast(`Preset '${preset.name}' launched & armed — zero motion until tasked`)
   }, [])
 
   const handleLaunchFromEditor = useCallback(async (launchedMap: WarehouseMap) => {
-    const [w, r, t] = await Promise.all([api.world(), api.robots(), api.tasks()])
+    const [w, r, t, o] = await Promise.all([api.world(), api.robots(), api.tasks(), api.getOrders().catch(() => [])])
     setWorld(w)
     setRobots(r)
     setTasks(t)
+    setOrders(o || [])
     setActiveMap(launchedMap)
     setShowMapEditor(false)
     setLaunchChoiceMade(true)
     setToast(`Custom map '${launchedMap.name}' launched & armed — zero motion until tasked`)
   }, [])
+
+  const handleSetSpeed = useCallback(async (newSpeed: number) => {
+    setSimSpeed(newSpeed)
+    try {
+      await api.setSimulationSpeed(newSpeed)
+      setToast(`Simulation speed scaled to ${newSpeed}x`)
+    } catch (err) {
+      console.error('Failed to set simulation speed:', err)
+    }
+  }, [])
+
+  const handleChangeMap = useCallback(() => {
+    setLaunchChoiceMade(false)
+    setToast('Select or edit a warehouse map to launch')
+  }, [])
+
+  const robotCounts = useMemo(() => {
+    let g2p = 0
+    let sorting = 0
+    let audit = 0
+    const list = (Array.isArray(robots) ? robots : Object.values(robots || {})) as Robot[]
+    for (const r of list) {
+      const t = String(r.robot_type || (r as any).type || 'GOODS_TO_PERSON').toUpperCase()
+      if (t.includes('SORT')) sorting++
+      else if (t.includes('AUDIT') || t.includes('SCAN')) audit++
+      else g2p++
+    }
+    return { g2p, sorting, audit, total: list.length }
+  }, [robots])
+
+  const activeMapName = activeMap?.name || (world as any)?.name || 'Standard 30x30 Test Warehouse'
+  const gridDimensions = {
+    width: activeMap?.grid?.width || world?.width || 30,
+    height: activeMap?.grid?.height || world?.height || 30,
+  }
 
   const [operatorRole, setOperatorRole] = useState<OperatorRole | null>(() => {
     if (typeof window !== 'undefined') {
@@ -266,6 +328,7 @@ export default function App() {
     setLastSyncedTick(store.tick)
     setStatus((old) => ({ ...old, tick: store.tick, timestamp_ms: store.timestamp_ms }))
     if (store.tasks) setTasks(store.tasks)
+    if (store.orders) setOrders(store.orders)
     if (store.metrics) setMetrics(store.metrics)
     if (store.inventory) setInventory(store.inventory)
     if (store.sortation_chutes) {
@@ -322,57 +385,94 @@ export default function App() {
     }
   }
 
+  const [backendConnected, setBackendConnected] = useState<boolean>(true)
+  const [isRetrying, setIsRetrying] = useState<boolean>(false)
+  const [unfinishedRecoveryCount, setUnfinishedRecoveryCount] = useState<number>(0)
+  const [showRecoveryBanner, setShowRecoveryBanner] = useState<boolean>(true)
+
+  const handleResumeRecovery = async () => {
+    try {
+      const res = await api.recoveryResume()
+      setToast(`Resumed ${res.resumed_count} jobs from previous session (${res.discarded_count} discarded)`)
+      setUnfinishedRecoveryCount(0)
+      setShowRecoveryBanner(false)
+      const t = await api.tasks()
+      setTasks(t)
+    } catch (e: any) {
+      setToast(`Failed to resume jobs: ${e.message}`)
+    }
+  }
+
+  const handleDiscardRecovery = async () => {
+    try {
+      await api.recoveryDiscard()
+      setToast('Discarded unfinished jobs from previous session')
+      setUnfinishedRecoveryCount(0)
+      setShowRecoveryBanner(false)
+    } catch (e: any) {
+      setToast(`Failed to discard jobs: ${e.message}`)
+    }
+  }
+
+  const checkHealthAndConnect = useCallback(async () => {
+    try {
+      const h = await api.health()
+      if (h && (h.status === 'ok' || h.status === 'degraded')) {
+        setBackendConnected(true)
+        if (h.fleet_mode) setFleetMode(h.fleet_mode)
+        return true
+      }
+      setBackendConnected(false)
+      return false
+    } catch {
+      setBackendConnected(false)
+      return false
+    }
+  }, [])
+
   const handleLoadingComplete = useCallback(() => {
     setLoading(false)
   }, [])
 
   useEffect(() => {
-    const minLoadTimer = window.setTimeout(() => {
-      setLoading(false)
-    }, 5200)
+    checkHealthAndConnect()
 
-    // Reset simulation to clean initial state on page load / reload
-    api.simulation('reset')
-      .catch(() => undefined)
-      .finally(() => {
-        void Promise.all([
-          api.world().then(setWorld),
-          api.robots().then(setRobots),
-          api.tasks().then(setTasks),
-          api.obstacles().then(setObstacles),
-          api.status().then(setStatus),
-          api.inventory().then((inv) => setInventory(inv.shelves)).catch(() => undefined),
-          api.health().then((h) => {
-            if (h.fleet_mode) setFleetMode(h.fleet_mode)
-          }),
-          api.chaosStatus().then((snapshot) => {
-            setChaos(snapshot.enabled)
-            setLoss(snapshot.packet_loss_pct)
-          }),
-        ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
-      })
+    void Promise.all([
+      api.world().then(setWorld),
+      api.robots().then(setRobots),
+      api.tasks().then(setTasks),
+      api.getOrders().then(setOrders).catch(() => undefined),
+      api.obstacles().then(setObstacles),
+      api.status().then(setStatus),
+      api.inventory().then((inv) => setInventory(inv.shelves)).catch(() => undefined),
+      api.health().then((h) => {
+        if (h.fleet_mode) setFleetMode(h.fleet_mode)
+      }),
+      api.recoveryPending().then((res) => {
+        if (res && res.count > 0) {
+          setUnfinishedRecoveryCount(res.count)
+          setShowRecoveryBanner(true)
+        }
+      }).catch(() => undefined),
+      api.chaosStatus().then((snapshot) => {
+        setChaos(snapshot.enabled)
+        setLoss(snapshot.packet_loss_pct)
+      }),
+    ]).catch((error) => setToast(error instanceof Error ? error.message : 'Backend unavailable'))
 
     // Polling restricted to external human toggles (chaos mode) and backend health/mode detection.
-    // All active simulation telemetry (robots, tasks, obstacles, metrics, status) is delivered synchronously per tick over WebSocket.
     const timer = window.setInterval(() => {
+      checkHealthAndConnect()
       api.chaosStatus()
         .then((snapshot) => {
           setChaos(snapshot.enabled)
           setLoss(snapshot.packet_loss_pct)
         })
         .catch(() => undefined)
-      api.health()
-        .then((h) => {
-          if (h.fleet_mode) setFleetMode(h.fleet_mode)
-        })
-        .catch(() => undefined)
-    }, 5000)
+    }, 2500)
 
-    return () => {
-      window.clearTimeout(minLoadTimer)
-      window.clearInterval(timer)
-    }
-  }, [])
+    return () => window.clearInterval(timer)
+  }, [checkHealthAndConnect])
 
   useEffect(() => {
     if (!toast) return
@@ -388,39 +488,36 @@ export default function App() {
 
   const runDemo = async () => {
     setBusy(true)
-    setToast('Demo scenario started: fleet coordination sequence running')
+    setToast('Demo scenario started: dispatching multi-robot coordination sequence...')
     try {
-      if (!status.running) await api.simulation('start')
-      const jobs = [
-        { job_type: 'fetch_item' as const, item_id: 'DEMO-FETCH-01', urgency: 5 },
-        { job_type: 'sort_batch' as const, zone: 'SORTING_ZONE', urgency: 4 },
-        { job_type: 'audit_checkpoint' as const, urgency: 2 },
-        { job_type: 'fetch_item' as const, item_id: 'DEMO-FETCH-02', urgency: 3 },
-        { job_type: 'sort_batch' as const, zone: 'SORTING_ZONE', urgency: 5 },
-        { job_type: 'audit_checkpoint' as const, urgency: 1 },
-        { job_type: 'fetch_item' as const, item_id: 'DEMO-FETCH-03', urgency: 4 },
-        { job_type: 'sort_batch' as const, zone: 'SORTING_ZONE', urgency: 3 },
-        { job_type: 'audit_checkpoint' as const, urgency: 2 },
-      ]
-      for (const [index, job] of jobs.entries()) {
-        if (index > 0) await pause(3500)
-        try {
-          await api.submitJob(job)
-        } catch (error) {
-          setToast(
-            error instanceof Error ? `Demo job ${index + 1} skipped: ${error.message}` : `Demo job ${index + 1} skipped`
-          )
-        }
-        if (index === 1)
-          await api.addObstacle({
-            obstacle_id: `DEMO-OBSTACLE-${Date.now()}`,
-            x: 1,
-            y: 10,
-            duration_ticks: 40,
-          })
-        if (index === 3) await api.chaos(15)
+      if (!status.running) {
+        await api.simulation('start')
+        setStatus((prev) => ({ ...prev, running: true }))
       }
-      setToast('Demo scenario complete: jobs, obstacle, and resilience event deployed')
+      const demoActions = [
+        // 1. Goods-to-Person pod retrieval for SKU-A10 -> Pick Station -> OUT-1
+        () => api.createOrder({ sku: 'SKU-A10', quantity: 1, destination_gate: 'OUT-1', urgency: 5 }),
+        // 2. Sorting AMR batch induction
+        () => api.submitJob({ job_type: 'sort_batch', zone: 'SORTING_ZONE', urgency: 4 }),
+        // 3. Scanning AMR audit patrol
+        () => api.submitJob({ job_type: 'audit_checkpoint', urgency: 3 }),
+        // 4. Secondary G2P order for SKU-B10 -> OUT-2
+        () => api.createOrder({ sku: 'SKU-B10', quantity: 1, destination_gate: 'OUT-2', urgency: 4 }),
+        // 5. Secondary Sorting AMR transfer to chute
+        () => api.submitJob({ job_type: 'sort_batch', destination_chute: 'CHUTE-02', urgency: 5 }),
+        // 6. Secondary audit mission
+        () => api.submitJob({ job_type: 'audit_checkpoint', urgency: 2 }),
+      ]
+      for (const [index, action] of demoActions.entries()) {
+        if (index > 0) await pause(350)
+        try {
+          await action()
+        } catch (error) {
+          console.warn(`Demo action ${index + 1} skipped:`, error)
+        }
+      }
+      setToast('Demo active: 6 autonomous AMRs moving across G2P, Sorting, and Audit!')
+      void Promise.all([api.robots().then(setRobots), api.tasks().then(setTasks), api.getOrders().then(setOrders).catch(() => undefined)])
     } catch (error) {
       setToast(error instanceof Error ? `Demo stopped: ${error.message}` : 'Demo scenario stopped')
     } finally {
@@ -428,13 +525,56 @@ export default function App() {
     }
   }
 
+  const connectionBanner = (!backendConnected || socket === 'disconnected') ? (
+    <div className="backend-offline-banner" role="alert">
+      <div className="banner-content">
+        <AlertTriangle size={18} className="banner-icon" />
+        <div className="banner-text">
+          <span className="banner-title">Backend Unreachable:</span> Cannot reach <code>{API_BASE}</code>.
+          <span className="banner-command-hint">
+            Start backend: <code>python -m uvicorn app.main:app --app-dir backend/backend --port 8000</code>
+          </span>
+        </div>
+        <button
+          type="button"
+          className="banner-retry-btn"
+          disabled={isRetrying}
+          onClick={async () => {
+            setIsRetrying(true)
+            await checkHealthAndConnect()
+            setIsRetrying(false)
+          }}
+        >
+          <RefreshCw size={13} className={isRetrying ? 'animate-spin' : ''} />
+          <span>{isRetrying ? 'Checking...' : 'Retry Connection'}</span>
+        </button>
+      </div>
+    </div>
+  ) : null
+
   if (loading) {
     return <LoadingScreen theme={theme} durationMs={5000} onComplete={handleLoadingComplete} />
   }
 
-  if (!launchChoiceMade && !showMapEditor) {
+  if (showMapEditor) {
+    return (
+      <div className="app-shell editor-active" data-theme={theme} style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
+        <WarehouseMapEditor
+          initialMap={activeMap}
+          onLaunch={handleLaunchFromEditor}
+          onCancel={() => {
+            setShowMapEditor(false)
+          }}
+          theme={theme}
+        />
+      </div>
+    )
+  }
+
+  if (!launchChoiceMade) {
     return (
       <div className="app-shell" data-theme={theme}>
+        {connectionBanner}
         <LaunchScreen
           onUseBuiltIn={handleUseBuiltIn}
           onOpenEditor={() => setShowMapEditor(true)}
@@ -447,6 +587,7 @@ export default function App() {
 
   return (
     <div className="app-shell" data-theme={theme}>
+      {connectionBanner}
       <ControlBar
         running={status.running}
         armedState={armedState}
@@ -468,6 +609,12 @@ export default function App() {
         operatorRole={operatorRole ?? 'AUTHORITY'}
         onOpenRoleModal={() => setShowRoleModal(true)}
         onOpenMapEditor={() => setShowMapEditor(true)}
+        activeMapName={activeMapName}
+        gridDimensions={gridDimensions}
+        robotCounts={robotCounts}
+        speed={simSpeed}
+        onSetSpeed={handleSetSpeed}
+        onChangeMap={handleChangeMap}
         onAction={(action) => {
           if (action === 'start') {
             setStatus((prev) => ({ ...prev, running: true }))
@@ -484,7 +631,24 @@ export default function App() {
                   api.tasks().then(setTasks),
                   api.obstacles().then(setObstacles),
                   api.status().then(setStatus),
+                  api.getOrders().then(setOrders).catch(() => []),
+                  api.inventory().then((inv) => setInventory(inv.shelves)).catch(() => null),
+                  api.mapCurrent().then((m) => { if (m) setActiveMap(m) }).catch(() => null),
                 ])
+              } else if (action === 'start') {
+                void api.tasks().then((tList) => {
+                  const hasActive = (tList || []).some(
+                    (t) => t.status !== 'COMPLETED' && t.status !== 'FAILED'
+                  )
+                  if (!hasActive) {
+                    api.createOrder({ sku: 'SKU-A10', quantity: 1, destination_gate: 'OUT-1', urgency: 5 })
+                      .then(() => {
+                        void Promise.all([api.robots().then(setRobots), api.tasks().then(setTasks), api.getOrders().then(setOrders).catch(() => undefined)])
+                      })
+                      .catch(() => undefined)
+                  }
+                }).catch(() => undefined)
+                void api.status().then(setStatus)
               } else {
                 void api.status().then(setStatus)
               }
@@ -511,6 +675,18 @@ export default function App() {
               : 'Mesh telemetry offline — backend disconnected. AMR nodes continuing autonomous decentralized execution.'}
           </span>
           <span className="reconnect-hint">Last authoritative sync: Tick #{lastSyncedTick}</span>
+        </div>
+      )}
+
+      {unfinishedRecoveryCount > 0 && showRecoveryBanner && (
+        <div className="recovery-jobs-banner" role="alert">
+          <AlertCircle size={16} />
+          <span>{unfinishedRecoveryCount} unfinished jobs from a previous session</span>
+          <div className="recovery-actions">
+            <button className="btn-primary" onClick={handleResumeRecovery}>Resume</button>
+            <button className="btn-secondary" onClick={handleDiscardRecovery}>Discard</button>
+            <button className="btn-icon" onClick={() => setShowRecoveryBanner(false)} title="Dismiss">✕</button>
+          </div>
         </div>
       )}
 
@@ -566,6 +742,14 @@ export default function App() {
               <span>Fleet & Tasks</span>
             </button>
             <button
+              className={`side-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+              onClick={() => setActiveTab('orders')}
+              title="Order Fulfillment Pipeline"
+            >
+              <ShoppingCart size={13} />
+              <span>Orders ({orders.length})</span>
+            </button>
+            <button
               className={`side-tab-btn ${activeTab === 'inventory' ? 'active' : ''}`}
               onClick={() => setActiveTab('inventory')}
               title="Decentralized Inventory Ledger"
@@ -603,6 +787,7 @@ export default function App() {
               />
               <TaskPanel
                 tasks={tasks}
+                orders={orders}
                 busy={busy}
                 operatorRole={operatorRole ?? 'AUTHORITY'}
                 simulationRunning={status.running}
@@ -614,8 +799,11 @@ export default function App() {
                   })
                 }
               />
-
             </>
+          )}
+
+          {activeTab === 'orders' && (
+            <OrdersPanel orders={orders} currentTick={status.tick} />
           )}
 
           {activeTab === 'inventory' && (
@@ -689,18 +877,6 @@ export default function App() {
             <X size={14} />
           </button>
         </div>
-      )}
-
-      {showMapEditor && (
-        <WarehouseMapEditor
-          initialMap={activeMap}
-          onLaunch={handleLaunchFromEditor}
-          onCancel={() => {
-            setShowMapEditor(false)
-            if (!activeMap) setLaunchChoiceMade(false)
-          }}
-          theme={theme}
-        />
       )}
 
       <RoleSelectionModal

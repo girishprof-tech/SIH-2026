@@ -24,6 +24,11 @@ class SimStatusOut(BaseModel):
     timestamp_ms: int
     fleet_size: int
     tick_ms: int
+    speed: float = 1.0
+
+
+class SpeedPayload(BaseModel):
+    speed: float = 1.0
 
 
 @router.post("/start", summary="Start simulation telemetry streaming")
@@ -35,10 +40,16 @@ async def start_simulation(request: Request) -> dict:
 
     if orchestrator is None or not orchestrator.is_alive():
         from app.services.fleet_orchestrator import FleetOrchestrator
+        from app.models.world import get_active_map_data
         from app.core.config import get_settings
+        active_map_dict = get_active_map_data()
         cfg = get_settings()
         log.info("SIMULATION_START: Orchestrator was not active; spawning fresh FleetOrchestrator...")
-        orchestrator = FleetOrchestrator(tick_interval_s=cfg.SIM_TICK_MS / 1000.0, max_ticks=0)
+        orchestrator = FleetOrchestrator(
+            map_data=active_map_dict,
+            tick_interval_s=cfg.SIM_TICK_MS / 1000.0,
+            max_ticks=0,
+        )
         orchestrator.start()
         request.app.state.orchestrator = orchestrator
         request.app.state.fleet_mode = "spawned_new_fleet"
@@ -64,8 +75,26 @@ async def pause_simulation(request: Request) -> dict:
     return {"status": "paused", "tick": fleet.tick, "mode": "decentralized_telemetry"}
 
 
+@router.post("/speed", summary="Set simulation tick speed multiplier")
+async def set_speed(payload: SpeedPayload, request: Request) -> dict:
+    speed = max(0.25, min(float(payload.speed), 8.0))
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None and hasattr(orchestrator, "set_speed"):
+        orchestrator.set_speed(speed)
+    request.app.state.simulation_speed = speed
+    log.info(f"SIMULATION_SPEED: Set speed multiplier to {speed}x")
+    return {"status": "ok", "speed": speed}
+
+
 @router.post("/reset", summary="Reset simulation state")
 async def reset_simulation(request: Request) -> dict:
+    import json
+    import time
+    import asyncio
+    from app.models.world import get_active_map_data
+    from app.models.robot import Heading, RobotState, Robot, AMRType
+    from app.services.reservations import clear_all_reservations, register_pod_slots
+
     fleet = request.app.state.fleet_state
     fleet.reset()
     request.app.state.telemetry_streaming_paused = True
@@ -75,6 +104,14 @@ async def reset_simulation(request: Request) -> dict:
     if task_mgr is not None and hasattr(task_mgr, "clear"):
         task_mgr.clear()
 
+    ord_mgr = getattr(request.app.state, "order_manager", None)
+    if ord_mgr is not None and hasattr(ord_mgr, "clear"):
+        ord_mgr.clear()
+
+    clear_all_reservations()
+    if hasattr(fleet, "world") and fleet.world and fleet.world.pod_slots:
+        register_pod_slots(fleet.world.pod_slots)
+
     res_mgr = getattr(request.app.state, "reservation_manager", None)
     if res_mgr is not None and hasattr(res_mgr, "clear"):
         res_mgr.clear()
@@ -83,20 +120,56 @@ async def reset_simulation(request: Request) -> dict:
     if telemetry is not None and hasattr(telemetry, "reset"):
         telemetry.reset()
 
+    # Reseed inventory from active map
+    active_map = get_active_map_data()
+    ledger = getattr(request.app.state, "inventory_ledger", None)
+    if ledger is not None and active_map and hasattr(fleet, "world") and fleet.world:
+        ledger.seed_from_map(active_map, fleet.world)
+
     orchestrator = getattr(request.app.state, "orchestrator", None)
     if orchestrator is not None:
         orchestrator.reset(pause_on_reset=True)
-    else:
-        # Direct reset of logs folder
-        from pathlib import Path
-        log_dir = Path(__file__).resolve().parents[4] / "logs"
-        for log_file in log_dir.glob("robot_*.log"):
+        fleet.robots.clear()
+        for c in orchestrator.robots_config:
+            rid = c["robot_id"]
+            rtype_str = c.get("robot_type", "GOODS_TO_PERSON")
             try:
-                with open(log_file, "w", encoding="utf-8") as f:
-                    pass
+                rtype_enum = AMRType(rtype_str)
             except Exception:
-                pass
-    log.info("SIMULATION_RESET: Telemetry viewer state, fleet processes, tasks, and robot logs reset.")
+                rtype_enum = AMRType.GOODS_TO_PERSON
+            fleet.robots[rid] = Robot(
+                robot_id=rid,
+                x=c["start"][0],
+                y=c["start"][1],
+                heading=Heading.NORTH,
+                state=RobotState.IDLE,
+                battery_pct=100.0,
+                current_task_id=None,
+                priority_score=0.0,
+                last_updated_tick=0,
+                robot_type=rtype_enum,
+            )
+
+    conn_mgr = getattr(request.app.state, "connection_manager", None)
+    if conn_mgr is not None:
+        reset_payload = {
+            "tick": 0,
+            "timestamp": int(time.time() * 1000),
+            "running": False,
+            "robots": fleet.robots_as_dicts(),
+            "tasks": [],
+            "orders": [],
+            "conflicts": [],
+            "obstacles": [],
+        }
+        raw_json = json.dumps(reset_payload)
+        conn_mgr.latest_baseline_json = raw_json
+        try:
+            asyncio.create_task(conn_mgr.broadcast_text(raw_json))
+        except Exception:
+            pass
+
+    log.info("SIMULATION_RESET: Telemetry viewer state, fleet processes, tasks, orders, and inventory reseeded.")
     return {"status": "reset", "tick": 0, "mode": "decentralized_telemetry"}
 
 
@@ -105,12 +178,20 @@ async def get_status(request: Request) -> SimStatusOut:
     from app.core.config import get_settings
     fleet = request.app.state.fleet_state
     cfg = get_settings()
+    speed = 1.0
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None and hasattr(orchestrator, "get_speed"):
+        speed = orchestrator.get_speed()
+    elif hasattr(request.app.state, "simulation_speed"):
+        speed = float(request.app.state.simulation_speed)
+
     return SimStatusOut(
         running=fleet.is_running,
         tick=fleet.tick,
         timestamp_ms=fleet.timestamp_ms,
         fleet_size=len(fleet.robots),
         tick_ms=cfg.SIM_TICK_MS,
+        speed=speed,
     )
 
 
