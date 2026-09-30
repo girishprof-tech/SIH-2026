@@ -354,42 +354,48 @@ function Robot3D({
       m.pausedElapsed = 0
       meshRef.current.position.set(targetWorldX, 0.0, targetWorldZ)
       meshRef.current.rotation.set(0.0, targetHeadingAngle, 0.0)
-    } else if (currentTick > m.lastTick) {
-      // Advance to next tick: smooth physical handover from current visual coordinate
+    } else if (targetWorldX !== m.targetX || targetWorldZ !== m.targetZ || targetHeadingAngle !== m.targetRotation || currentTick > m.lastTick) {
+      // Advance to next tick or target change: smooth physical handover from current visual coordinate
       const currentPhysicalX = meshRef.current.position.x
       const currentPhysicalZ = meshRef.current.position.z
       const jumpDist = Math.hypot(targetWorldX - currentPhysicalX, targetWorldZ - currentPhysicalZ)
 
-      if (jumpDist > 2.5) {
-        // Discontinuity / Teleport: snap start to target
+      if (jumpDist > 8.0) {
+        // True Map Reset / Warp across warehouse: snap start to target
         m.prevX = targetWorldX
+        m.targetX = targetWorldX
         m.prevZ = targetWorldZ
+        m.targetZ = targetWorldZ
         m.prevRotation = targetHeadingAngle
+        m.targetRotation = targetHeadingAngle
+        m.rotationDiff = 0
+        m.tickStartTime = now
+        m.tickDurationMs = tickDuration
+        m.lastTick = currentTick
+        m.isPaused = false
+        m.pausedElapsed = 0
+        meshRef.current.position.set(targetWorldX, 0.0, targetWorldZ)
+        meshRef.current.rotation.set(0.0, targetHeadingAngle, 0.0)
       } else {
-        // Continuous smooth handover with C0 continuity
+        // Continuous smooth handover with C0 continuity from current visual coordinates
         m.prevX = currentPhysicalX
         m.prevZ = currentPhysicalZ
         m.prevRotation = meshRef.current.rotation.y
-      }
-
-      m.targetX = targetWorldX
-      m.targetZ = targetWorldZ
-      m.rotationDiff = shortestAngleDiff(targetHeadingAngle, m.prevRotation)
-      m.targetRotation = targetHeadingAngle
-      m.tickStartTime = now
-      m.tickDurationMs = tickDuration
-      m.lastTick = currentTick
-      m.isPaused = false
-      m.pausedElapsed = 0
-    } else if (targetWorldX !== m.targetX || targetWorldZ !== m.targetZ || targetHeadingAngle !== m.targetRotation) {
-      // Target changed within the same tick (e.g. task injected while paused/idle)
-      if (m.targetX === m.prevX && m.targetZ === m.prevZ) {
         m.targetX = targetWorldX
         m.targetZ = targetWorldZ
         m.rotationDiff = shortestAngleDiff(targetHeadingAngle, m.prevRotation)
         m.targetRotation = targetHeadingAngle
         m.tickStartTime = now
-        m.tickDurationMs = tickDuration
+
+        // If multi-tile step occurred due to WAN burst / latency, scale duration smoothly
+        // so the AMR glides smoothly across the tiles without teleporting or sprinting
+        const effectiveDuration = jumpDist > 1.2
+          ? Math.max(tickDuration, Math.min(jumpDist * (tickDuration * 0.75), tickDuration * 2.5))
+          : tickDuration
+        m.tickDurationMs = effectiveDuration
+        m.lastTick = currentTick
+        m.isPaused = false
+        m.pausedElapsed = 0
       }
     }
 

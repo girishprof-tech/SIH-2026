@@ -22,9 +22,12 @@ LOG_DIR = ROOT_DIR / "logs"
 TELEMETRY_FILE = LOG_DIR / "telemetry_state.json"
 
 
+_IN_MEMORY_LATEST_TELEMETRY: Optional[Dict[str, Any]] = None
+
+
 class TelemetryBus:
     """
-    Collects telemetry events from the multiprocessing telemetry queue
+    Collects telemetry events from the telemetry queue
     and persists the latest fleet state snapshot atomically.
     """
 
@@ -33,13 +36,17 @@ class TelemetryBus:
         self.fleet_size = fleet_size
         self.current_tick: int = 0
         self.robot_states: Dict[str, Dict[str, Any]] = {}
+        self.frames_by_tick: Dict[int, Dict[str, Dict[str, Any]]] = {}
         self.active_conflicts: List[Dict[str, Any]] = []
+        self._last_disk_write: float = 0.0
+        self._last_tick_advance: float = time.time()
         LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     def process_incoming(self) -> Optional[Dict[str, Any]]:
         """
         Drains available telemetry items from queue and updates snapshot.
-        Returns the new TICK_UPDATE if tick advanced or updated, else None.
+        Synchronizes robot ticks so all robots in the fleet advance in lockstep
+        without dropping intermediate movement waypoints or skipping tiles.
         """
         updated = False
         while not self.queue.empty():
@@ -49,18 +56,55 @@ class TelemetryBus:
                 break
 
             rid = frame["robot_id"]
-            self.robot_states[rid] = frame
             tick = frame["tick"]
-            if tick > self.current_tick:
-                self.current_tick = tick
-                self.active_conflicts.clear()
+            self.robot_states[rid] = frame
+
+            if tick not in self.frames_by_tick:
+                self.frames_by_tick[tick] = {}
+            self.frames_by_tick[tick][rid] = frame
 
             if frame.get("conflict"):
                 self.active_conflicts.append(frame["conflict"])
 
             updated = True
 
-        if updated and self.robot_states:
+        if not updated and not self.frames_by_tick:
+            return None
+
+        now = time.time()
+        advanced = False
+
+        # Attempt to advance through completed ticks sequentially
+        while True:
+            next_tick = self.current_tick + 1
+            tick_frames = self.frames_by_tick.get(next_tick, {})
+            # Quorum: all robots in fleet reported for this tick
+            has_quorum = len(tick_frames) >= self.fleet_size
+            # Fallback timeout: if one robot stalled or future ticks have already arrived
+            future_ticks_exist = any(t > next_tick for t in self.frames_by_tick.keys())
+            is_timed_out = (now - self._last_tick_advance) > 0.45 or future_ticks_exist
+
+            if has_quorum or (is_timed_out and len(tick_frames) > 0):
+                # Apply all frames from next_tick to authoritative snapshot
+                for rid, f in tick_frames.items():
+                    self.robot_states[rid] = f
+                self.current_tick = next_tick
+                self._last_tick_advance = now
+                self.active_conflicts.clear()
+                # Clean up expired ticks
+                stale_ticks = [t for t in self.frames_by_tick if t <= next_tick]
+                for st in stale_ticks:
+                    self.frames_by_tick.pop(st, None)
+                advanced = True
+            else:
+                break
+
+        # Initial baseline snapshot at tick 0 before simulation advances
+        global _IN_MEMORY_LATEST_TELEMETRY
+        if not advanced and self.current_tick == 0 and self.robot_states and _IN_MEMORY_LATEST_TELEMETRY is None:
+            advanced = True
+
+        if advanced and self.robot_states:
             payload = self.build_tick_update()
             self.persist_state(payload)
             return payload
@@ -106,7 +150,16 @@ class TelemetryBus:
         }
 
     def persist_state(self, payload: Dict[str, Any]) -> None:
-        """Atomically writes payload to logs/telemetry_state.json."""
+        """Stores payload in memory instantly, and writes to disk at throttled rate."""
+        global _IN_MEMORY_LATEST_TELEMETRY
+        _IN_MEMORY_LATEST_TELEMETRY = payload
+
+        now = time.time()
+        # Throttle disk writes to at most 4 times a second to eliminate container disk queue bottlenecks
+        if (now - self._last_disk_write) < 0.25:
+            return
+        self._last_disk_write = now
+
         tmp_file = LOG_DIR / f"telemetry_state_{os.getpid()}_{time.time_ns()}.tmp"
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
@@ -120,7 +173,7 @@ class TelemetryBus:
             # Direct write fallback
             with open(TELEMETRY_FILE, "w", encoding="utf-8") as f:
                 json.dump(payload, f)
-        except Exception as e:
+        except Exception:
             pass
         finally:
             if tmp_file.exists():
@@ -131,7 +184,10 @@ class TelemetryBus:
 
 
 def read_latest_telemetry() -> Optional[Dict[str, Any]]:
-    """Reads latest telemetry snapshot written by the fleet processes."""
+    """Reads latest telemetry snapshot, prioritizing in-memory cache then disk."""
+    global _IN_MEMORY_LATEST_TELEMETRY
+    if _IN_MEMORY_LATEST_TELEMETRY is not None:
+        return _IN_MEMORY_LATEST_TELEMETRY
     if not TELEMETRY_FILE.exists():
         return None
     try:
@@ -139,3 +195,10 @@ def read_latest_telemetry() -> Optional[Dict[str, Any]]:
             return json.load(f)
     except Exception:
         return None
+
+
+def reset_telemetry_cache() -> None:
+    """Resets in-memory telemetry snapshot cache on fleet restart or reset."""
+    global _IN_MEMORY_LATEST_TELEMETRY
+    _IN_MEMORY_LATEST_TELEMETRY = None
+

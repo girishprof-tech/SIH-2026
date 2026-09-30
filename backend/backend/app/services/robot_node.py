@@ -1746,7 +1746,7 @@ class RobotNode:
             )
             if not nearby_stale:
                 break
-            time.sleep(0.0005)
+            time.sleep(0.002)
 
         # Fail-safe check for unconfirmed peer targeting our intended cell
         if intended_pos != self.robot.position:
@@ -3283,7 +3283,7 @@ def run_robot_process(
             if sleep_time > 0:
                 time.sleep(sleep_time)
             else:
-                time.sleep(0.0005)
+                time.sleep(0.002)
     except Exception as e:
         import traceback
         err_msg = f"FATAL EXCEPTION in {robot_id} at tick {tick}: {e}\n{traceback.format_exc()}"

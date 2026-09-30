@@ -96,6 +96,7 @@ export function useFleetSocket(
   const onInventorySyncRef = useRef(onInventorySync)
   onInventorySyncRef.current = onInventorySync
   const lastTick = useRef<number | null>(null)
+  const skippedTimerRef = useRef<number | null>(null)
 
   // 1-2 Hz timer (500ms = 2 Hz): Throttled UI state synchronization
   useEffect(() => {
@@ -162,6 +163,8 @@ export function useFleetSocket(
             store.obstacles = []
             store.tick = 0
             lastTick.current = 0
+            setSkippedTicks(0)
+            if (skippedTimerRef.current) window.clearTimeout(skippedTimerRef.current)
             onUiSyncRef.current?.(store)
             return
           }
@@ -172,29 +175,45 @@ export function useFleetSocket(
 
           const store = storeRef.current
           const currentTick = Number(update.tick ?? store.tick)
-          if (lastTick.current !== null && currentTick > lastTick.current + 1) {
-            setSkippedTicks(currentTick - lastTick.current - 1)
+
+          if (update.type === 'TICK_UPDATE') {
+            // Full baseline frame on connect/reconnect: synchronize tick anchor without false alert
+            lastTick.current = currentTick
+            setSkippedTicks(0)
+            if (skippedTimerRef.current) window.clearTimeout(skippedTimerRef.current)
+          } else if (lastTick.current !== null && currentTick > lastTick.current + 1) {
+            const lost = currentTick - lastTick.current - 1
+            setSkippedTicks(lost)
+            if (skippedTimerRef.current) window.clearTimeout(skippedTimerRef.current)
+            skippedTimerRef.current = window.setTimeout(() => {
+              setSkippedTicks(0)
+            }, 3000)
+            lastTick.current = currentTick
+          } else {
+            lastTick.current = currentTick
           }
-          lastTick.current = currentTick
 
           const nowPerf = performance.now()
+          const configuredMs = update.tick_ms || update.metrics?.tick_ms_configured || 500
+
           if (store.lastTickArrival && currentTick > (store.lastTickNumber ?? 0)) {
-            const delta = nowPerf - store.lastTickArrival
-            if (delta >= 40 && delta <= 5000) {
-              store.tickIntervalMs = delta
+            const ticksDiff = Math.max(1, currentTick - (store.lastTickNumber ?? 0))
+            const rawDeltaPerTick = (nowPerf - store.lastTickArrival) / ticksDiff
+            if (rawDeltaPerTick >= 40 && rawDeltaPerTick <= 2500) {
+              const prev = store.tickIntervalMs || configuredMs
+              // Smooth jitter with Exponential Moving Average (70% previous, 30% new) to absorb WAN packet burst/delay
+              store.tickIntervalMs = Math.round(prev * 0.7 + rawDeltaPerTick * 0.3)
             }
+          } else if (!store.tickIntervalMs) {
+            store.tickIntervalMs = configuredMs
           }
           store.lastTickArrival = nowPerf
           store.lastTickNumber = currentTick
 
           if (update.tick_ms) {
             store.tick_ms = update.tick_ms
-            if (!store.tickIntervalMs) store.tickIntervalMs = update.tick_ms
           } else if (update.metrics?.tick_ms_configured) {
             store.tick_ms = update.metrics.tick_ms_configured
-            if (!store.tickIntervalMs) store.tickIntervalMs = update.metrics.tick_ms_configured
-          } else if (!store.tickIntervalMs) {
-            store.tickIntervalMs = 500
           }
 
           store.tick = currentTick
@@ -265,8 +284,10 @@ export function useFleetSocket(
     return () => {
       disposed = true
       if (timer) window.clearTimeout(timer)
+      if (skippedTimerRef.current) window.clearTimeout(skippedTimerRef.current)
       socket?.close()
     }
+
   }, [])
 
   return { status, skippedTicks, storeRef }

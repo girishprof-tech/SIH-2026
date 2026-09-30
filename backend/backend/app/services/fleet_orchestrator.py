@@ -323,6 +323,8 @@ class FleetOrchestrator:
                 pass
         t_file = self.log_dir / "telemetry_state.json"
         try:
+            from app.services.telemetry_bus import reset_telemetry_cache
+            reset_telemetry_cache()
             import json
             with open(t_file, "w", encoding="utf-8") as f:
                 json.dump({
@@ -335,6 +337,7 @@ class FleetOrchestrator:
                 }, f)
         except Exception:
             pass
+
 
     def reset(self, pause_on_reset: bool = True) -> None:
         """Fully resets all robot processes back to initial starting bays and battery."""

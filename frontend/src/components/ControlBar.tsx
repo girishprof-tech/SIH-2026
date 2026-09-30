@@ -186,58 +186,8 @@ export function ControlBar({
             <span>Demo</span>
           </button>
         </div>
-
-        {/* Dashboard state: ARMED vs RUNNING vs PAUSED */}
-        {running ? (
-          <div
-            className={`fleet-armed-badge ${armedState === 'RUNNING' ? 'running' : 'armed'}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '9999px',
-              fontSize: '10.5px',
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              background: armedState === 'RUNNING' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-              color: armedState === 'RUNNING' ? '#22c55e' : '#38bdf8',
-              border: `1px solid ${armedState === 'RUNNING' ? 'rgba(34, 197, 94, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
-            }}
-          >
-            <span
-              style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                background: armedState === 'RUNNING' ? '#22c55e' : '#38bdf8',
-                boxShadow: armedState === 'RUNNING' ? '0 0 8px #22c55e' : '0 0 8px #38bdf8',
-              }}
-            />
-            {armedState}
-          </div>
-        ) : (
-          <div
-            className="fleet-armed-badge paused"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '9999px',
-              fontSize: '10.5px',
-              fontWeight: 600,
-              background: 'rgba(148, 163, 184, 0.12)',
-              color: '#94a3b8',
-              border: '1px solid rgba(148, 163, 184, 0.25)',
-            }}
-          >
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#94a3b8' }} />
-            PAUSED
-          </div>
-        )}
       </div>
+
 
       {/* ── Right: Robot Counts, Readouts & View Controls ── */}
       <div className="topbar-section right-section">
@@ -247,11 +197,15 @@ export function ControlBar({
         </div>
 
         {skipped > 0 && (
-          <div className="loss-alert">
+          <div
+            className="loss-alert"
+            title={`Network Jitter: ${skipped} tick(s) delayed over WAN (auto-dismisses)`}
+          >
             <AlertTriangle size={13} />
             <span>{skipped} lost</span>
           </div>
         )}
+
 
         {onToggleFullscreen && (
           <button

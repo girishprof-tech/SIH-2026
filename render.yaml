@@ -10,7 +10,7 @@ services:
       - key: PORT
         value: 8000
       - key: SIM_TICK_MS
-        value: 500
+        value: 350
       - key: LOG_LEVEL
         value: INFO
       - key: AUTO_IDLE_AUDIT
