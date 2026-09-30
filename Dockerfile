@@ -41,6 +41,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 ENV PYTHONPATH="/app:/app/backend:/app/backend/backend:/app/conflict-engine"
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
+ENV USE_THREADED_WORKERS=1
 
 EXPOSE 8000
 

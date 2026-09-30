@@ -21,3 +21,5 @@ services:
         value: "false"
       - key: ENABLE_LOAD_WEIGHT_PAUSE
         value: "false"
+      - key: USE_THREADED_WORKERS
+        value: "1"

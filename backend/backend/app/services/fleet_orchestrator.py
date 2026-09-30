@@ -124,19 +124,41 @@ class FleetOrchestrator:
         self.log_dir = log_dir or (ROOT_DIR / "logs")
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        self.telemetry_queue: mp.Queue = mp.Queue()
-        self.stop_event: mp.Event = mp.Event()
-        self.pause_event: mp.Event = mp.Event()
-        self.start_event: mp.Event = mp.Event()
-        self.speed_multiplier: mp.Value = mp.Value('d', 1.0)
-        self.ready_barrier: Optional[mp.Barrier] = None
+        # Cloud / Render memory-guard: Use threads to stay safely under 512MB RAM when running in cloud/containers
+        is_cloud = bool(
+            os.environ.get("RENDER")
+            or os.environ.get("RAILWAY_STATIC_URL")
+            or os.environ.get("FLY_APP_NAME")
+            or os.environ.get("DOCKER_CONTAINER")
+            or os.environ.get("CONTAINER")
+        )
+        self.use_threads = os.environ.get("USE_THREADED_WORKERS", "1" if is_cloud else "0") == "1"
+
+        if self.use_threads:
+            import queue
+            self.telemetry_queue = queue.Queue()
+            self.stop_event = threading.Event()
+            self.pause_event = threading.Event()
+            self.start_event = threading.Event()
+            class SpeedHolder:
+                def __init__(self, val: float = 1.0): self.value = float(val)
+            self.speed_multiplier = SpeedHolder(1.0)
+            self.ready_barrier = None
+        else:
+            self.telemetry_queue: mp.Queue = mp.Queue()
+            self.stop_event: mp.Event = mp.Event()
+            self.pause_event: mp.Event = mp.Event()
+            self.start_event: mp.Event = mp.Event()
+            self.speed_multiplier: mp.Value = mp.Value('d', 1.0)
+            self.ready_barrier: Optional[mp.Barrier] = None
+
         # Distinct UDP ports for real decentralized networking (e.g. 9000 + N for robots, 9601..9603 for stations)
         self.peer_ports: Dict[str, int] = {
             cfg["robot_id"]: 9000 + i for i, cfg in enumerate(self.robots_config, start=1)
         }
         self.peer_ports.update(DEFAULT_STATION_PORTS)
-        self.processes: List[mp.Process] = []
-        self.station_processes: List[mp.Process] = []
+        self.processes: List[Any] = []
+        self.station_processes: List[Any] = []
         self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
         self._bus_thread: Optional[threading.Thread] = None
 
@@ -167,18 +189,24 @@ class FleetOrchestrator:
                 ]
 
         total_nodes = len(self.robots_config) + len(station_specs)
-        self.ready_barrier = mp.Barrier(total_nodes + 1)
-        self.start_event = mp.Event()
+        if self.use_threads:
+            self.ready_barrier = threading.Barrier(total_nodes + 1)
+            self.start_event = threading.Event()
+        else:
+            self.ready_barrier = mp.Barrier(total_nodes + 1)
+            self.start_event = mp.Event()
 
-        # 3. Spawn one OS process per robot
+        # 3. Spawn workers per robot (threads for low-memory cloud, processes for dedicated bare-metal)
         fleet_roster = {cfg["robot_id"]: cfg.get("robot_type", "GOODS_TO_PERSON") for cfg in self.robots_config}
         app_cfg = get_settings()
+        worker_cls = threading.Thread if self.use_threads else mp.Process
+
         for cfg in self.robots_config:
             rid = cfg["robot_id"]
             enable_audit = cfg.get("enable_idle_audit", app_cfg.AUTO_IDLE_AUDIT)
-            p = mp.Process(
+            p = worker_cls(
                 target=run_robot_process,
-                name=f"Process-{rid}",
+                name=f"Worker-{rid}",
                 args=(
                     rid,
                     cfg["start"],
@@ -212,15 +240,16 @@ class FleetOrchestrator:
 
             p.start()
             self.processes.append(p)
-            print(f"  -> Spawned Process for {rid} (PID={p.pid})")
+            pid_str = f"PID={getattr(p, 'pid', os.getpid())}" if not self.use_threads else f"ThreadID={p.ident}"
+            print(f"  -> Spawned Worker for {rid} ({pid_str})")
 
-        # 4. Spawn fixed-infrastructure Station processes if enabled
+        # 4. Spawn fixed-infrastructure Station workers if enabled
         if station_specs:
-            print("[FleetOrchestrator] Spawning fixed station processes (Import, Export, Authority)...")
+            print("[FleetOrchestrator] Spawning fixed station workers (Import, Export, Authority)...")
             for st_id, st_role, st_pos, st_port in station_specs:
-                sp = mp.Process(
+                sp = worker_cls(
                     target=run_station_process,
-                    name=f"Process-{st_id}",
+                    name=f"Worker-{st_id}",
                     args=(
                         st_id,
                         st_role,
@@ -240,7 +269,8 @@ class FleetOrchestrator:
                 )
                 sp.start()
                 self.station_processes.append(sp)
-                print(f"  -> Spawned Station Process for {st_id} (PID={sp.pid}) on UDP port {st_port}")
+                pid_str = f"PID={getattr(sp, 'pid', os.getpid())}" if not self.use_threads else f"ThreadID={sp.ident}"
+                print(f"  -> Spawned Station Worker for {st_id} ({pid_str}) on UDP port {st_port}")
 
         # Synchronize child processes: Wait until every process has finished initialization
         try:
@@ -315,15 +345,31 @@ class FleetOrchestrator:
 
         current_speed = self.get_speed()
         # Re-initialize events and queue
-        self.stop_event = mp.Event()
-        self.pause_event = mp.Event()
-        self.start_event = mp.Event()
-        self.speed_multiplier = mp.Value('d', current_speed)
-        if pause_on_reset:
-            self.pause_event.set()
-        self.telemetry_queue = mp.Queue()
-        self.processes = []
-        self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
+        if self.use_threads:
+            import queue
+            self.stop_event = threading.Event()
+            self.pause_event = threading.Event()
+            self.start_event = threading.Event()
+            class SpeedHolder:
+                def __init__(self, val: float = 1.0): self.value = float(val)
+            self.speed_multiplier = SpeedHolder(current_speed)
+            if pause_on_reset:
+                self.pause_event.set()
+            self.telemetry_queue = queue.Queue()
+            self.processes = []
+            self.station_processes = []
+            self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
+        else:
+            self.stop_event = mp.Event()
+            self.pause_event = mp.Event()
+            self.start_event = mp.Event()
+            self.speed_multiplier = mp.Value('d', current_speed)
+            if pause_on_reset:
+                self.pause_event.set()
+            self.telemetry_queue = mp.Queue()
+            self.processes = []
+            self.station_processes = []
+            self.bus = TelemetryBus(self.telemetry_queue, fleet_size=len(self.robots_config))
 
         self.start()
         print("[FleetOrchestrator] Robot processes restarted in initial state.")
@@ -365,9 +411,10 @@ class FleetOrchestrator:
                 pass
         if self._bus_thread and self._bus_thread.is_alive():
             self._bus_thread.join(timeout=1.0)
+
         for p in self.processes:
             p.join(timeout=0.2)
-            if p.is_alive() and p.pid:
+            if not self.use_threads and p.is_alive() and getattr(p, "pid", None):
                 try:
                     if sys.platform == "win32":
                         import subprocess
@@ -385,7 +432,7 @@ class FleetOrchestrator:
 
         for sp in self.station_processes:
             sp.join(timeout=0.2)
-            if sp.is_alive() and sp.pid:
+            if not self.use_threads and sp.is_alive() and getattr(sp, "pid", None):
                 try:
                     if sys.platform == "win32":
                         import subprocess
