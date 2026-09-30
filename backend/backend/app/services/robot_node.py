@@ -173,6 +173,7 @@ class RobotNode:
         self.robot_type = robot_type
 
         # Step 1: Gate autonomous sources behind explicit flags, default OFF from config
+        self._explicit_auto_idle_audit = (auto_idle_audit is True)
         if auto_idle_audit is not None:
             self.auto_idle_audit = bool(auto_idle_audit)
         elif enable_idle_audit is not None:
@@ -1246,10 +1247,11 @@ class RobotNode:
                         self.log(f"[Tick {tick}] All charging stations occupied or contested; holding at {self.robot.position}.")
                         return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
 
-        # Check idle background audit patrol trigger (SCANNING_AUDIT robots, or legacy test robots)
+        # Check idle background audit patrol trigger (SCANNING_AUDIT robots only, or explicit test override)
         is_audit_eligible = (
             self.robot_type == "SCANNING_AUDIT"
-            or (not self.robot_id.startswith("AMR-G2P") and not self.robot_id.startswith("AMR-SORT") and self.robot_type != "SORTING")
+            or self.robot_id.startswith("AUDIT-")
+            or getattr(self, "_explicit_auto_idle_audit", False)
         )
         if self.auto_idle_audit and is_audit_eligible and self.fsm.state == RobotState.IDLE and not self.task:
             self.idle_ticks += 1
@@ -3186,11 +3188,14 @@ def run_robot_process(
 
     if start_barrier is not None:
         try:
-            start_barrier.wait()
+            start_barrier.wait(timeout=3.0)
         except Exception:
             pass
-    elif start_event is not None:
-        start_event.wait()
+    if start_event is not None:
+        try:
+            start_event.wait(timeout=3.0)
+        except Exception:
+            pass
 
     if stop_event.is_set():
         node.close()

@@ -31,7 +31,14 @@ def get_fleet_peer_ports(orchestrator: Optional[Any] = None) -> Dict[str, int]:
     """Resolves UDP ports for fleet AMRs."""
     if orchestrator and hasattr(orchestrator, "peer_ports") and orchestrator.peer_ports:
         return dict(orchestrator.peer_ports)
-    return {f"AMR-{i:02d}": 9000 + i for i in range(1, 11)}
+    ports = {
+        "G2P-01": 9001, "G2P-02": 9002, "G2P-03": 9003, "G2P-04": 9004, "G2P-05": 9005,
+        "SORT-01": 9006, "SORT-02": 9007, "SORT-03": 9008,
+        "AUDIT-01": 9009, "AUDIT-02": 9010,
+    }
+    for i in range(1, 11):
+        ports[f"AMR-{i:02d}"] = 9000 + i
+    return ports
 
 
 def build_task_assignment_envelope(
@@ -587,24 +594,37 @@ class TaskManager:
         task_type_str = task.task_type.value if hasattr(task.task_type, "value") else str(getattr(task, "task_type", "STANDARD"))
         eligible_rids = []
         try:
-            from app.models.world import get_active_world
-            active_w = get_active_world()
-            for r_spec in active_w.robots:
-                rid = r_spec.robot_id
-                rtype = r_spec.robot_type
+            from app.models.world import get_active_map_data
+            map_dict = get_active_map_data()
+            r_specs = map_dict.get("robot_starts", []) if map_dict else []
+            for r_spec in r_specs:
+                rid = r_spec.get("id")
+                rtype = r_spec.get("type") or r_spec.get("robot_type", "GOODS_TO_PERSON")
                 if task_type_str in ("RETRIEVE_POD", "RETURN_POD", "PICK_ITEM") and rtype != "GOODS_TO_PERSON":
                     continue
                 if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT", "TRANSFER_TO_SORTATION") and rtype != "SORTING":
                     continue
                 if task_type_str == "AUDIT" and rtype != "SCANNING_AUDIT":
                     continue
-                if rid in ports:
+                if rid and rid in ports:
                     eligible_rids.append(rid)
         except Exception:
             pass
 
         if not eligible_rids:
-            eligible_rids = list(ports.keys())
+            for rid in ports.keys():
+                if rid.endswith("_STATION"):
+                    continue
+                if task_type_str in ("RETRIEVE_POD", "RETURN_POD", "PICK_ITEM") and (rid.startswith("SORT-") or rid.startswith("AUDIT-")):
+                    continue
+                if task_type_str in ("INDUCT_BATCH", "DECANT_TO_CHUTE", "CONSOLIDATE_EXPORT", "TRANSFER_TO_SORTATION") and (rid.startswith("G2P-") or rid.startswith("AUDIT-")):
+                    continue
+                if task_type_str == "AUDIT" and (rid.startswith("G2P-") or rid.startswith("SORT-")):
+                    continue
+                eligible_rids.append(rid)
+
+        if not eligible_rids:
+            eligible_rids = [p for p in ports.keys() if not p.endswith("_STATION")]
 
         broadcast_count = 0
         for rid in eligible_rids:

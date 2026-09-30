@@ -136,11 +136,32 @@ export function useFleetSocket(
             const store = storeRef.current
             store.robots.clear()
             store.robotsArray = []
+            if (Array.isArray(update.robots) && update.robots.length > 0) {
+              update.robots.forEach((r: any) => {
+                const rob: Robot = {
+                  robot_id: r.id || r.robot_id,
+                  position: r.position ? { x: Number(r.position.x), y: Number(r.position.y) } : { x: Number(r.x || 0), y: Number(r.y || 0) },
+                  heading: r.heading || 'NORTH',
+                  state: r.state || 'IDLE',
+                  battery_pct: Number(r.battery_pct ?? r.battery ?? 100),
+                  current_task_id: r.current_task_id || null,
+                  priority_score: Number(r.priority_score ?? 0),
+                  wait_ticks_so_far: Number(r.wait_ticks_so_far ?? 0),
+                  last_updated_tick: Number(r.last_updated_tick ?? 0),
+                  robot_type: r.robot_type || 'GOODS_TO_PERSON',
+                  carrying_pod_id: r.carrying_pod_id,
+                  path: r.path || [],
+                }
+                store.robots.set(rob.robot_id, rob)
+                store.robotsArray.push(rob)
+              })
+            }
             store.tasks = []
             store.orders = []
             store.conflicts = []
             store.obstacles = []
-            lastTick.current = null
+            store.tick = 0
+            lastTick.current = 0
             onUiSyncRef.current?.(store)
             return
           }

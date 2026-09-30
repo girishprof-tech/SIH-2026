@@ -475,11 +475,14 @@ def run_station_process(
     )
     if start_barrier is not None:
         try:
-            start_barrier.wait()
+            start_barrier.wait(timeout=3.0)
         except Exception:
             pass
-    elif start_event is not None:
-        start_event.wait()
+    if start_event is not None:
+        try:
+            start_event.wait(timeout=3.0)
+        except Exception:
+            pass
 
     if stop_event.is_set():
         station.close()

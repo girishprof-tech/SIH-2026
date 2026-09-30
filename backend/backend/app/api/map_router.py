@@ -174,6 +174,9 @@ async def launch_map(payload: Dict[str, Any], request: Request) -> Dict[str, Any
         else:
             request.app.state.orchestrator = None
 
+        fleet_state.is_running = True
+        request.app.state.telemetry_streaming_paused = False
+
         # 9. Save to current_map.json for persistent state
         MAPS_DIR.mkdir(parents=True, exist_ok=True)
         with open(CURRENT_MAP_FILE, "w", encoding="utf-8") as f:
@@ -189,6 +192,7 @@ async def launch_map(payload: Dict[str, Any], request: Request) -> Dict[str, Any
                     "width": new_world.width,
                     "height": new_world.height,
                     "robots_count": len(robot_starts),
+                    "robots": fleet_state.robots_as_dicts(),
                     "timestamp_ms": int(time.time() * 1000),
                 }))
             except Exception as e:

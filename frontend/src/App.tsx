@@ -332,7 +332,10 @@ export default function App() {
     if (store.metrics) setMetrics(store.metrics)
     if (store.inventory) setInventory(store.inventory)
     if (store.sortation_chutes) {
-      setWorld((prev) => ({ ...prev, sortation_chutes: store.sortation_chutes }))
+      setWorld((prev) => {
+        if (prev.sortation_chutes === store.sortation_chutes) return prev
+        return { ...prev, sortation_chutes: store.sortation_chutes }
+      })
     }
     if (store.halow_status) {
       setHaLowStatus(store.halow_status)
@@ -367,6 +370,13 @@ export default function App() {
         },
       ].slice(-50)
     )
+  }, [])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      api.getOrders().then(setOrders).catch(() => {})
+    }, 2000)
+    return () => clearInterval(timer)
   }, [])
 
   const { status: socket, skippedTicks, storeRef } = useFleetSocket(handleUiSync, handleInventorySync)
@@ -788,6 +798,10 @@ export default function App() {
               <TaskPanel
                 tasks={tasks}
                 orders={orders}
+                onOrderPlaced={() => {
+                  void api.getOrders().then(setOrders).catch(() => {})
+                  void api.tasks().then(setTasks).catch(() => {})
+                }}
                 busy={busy}
                 operatorRole={operatorRole ?? 'AUTHORITY'}
                 simulationRunning={status.running}
@@ -795,6 +809,7 @@ export default function App() {
                 onJob={(body) =>
                   run(() => api.submitJob(body), 'Mission queued').then((res) => {
                     void api.tasks().then(setTasks)
+                    void api.getOrders().then(setOrders).catch(() => {})
                     return res
                   })
                 }

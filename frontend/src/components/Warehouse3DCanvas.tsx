@@ -262,105 +262,51 @@ function Robot3D({
   const initialZ = robot.position.y - offsetZ
   const initialRotation = HEADING_ROTATION[robot.heading] ?? 0
 
-  const motionRef = useRef<RobotMotionState>({
-    prevX: initialX,
-    prevZ: initialZ,
-    prevRotation: initialRotation,
-    targetX: initialX,
-    targetZ: initialZ,
-    targetRotation: initialRotation,
-    rotationDiff: 0,
-    tickStartTime: performance.now(),
-    tickDurationMs: storeRef?.current?.tickIntervalMs || storeRef?.current?.tick_ms || 500,
-    lastTick: storeRef?.current?.tick ?? robot.last_updated_tick ?? 0,
-    hasInitialized: false,
-    isPaused: false,
-    pausedElapsed: 0,
-  })
-
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!meshRef.current) return
     const live = storeRef?.current?.robots.get(robot.robot_id) ?? robot
-    const currentTick = storeRef?.current?.tick ?? live.last_updated_tick ?? 0
-    const tickDuration = storeRef?.current?.tickIntervalMs || storeRef?.current?.tick_ms || 500
-    const now = performance.now()
     const isFleetRunning = storeRef?.current?.fleet_status?.running !== false
 
     const targetWorldX = live.position.x - offsetX
     const targetWorldZ = live.position.y - offsetZ
     const targetHeadingAngle = HEADING_ROTATION[live.heading] ?? 0
 
-    const m = motionRef.current
+    const currentX = meshRef.current.position.x
+    const currentZ = meshRef.current.position.z
+    const dx = targetWorldX - currentX
+    const dz = targetWorldZ - currentZ
+    const dist = Math.hypot(dx, dz)
 
-    // Pause/Resume handling: freeze elapsed progression while paused
-    if (!isFleetRunning) {
-      if (!m.isPaused) {
-        m.isPaused = true
-        m.pausedElapsed = Math.min(now - m.tickStartTime, m.tickDurationMs)
-      }
-    } else if (m.isPaused) {
-      m.isPaused = false
-      m.tickStartTime = now - m.pausedElapsed
+    // Teleport / Map Reset check (> 3.5 grid cells snap immediately)
+    if (dist > 3.5) {
+      meshRef.current.position.x = targetWorldX
+      meshRef.current.position.z = targetWorldZ
+      meshRef.current.rotation.y = targetHeadingAngle
+      return
     }
 
-    if (!m.hasInitialized) {
-      m.prevX = targetWorldX
-      m.targetX = targetWorldX
-      m.prevZ = targetWorldZ
-      m.targetZ = targetWorldZ
-      m.prevRotation = targetHeadingAngle
-      m.targetRotation = targetHeadingAngle
-      m.rotationDiff = 0
-      m.tickStartTime = now
-      m.tickDurationMs = tickDuration
-      m.lastTick = currentTick
-      m.hasInitialized = true
-    } else if (currentTick < m.lastTick) {
-      // Teleport on reset: snap immediately to live coordinate
-      m.prevX = targetWorldX
-      m.targetX = targetWorldX
-      m.prevZ = targetWorldZ
-      m.targetZ = targetWorldZ
-      m.prevRotation = targetHeadingAngle
-      m.targetRotation = targetHeadingAngle
-      m.rotationDiff = 0
-      m.tickStartTime = now
-      m.tickDurationMs = tickDuration
-      m.lastTick = currentTick
-      m.isPaused = false
-      m.pausedElapsed = 0
-    } else if (currentTick > m.lastTick) {
-      // Advance to next tick: previous target becomes current start
-      m.prevX = m.targetX
-      m.prevZ = m.targetZ
-      m.prevRotation = (m.prevRotation + m.rotationDiff) % (2 * Math.PI)
+    // Dynamic smoothing: fluid movement that drives smoothly across grid cells
+    const lerpRate = isFleetRunning ? 8.5 : 14.0
+    const lerpFactor = 1.0 - Math.exp(-lerpRate * delta)
+    meshRef.current.position.x = THREE.MathUtils.lerp(currentX, targetWorldX, lerpFactor)
+    meshRef.current.position.z = THREE.MathUtils.lerp(currentZ, targetWorldZ, lerpFactor)
 
-      // Teleport check: if discontinuous jump (> 2.5 grid cells), snap
-      const jumpDist = Math.hypot(targetWorldX - m.prevX, targetWorldZ - m.prevZ)
-      if (jumpDist > 2.5) {
-        m.prevX = targetWorldX
-        m.prevZ = targetWorldZ
-      }
+    // Smooth heading rotation slerp
+    const currentRot = meshRef.current.rotation.y
+    const rotDiff = shortestAngleDiff(targetHeadingAngle, currentRot)
+    const rotFactor = 1.0 - Math.exp(-12.0 * delta)
+    meshRef.current.rotation.y = currentRot + rotDiff * rotFactor
 
-      m.targetX = targetWorldX
-      m.targetZ = targetWorldZ
-      m.rotationDiff = shortestAngleDiff(targetHeadingAngle, m.prevRotation)
-      m.targetRotation = targetHeadingAngle
-      m.tickStartTime = now
-      m.tickDurationMs = tickDuration
-      m.lastTick = currentTick
-      m.isPaused = false
-      m.pausedElapsed = 0
+    // Physical industrial walking/driving suspension dynamics:
+    // When driving (dist > 0.03), add subtle suspension bobbing and chassis roll
+    if (dist > 0.03 && isFleetRunning) {
+      const timeSec = state.clock.getElapsedTime() * 14.0
+      meshRef.current.position.y = Math.sin(timeSec) * 0.005 // 5mm mechanical suspension bob
+      meshRef.current.rotation.z = Math.sin(timeSec * 0.5) * 0.006 // subtle chassis roll
+    } else {
+      meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, 0.0, 0.2)
+      meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, 0.0, 0.2)
     }
-
-    // Alpha interpolation parameter clamped 0..1 (never overshoots on stalls)
-    const elapsed = m.isPaused ? m.pausedElapsed : now - m.tickStartTime
-    const alpha = Math.min(1.0, Math.max(0.0, elapsed / Math.max(1, m.tickDurationMs)))
-
-    meshRef.current.position.x = m.prevX + (m.targetX - m.prevX) * alpha
-    meshRef.current.position.z = m.prevZ + (m.targetZ - m.prevZ) * alpha
-    meshRef.current.position.y = 0.0 // Grounded flush with floor (wheel lowest vertex = 0.0)
-    meshRef.current.rotation.y = m.prevRotation + m.rotationDiff * alpha
 
     // Sync carried payload visibility in real-time
     if (carriedPodRef.current) {

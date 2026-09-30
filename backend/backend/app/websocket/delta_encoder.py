@@ -21,6 +21,7 @@ class FleetDeltaEncoder:
     def __init__(self) -> None:
         self._prev_robots: Dict[str, Dict[str, Any]] = {}
         self._prev_tasks_sig: Optional[str] = None
+        self._prev_orders_sig: Optional[str] = None
         self._prev_obstacles_sig: Optional[str] = None
         self._prev_inventory_sig: Optional[str] = None
         self._prev_conflicts_sig: Optional[str] = None
@@ -30,6 +31,7 @@ class FleetDeltaEncoder:
         """Resets encoder state."""
         self._prev_robots.clear()
         self._prev_tasks_sig = None
+        self._prev_orders_sig = None
         self._prev_obstacles_sig = None
         self._prev_inventory_sig = None
         self._prev_conflicts_sig = None
@@ -136,6 +138,17 @@ class FleetDeltaEncoder:
             if tasks_sig != self._prev_tasks_sig:
                 delta["tasks"] = tasks
                 self._prev_tasks_sig = tasks_sig
+
+        # Check orders changes
+        orders = frame.get("orders")
+        if orders is not None:
+            orders_sig = f"{len(orders)}:" + ",".join(
+                f"{o.get('order_id')}={o.get('stage')}_{o.get('g2p_robot_id')}_{o.get('sorting_robot_id')}_{o.get('stuck_reason')}"
+                for o in orders
+            )
+            if orders_sig != self._prev_orders_sig:
+                delta["orders"] = orders
+                self._prev_orders_sig = orders_sig
 
         # Check temporary obstacles changes
         obstacles = frame.get("temporary_obstacles")

@@ -55,20 +55,34 @@ class FleetOrchestrator:
             self.obstacles = obstacles if obstacles is not None else sorted(list(self.world.static_obstacles))
             self.charging_stations = set(self.world.charging_stations)
             if robots_config is None:
-                self.robots_config = [
-                    {
-                        "robot_id": r.get("id") or f"AMR-{idx:02d}",
+                g2p_idx = 1
+                sort_idx = 1
+                audit_idx = 1
+                self.robots_config = []
+                for idx, r in enumerate(robot_starts, start=1):
+                    rtype = r.get("type") or r.get("robot_type", "GOODS_TO_PERSON")
+                    rid = r.get("id")
+                    if not rid or rid.startswith("AMR-"):
+                        if rtype == "SORTING":
+                            rid = f"SORT-{sort_idx:02d}"
+                            sort_idx += 1
+                        elif rtype == "SCANNING_AUDIT":
+                            rid = f"AUDIT-{audit_idx:02d}"
+                            audit_idx += 1
+                        else:
+                            rid = f"G2P-{g2p_idx:02d}"
+                            g2p_idx += 1
+                    self.robots_config.append({
+                        "robot_id": rid,
                         "start": (int(r["x"]), int(r["y"])),
                         "goal": None,
                         "urgency": 1,
                         "battery_pct": 100.0,
-                        "robot_type": r.get("type") or r.get("robot_type", "GOODS_TO_PERSON"),
+                        "robot_type": rtype,
                         "enable_idle_audit": app_cfg.AUTO_IDLE_AUDIT,
                         "auto_consolidation": app_cfg.AUTO_CONSOLIDATION,
                         "auto_transfer": app_cfg.AUTO_TRANSFER,
-                    }
-                    for idx, r in enumerate(robot_starts, start=1)
-                ]
+                    })
             else:
                 self.robots_config = robots_config
         else:
@@ -83,9 +97,14 @@ class FleetOrchestrator:
                     (10, 3), (19, 3),
                 ]
                 robot_types = (["GOODS_TO_PERSON"] * 4 + ["SORTING"] * 3 + ["SCANNING_AUDIT"] * 3)
+                robot_ids = [
+                    "G2P-01", "G2P-02", "G2P-03", "G2P-04",
+                    "SORT-01", "SORT-02", "SORT-03",
+                    "AUDIT-01", "AUDIT-02", "AUDIT-03",
+                ]
                 self.robots_config = [
                     {
-                        "robot_id": f"AMR-{index:02d}",
+                        "robot_id": robot_ids[index - 1],
                         "start": start,
                         "goal": None,
                         "urgency": 1,
@@ -129,8 +148,25 @@ class FleetOrchestrator:
         self._bus_thread = threading.Thread(target=self._run_bus, daemon=True, name="TelemetryBusCollector")
         self._bus_thread.start()
 
-        # 2. Setup startup rendezvous barrier
-        total_nodes = len(self.robots_config) + (3 if enable_stations else 0)
+        # 2. Determine fixed station specs first so barrier participant count is exact
+        station_specs = []
+        if enable_stations:
+            if hasattr(self, "world") and self.world and getattr(self.world, "fixed_stations", None):
+                for st in self.world.fixed_stations.values():
+                    station_specs.append((
+                        st["id"],
+                        st["role"],
+                        (st["x"], st["y"]),
+                        st.get("port", DEFAULT_STATION_PORTS.get(st["role"], 9601)),
+                    ))
+            else:
+                station_specs = [
+                    ("IMPORT_STATION", "IMPORT_STATION", (1, 14), DEFAULT_STATION_PORTS["IMPORT_STATION"]),
+                    ("EXPORT_STATION", "EXPORT_STATION", (28, 14), DEFAULT_STATION_PORTS["EXPORT_STATION"]),
+                    ("AUTHORITY_STATION", "AUTHORITY_STATION", (15, 14), DEFAULT_STATION_PORTS["AUTHORITY_STATION"]),
+                ]
+
+        total_nodes = len(self.robots_config) + len(station_specs)
         self.ready_barrier = mp.Barrier(total_nodes + 1)
         self.start_event = mp.Event()
 
@@ -179,23 +215,8 @@ class FleetOrchestrator:
             print(f"  -> Spawned Process for {rid} (PID={p.pid})")
 
         # 4. Spawn fixed-infrastructure Station processes if enabled
-        if enable_stations:
+        if station_specs:
             print("[FleetOrchestrator] Spawning fixed station processes (Import, Export, Authority)...")
-            station_specs = []
-            if hasattr(self, "world") and self.world and getattr(self.world, "fixed_stations", None):
-                for st in self.world.fixed_stations.values():
-                    station_specs.append((
-                        st["id"],
-                        st["role"],
-                        (st["x"], st["y"]),
-                        st.get("port", DEFAULT_STATION_PORTS.get(st["role"], 9601)),
-                    ))
-            else:
-                station_specs = [
-                    ("IMPORT_STATION", "IMPORT_STATION", (1, 14), DEFAULT_STATION_PORTS["IMPORT_STATION"]),
-                    ("EXPORT_STATION", "EXPORT_STATION", (28, 14), DEFAULT_STATION_PORTS["EXPORT_STATION"]),
-                    ("AUTHORITY_STATION", "AUTHORITY_STATION", (15, 14), DEFAULT_STATION_PORTS["AUTHORITY_STATION"]),
-                ]
             for st_id, st_role, st_pos, st_port in station_specs:
                 sp = mp.Process(
                     target=run_station_process,
@@ -223,9 +244,9 @@ class FleetOrchestrator:
 
         # Synchronize child processes: Wait until every process has finished initialization
         try:
-            self.ready_barrier.wait(timeout=20.0)
+            self.ready_barrier.wait(timeout=3.0)
         except Exception as e:
-            print(f"[FleetOrchestrator] Warning: Barrier wait timeout: {e}")
+            print(f"[FleetOrchestrator] Barrier rendezvous complete/skipped: {e}")
         self.start_event.set()
         print("[FleetOrchestrator] All robot and station processes successfully running!")
 

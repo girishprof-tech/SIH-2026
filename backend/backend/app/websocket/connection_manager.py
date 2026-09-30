@@ -124,7 +124,7 @@ class ConnectionManager:
         try:
             await asyncio.wait_for(
                 websocket.send_text(payload),
-                timeout=0.05,  # 50ms max — never block simulation for a slow client
+                timeout=1.0,  # 1.0s max — safe margin without stalling simulation
             )
         except (WebSocketDisconnect, asyncio.TimeoutError, RuntimeError, Exception):
             dead.add(websocket)

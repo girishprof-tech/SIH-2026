@@ -17,6 +17,7 @@ import type { JobRequest, JobResponse, World, CatalogProduct, OrderInfo, OrderSt
 interface TaskPanelProps {
   tasks: any[]
   orders?: OrderInfo[]
+  onOrderPlaced?: () => void
   onJob: (body: JobRequest) => Promise<JobResponse>
   busy: boolean
   operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
@@ -37,6 +38,7 @@ const ORDER_STAGES: OrderStage[] = [
 export function TaskPanel({
   tasks,
   orders = [],
+  onOrderPlaced,
   onJob,
   busy,
   operatorRole = 'AUTHORITY',
@@ -60,10 +62,12 @@ export function TaskPanel({
   const [selectedShelf, setSelectedShelf] = useState<string>('')
   const [auditUrgency, setAuditUrgency] = useState<number>(2)
 
-  // Load Catalog
+  // Load Catalog without aggressive flickering
   useEffect(() => {
     let mounted = true
-    setLoadingCatalog(true)
+    if (catalog.length === 0) {
+      setLoadingCatalog(true)
+    }
     api
       .catalog()
       .then((data) => {
@@ -83,7 +87,7 @@ export function TaskPanel({
     return () => {
       mounted = false
     }
-  }, [world])
+  }, [world?.width, world?.height])
 
   // Destination gates from world
   const exitGates = useMemo(() => {
@@ -137,6 +141,9 @@ export function TaskPanel({
     setSuccessMsg(null)
 
     try {
+      if (!simulationRunning) {
+        api.simulation('start').catch(() => {})
+      }
       const res = await api.createOrder({
         sku: selectedSku,
         quantity,
@@ -144,8 +151,11 @@ export function TaskPanel({
         urgency,
       })
       setSuccessMsg(`Order ${res.order_id || res.task_id} placed! Autonomous G2P & Sorting AMRs dispatched.`)
-      // Refresh catalog stock
+      // Refresh catalog stock and immediate orders
       api.catalog().then(setCatalog).catch(() => {})
+      if (onOrderPlaced) {
+        onOrderPlaced()
+      }
     } catch (err: any) {
       setError(err instanceof ApiError ? err.message : err?.message || 'Failed to create order.')
     } finally {
@@ -165,6 +175,9 @@ export function TaskPanel({
     setSuccessMsg(null)
 
     try {
+      if (!simulationRunning) {
+        api.simulation('start').catch(() => {})
+      }
       const res = await onJob({
         job_type: 'audit_checkpoint',
         shelf_id: selectedShelf,
@@ -285,8 +298,8 @@ export function TaskPanel({
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            opacity: simulationRunning ? 1 : 0.6,
-            pointerEvents: simulationRunning ? 'auto' : 'none',
+            opacity: 1,
+            pointerEvents: 'auto',
           }}
         >
           {/* Product Dropdown */}
@@ -298,7 +311,7 @@ export function TaskPanel({
                 setSelectedSku(e.target.value)
                 setQuantity(1)
               }}
-              disabled={loadingCatalog || busy || submitting}
+              disabled={submitting || busy}
               style={{
                 padding: '6px 8px',
                 borderRadius: '6px',
@@ -427,8 +440,8 @@ export function TaskPanel({
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            opacity: simulationRunning ? 1 : 0.6,
-            pointerEvents: simulationRunning ? 'auto' : 'none',
+            opacity: 1,
+            pointerEvents: 'auto',
           }}
         >
           <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>

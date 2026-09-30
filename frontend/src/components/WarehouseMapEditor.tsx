@@ -316,25 +316,34 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'da
       setChargers((prev) => [...prev, { id: cid, x, y, assigned_robot_id: null }])
     }
 
-    // 5. Robots (4d: Distinct Categories with AMR-R..C..)
+    // 5. Robots (Distinct Categories with G2P-XX, SORT-XX, AUDIT-XX)
     else if (activeTool === 'g2p_robot') {
-      const rid = `AMR-R${rY}C${cX}`
-      setRobotStarts((prev) => [
-        ...prev,
-        { id: rid, type: 'GOODS_TO_PERSON', x, y, battery_pct: 100.0, urgency: 1 },
-      ])
+      setRobotStarts((prev) => {
+        const count = prev.filter((r) => r.type === 'GOODS_TO_PERSON').length + 1
+        const rid = `G2P-${String(count).padStart(2, '0')}`
+        return [
+          ...prev,
+          { id: rid, type: 'GOODS_TO_PERSON', x, y, battery_pct: 100.0, urgency: 1 },
+        ]
+      })
     } else if (activeTool === 'sorting_robot') {
-      const rid = `AMR-R${rY}C${cX}`
-      setRobotStarts((prev) => [
-        ...prev,
-        { id: rid, type: 'SORTING', x, y, battery_pct: 100.0, urgency: 1 },
-      ])
+      setRobotStarts((prev) => {
+        const count = prev.filter((r) => r.type === 'SORTING').length + 1
+        const rid = `SORT-${String(count).padStart(2, '0')}`
+        return [
+          ...prev,
+          { id: rid, type: 'SORTING', x, y, battery_pct: 100.0, urgency: 1 },
+        ]
+      })
     } else if (activeTool === 'audit_robot') {
-      const rid = `AMR-R${rY}C${cX}`
-      setRobotStarts((prev) => [
-        ...prev,
-        { id: rid, type: 'SCANNING_AUDIT', x, y, battery_pct: 100.0, urgency: 1 },
-      ])
+      setRobotStarts((prev) => {
+        const count = prev.filter((r) => r.type === 'SCANNING_AUDIT').length + 1
+        const rid = `AUDIT-${String(count).padStart(2, '0')}`
+        return [
+          ...prev,
+          { id: rid, type: 'SCANNING_AUDIT', x, y, battery_pct: 100.0, urgency: 1 },
+        ]
+      })
     }
 
     // 6. Sorting Chute (4c: feeds exit gate)

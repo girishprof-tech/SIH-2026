@@ -450,6 +450,7 @@ async def lifespan(app: FastAPI):
     # ── Decentralized Fleet Telemetry Forwarder (Pure Telemetry Viewer) ────────
     from app.services.telemetry_bus import read_latest_telemetry
     from app.websocket.delta_encoder import FleetDeltaEncoder
+    from app.models.task import TaskStatus, TaskType
     import asyncio
     import json
 
@@ -505,10 +506,10 @@ async def lifespan(app: FastAPI):
                                 "pickup": {"x": t.pickup_x, "y": t.pickup_y},
                                 "dropoff": {"x": t.dropoff_x, "y": t.dropoff_y},
                                 "urgency": t.urgency,
-                                "status": t.status.value,
+                                "status": t.status.value if hasattr(t.status, "value") else str(t.status),
                                 "assigned_robot_id": t.assigned_robot_id,
                                 "created_tick": t.created_tick,
-                                "task_type": t.task_type.value if hasattr(t.task_type, "value") else str(t.task_type),
+                                "task_type": t.task_type.value if hasattr(t.task_type, "value") else str(t.task_type) if t.task_type is not None else "STANDARD",
                                 "target_shelf_id": getattr(t, "target_shelf_id", None),
                                 "return_to_home": getattr(t, "return_to_home", True),
                                 "lease_expires_tick": getattr(t, "lease_expires_tick", None),
@@ -529,7 +530,7 @@ async def lifespan(app: FastAPI):
                         ]
                         data["metrics"] = telemetry.snapshot()
                         has_active_tasks = any(
-                            t.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, "COMPLETED", "FAILED")
+                            str(getattr(t.status, "value", t.status)) not in ("COMPLETED", "FAILED")
                             for t in task_manager.all_tasks().values()
                         ) or any(
                             r.current_task_id is not None or r.state in (RobotState.EN_ROUTE_PICKUP, RobotState.PICKING, RobotState.EN_ROUTE_DROPOFF, RobotState.DROPPING, RobotState.LIFTING, RobotState.LOWERING)
@@ -563,7 +564,7 @@ async def lifespan(app: FastAPI):
                                             order_manager.on_at_pick_station(ord_obj.shelf_id or "", sid, fleet_state.tick)
                             for t in task_manager.all_tasks().values():
                                 oid = getattr(t, "order_id", None)
-                                if oid and t.status in (TaskStatus.COMPLETED, "COMPLETED"):
+                                if oid and str(getattr(t.status, "value", t.status)) == "COMPLETED":
                                     ttype = str(getattr(t, "task_type", ""))
                                     if "CONSOLIDATE" in ttype:
                                         order_manager.on_shipped(oid, fleet_state.tick)
@@ -573,9 +574,14 @@ async def lifespan(app: FastAPI):
                                         if chute_id:
                                             order_manager.on_in_chute(oid, chute_id, fleet_state.tick)
                             order_manager.update_stuck_reasons(fleet_state.tick)
-                            data["orders"] = [o.to_dict() for o in order_manager.all_orders()]
                         except Exception as e:
                             log.debug("Order tracking update error: %s", e)
+
+                        try:
+                            data["orders"] = [o.to_dict() for o in order_manager.all_orders()]
+                        except Exception as e:
+                            log.debug("Order serialization error: %s", e)
+                            data["orders"] = []
 
                         full_json = json.dumps(data, separators=(",", ":"))
                         connection_manager.latest_baseline_json = full_json
@@ -586,7 +592,7 @@ async def lifespan(app: FastAPI):
                             delta_json = json.dumps(delta, separators=(",", ":"))
                             await connection_manager.broadcast_telemetry(full_json, delta_json)
             except Exception as e:
-                log.debug("Telemetry forwarder error: %s", e)
+                log.exception("Telemetry forwarder error: %s", e)
             await asyncio.sleep(0.04)
 
     forwarder_task = asyncio.create_task(_telemetry_forwarder(), name="telemetry_forwarder")

@@ -1391,7 +1391,7 @@
   ],
   "robot_starts": [
     {
-      "id": "AMR-01",
+      "id": "G2P-01",
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 4,
@@ -1399,7 +1399,7 @@
       "urgency": 3
     },
     {
-      "id": "AMR-02",
+      "id": "G2P-02",
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 7,
@@ -1407,7 +1407,7 @@
       "urgency": 2
     },
     {
-      "id": "AMR-03",
+      "id": "G2P-03",
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 10,
@@ -1415,7 +1415,7 @@
       "urgency": 4
     },
     {
-      "id": "AMR-04",
+      "id": "G2P-04",
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 13,
@@ -1423,7 +1423,7 @@
       "urgency": 1
     },
     {
-      "id": "AMR-05",
+      "id": "G2P-05",
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 16,
@@ -1431,7 +1431,7 @@
       "urgency": 2
     },
     {
-      "id": "AMR-06",
+      "id": "SORT-01",
       "type": "SORTING",
       "x": 27,
       "y": 4,
@@ -1439,7 +1439,7 @@
       "urgency": 3
     },
     {
-      "id": "AMR-07",
+      "id": "SORT-02",
       "type": "SORTING",
       "x": 27,
       "y": 7,
@@ -1447,7 +1447,7 @@
       "urgency": 2
     },
     {
-      "id": "AMR-08",
+      "id": "SORT-03",
       "type": "SORTING",
       "x": 27,
       "y": 10,
@@ -1455,7 +1455,7 @@
       "urgency": 4
     },
     {
-      "id": "AMR-09",
+      "id": "AUDIT-01",
       "type": "SCANNING_AUDIT",
       "x": 10,
       "y": 3,
@@ -1463,7 +1463,7 @@
       "urgency": 1
     },
     {
-      "id": "AMR-10",
+      "id": "AUDIT-02",
       "type": "SCANNING_AUDIT",
       "x": 19,
       "y": 3,

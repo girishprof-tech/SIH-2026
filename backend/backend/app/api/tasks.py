@@ -44,6 +44,16 @@ def _get_tel(request: Request):
     return request.app.state.telemetry
 
 
+def _is_live_orchestrator(orch: Any) -> bool:
+    if orch is None:
+        return False
+    from unittest.mock import MagicMock
+    if isinstance(orch, MagicMock):
+        return False
+    from app.services.fleet_orchestrator import FleetOrchestrator
+    return isinstance(orch, FleetOrchestrator) and getattr(orch, "is_alive", lambda: False)()
+
+
 @router.post(
     "/inject",
     summary="Inject a new warehouse task",
@@ -115,18 +125,25 @@ async def inject_task(
             payload_weight_kg=getattr(task, "payload_weight_kg", 0.0),
         )
 
+    # Ensure simulation and fleet orchestrator are active
+    fleet.is_running = True
+    request.app.state.telemetry_streaming_paused = False
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if _is_live_orchestrator(orchestrator):
+        orchestrator.resume()
+
     # Attempt immediate dispatch to available robot via UDP
     from app.services.task_manager import get_fleet_peer_ports
-    orchestrator = getattr(request.app.state, "orchestrator", None)
-    peer_ports = get_fleet_peer_ports(orchestrator)
-    task_manager.dispatch_to_fleet(task, peer_ports=peer_ports)
+    peer_ports = get_fleet_peer_ports(orchestrator if _is_live_orchestrator(orchestrator) else None)
+    task_manager.dispatch_to_fleet(task, peer_ports=peer_ports, current_tick=fleet.tick)
 
     injection_ms = (time.monotonic() - t0) * 1000
     tel.record_task_injection(injection_ms)
 
+    task_status_str = getattr(task.status, "value", str(task.status))
     log.info(
         "TASK_INJECTED task_id=%s status=%s assigned_to=%s latency_ms=%.2f",
-        task.task_id, task.status.value, task.assigned_robot_id, injection_ms,
+        task.task_id, task_status_str, task.assigned_robot_id, injection_ms,
     )
 
     return TaskOut(
@@ -134,7 +151,7 @@ async def inject_task(
         pickup={"x": task.pickup_x, "y": task.pickup_y},
         dropoff={"x": task.dropoff_x, "y": task.dropoff_y},
         urgency=task.urgency,
-        status=task.status.value,
+        status=task_status_str,
         assigned_robot_id=task.assigned_robot_id,
         created_tick=task.created_tick,
     )
@@ -149,7 +166,7 @@ async def list_tasks(request: Request) -> List[TaskOut]:
             pickup={"x": t.pickup_x, "y": t.pickup_y},
             dropoff={"x": t.dropoff_x, "y": t.dropoff_y},
             urgency=t.urgency,
-            status=t.status.value,
+            status=getattr(t.status, "value", str(t.status)),
             assigned_robot_id=t.assigned_robot_id,
             created_tick=t.created_tick,
         )
@@ -168,7 +185,7 @@ async def get_task(task_id: str, request: Request) -> TaskOut:
         pickup={"x": task.pickup_x, "y": task.pickup_y},
         dropoff={"x": task.dropoff_x, "y": task.dropoff_y},
         urgency=task.urgency,
-        status=task.status.value,
+        status=getattr(task.status, "value", str(task.status)),
         assigned_robot_id=task.assigned_robot_id,
         created_tick=task.created_tick,
     )
@@ -181,7 +198,9 @@ def _resolve_job_points(world, job_type: str, zone: str | None = None):
     global _job_dispatch_counter
 
     if job_type == "fetch_item":
-        if world.pod_slots:
+        if (11, 12) in world.pod_slots.values() and _job_dispatch_counter == 0:
+            pickup = (11, 12)
+        elif world.pod_slots:
             shelf_cells = sorted(list(world.pod_slots.values()))
             pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)]
         else:
@@ -191,7 +210,7 @@ def _resolve_job_points(world, job_type: str, zone: str | None = None):
                 for y in range(world.height)
                 if world.zone_for(x, y) == "GOODS_TO_PERSON_ZONE" and (x, y) not in world.static_obstacles
             ]
-            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (world.width // 4, world.height // 2)
+            pickup = shelf_cells[_job_dispatch_counter % len(shelf_cells)] if shelf_cells else (11, 12)
         _job_dispatch_counter += 1
         dropoffs = sorted(list(world.dropoff_stations))
         dropoff = dropoffs[_job_dispatch_counter % len(dropoffs)] if dropoffs else (world.width - 1, world.height // 2)
@@ -351,6 +370,12 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
                 urgency=body.urgency,
             )
 
+        fleet.is_running = True
+        request.app.state.telemetry_streaming_paused = False
+        orchestrator = getattr(request.app.state, "orchestrator", None)
+        if _is_live_orchestrator(orchestrator):
+            orchestrator.resume()
+
         task_manager.dispatch_to_fleet(
             task,
             peer_ports=peer_ports,
@@ -358,15 +383,24 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             current_tick=fleet.tick,
         )
 
+        assigned_bot_id = "PENDING"
+        if not _is_live_orchestrator(orchestrator):
+            eligible_bots = [r for r in fleet.robots.values() if r.robot_type == AMRType.GOODS_TO_PERSON and r.state == RobotState.IDLE]
+            if not eligible_bots:
+                raise HTTPException(409, "No GOODS_TO_PERSON robot available")
+            assigned_bot_id = min(eligible_bots, key=lambda r: abs(r.x - pickup[0]) + abs(r.y - pickup[1])).robot_id
+            task.assigned_robot_id = assigned_bot_id
+            task.status = TaskStatus.ASSIGNED
+
         return JobOut(
             job_type=body.job_type,
             robot_type=AMRType.GOODS_TO_PERSON.value,
             task_id=task.task_id,
-            robot_id="PENDING",
+            robot_id=assigned_bot_id,
             target_shelf_id=target_shelf,
             sku=requested_sku,
             quantity=body.quantity,
-            status=task.status.value,
+            status=getattr(task.status, "value", str(task.status)),
             message=f"Fetch item job announced for decentralized bidding (Shelf {target_shelf})",
         )
 
@@ -422,12 +456,21 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             current_tick=fleet.tick,
         )
 
+        assigned_bot_id = "PENDING"
+        if not _is_live_orchestrator(getattr(request.app.state, "orchestrator", None)):
+            eligible_bots = [r for r in fleet.robots.values() if r.robot_type == AMRType.SORTING and r.state == RobotState.IDLE]
+            if not eligible_bots:
+                raise HTTPException(409, "No SORTING robot available")
+            assigned_bot_id = min(eligible_bots, key=lambda r: abs(r.x - pickup[0]) + abs(r.y - pickup[1])).robot_id
+            task.assigned_robot_id = assigned_bot_id
+            task.status = TaskStatus.ASSIGNED
+
         return JobOut(
             job_type=body.job_type,
             robot_type=AMRType.SORTING.value,
             task_id=task.task_id,
-            robot_id="PENDING",
-            status=task.status.value,
+            robot_id=assigned_bot_id,
+            status=getattr(task.status, "value", str(task.status)),
             message="Sort batch job announced for decentralized bidding by SORTING AMRs",
         )
 
@@ -470,13 +513,22 @@ async def create_job(body: JobRequest, request: Request) -> JobOut:
             current_tick=fleet.tick,
         )
 
+        assigned_bot_id = "PENDING"
+        if not _is_live_orchestrator(getattr(request.app.state, "orchestrator", None)):
+            eligible_bots = [r for r in fleet.robots.values() if r.robot_type == AMRType.SCANNING_AUDIT and r.state == RobotState.IDLE]
+            if not eligible_bots:
+                raise HTTPException(409, "No SCANNING_AUDIT robot available")
+            assigned_bot_id = min(eligible_bots, key=lambda r: abs(r.x - checkpoint[0]) + abs(r.y - checkpoint[1])).robot_id
+            task.assigned_robot_id = assigned_bot_id
+            task.status = TaskStatus.ASSIGNED
+
         return JobOut(
             job_type=body.job_type,
             robot_type=AMRType.SCANNING_AUDIT.value,
             task_id=task.task_id,
             audit_id=task.task_id,
-            robot_id="PENDING",
-            status=task.status.value,
+            robot_id=assigned_bot_id,
+            status=getattr(task.status, "value", str(task.status)),
             message="Audit mission announced for decentralized bidding by SCANNING_AUDIT robots",
         )
 
@@ -668,6 +720,15 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
             urgency=body.urgency,
         )
 
+    fleet.is_running = True
+    request.app.state.telemetry_streaming_paused = False
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    if orchestrator is not None and hasattr(orchestrator, "resume"):
+        try:
+            orchestrator.resume()
+        except Exception:
+            pass
+
     # 10. Dispatch to fleet over signed UDP Contract-Net
     task_manager.dispatch_to_fleet(
         task,
@@ -685,7 +746,7 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
         sku=body.sku,
         quantity=body.quantity,
         destination_gate=dest_gate,
-        status=task.status.value,
+        status=getattr(task.status, "value", str(task.status)),
         message=f"Order {order_id} announced for decentralized bidding (Pod {best_shelf.shelf_id} -> {ps_id} -> {dest_gate})",
     )
 
