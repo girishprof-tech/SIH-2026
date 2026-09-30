@@ -971,48 +971,83 @@ async def health() -> dict:
     }
 
 
-# ── Frontend Visualizer & Health Landing Page ───────────────────────────────────
-@app.get("/", include_in_schema=False)
-@app.get("/simulator", include_in_schema=False)
-async def serve_simulator() -> Response:
-    """Serve the primary fleet visualizer status landing page directly from backend."""
-    index_file = Path(__file__).resolve().parent / "index.html"
-    if index_file.is_file():
-        return FileResponse(index_file, media_type="text/html")
-    return HTMLResponse(
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <title>SIH2026 Fleet Telemetry Backend</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 48px; }
-                .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px; max-width: 640px; margin: 0 auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
-                h1 { color: #38bdf8; margin-top: 0; font-size: 1.75rem; }
-                p { color: #94a3b8; line-height: 1.6; }
-                ul { list-style: none; padding: 0; }
-                li { margin: 12px 0; }
-                a { color: #38bdf8; text-decoration: none; font-weight: 500; }
-                a:hover { text-decoration: underline; }
-                code { background: #0f172a; padding: 4px 8px; border-radius: 6px; color: #a5f3fc; font-family: monospace; }
-                .status-badge { display: inline-block; background: #065f46; color: #6ee7b7; padding: 4px 10px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="status-badge">ONLINE • PURE TELEMETRY VIEWER</div>
-                <h1>SIH2026 Edge-AI Fleet Coordination</h1>
-                <p>Autonomous AMR nodes run in independent OS processes, communicating peer-to-peer over UDP sockets with cryptographic HMAC verification and ReplayGuard.</p>
-                <ul>
-                    <li>📄 <strong>Interactive API Docs:</strong> <a href="/docs">/docs</a></li>
-                    <li>🩺 <strong>System Health:</strong> <a href="/health">/health</a></li>
-                    <li>📡 <strong>Live Telemetry Stream:</strong> <code>ws://localhost:8000/ws/fleet</code></li>
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
-    )
+# ── Frontend Visualizer & Production SPA Serving ──────────────────────────────
+from fastapi.staticfiles import StaticFiles
+
+def find_frontend_dist() -> Optional[Path]:
+    candidates = [
+        ROOT_DIR / "frontend" / "dist",
+        Path(__file__).resolve().parents[3] / "frontend" / "dist",
+        Path(__file__).resolve().parents[4] / "frontend" / "dist",
+        Path("/app/frontend/dist"),
+        Path("/app/dist"),
+        Path(__file__).resolve().parent / "dist",
+    ]
+    for c in candidates:
+        if c.is_dir() and (c / "index.html").is_file():
+            return c
+    return None
+
+frontend_dist = find_frontend_dist()
+if frontend_dist:
+    log.info("Production frontend bundle detected at %s. Serving unified UI.", frontend_dist)
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend_assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str) -> Response:
+        if full_path.startswith(("api", "docs", "redoc", "openapi.json", "health", "ws")):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        target_file = frontend_dist / full_path
+        if full_path and target_file.is_file():
+            return FileResponse(target_file)
+        index_file = frontend_dist / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file)
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+else:
+    @app.get("/", include_in_schema=False)
+    @app.get("/simulator", include_in_schema=False)
+    async def serve_simulator() -> Response:
+        """Serve fallback landing page when frontend bundle is not built."""
+        index_file = Path(__file__).resolve().parent / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file, media_type="text/html")
+        return HTMLResponse(
+            """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <title>SIH2026 Fleet Telemetry Backend</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 48px; }
+                    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px; max-width: 640px; margin: 0 auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
+                    h1 { color: #38bdf8; margin-top: 0; font-size: 1.75rem; }
+                    p { color: #94a3b8; line-height: 1.6; }
+                    ul { list-style: none; padding: 0; }
+                    li { margin: 12px 0; }
+                    a { color: #38bdf8; text-decoration: none; font-weight: 500; }
+                    a:hover { text-decoration: underline; }
+                    code { background: #0f172a; padding: 4px 8px; border-radius: 6px; color: #a5f3fc; font-family: monospace; }
+                    .status-badge { display: inline-block; background: #065f46; color: #6ee7b7; padding: 4px 10px; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="status-badge">ONLINE • PURE TELEMETRY VIEWER</div>
+                    <h1>SIH2026 Edge-AI Fleet Coordination</h1>
+                    <p>Autonomous AMR nodes run in independent OS processes, communicating peer-to-peer over UDP sockets with cryptographic HMAC verification and ReplayGuard.</p>
+                    <ul>
+                        <li>📄 <strong>Interactive API Docs:</strong> <a href="/docs">/docs</a></li>
+                        <li>🩺 <strong>System Health:</strong> <a href="/health">/health</a></li>
+                        <li>📡 <strong>Live Telemetry Stream:</strong> <code>ws://localhost:8000/ws/fleet</code></li>
+                    </ul>
+                </div>
+            </body>
+            </html>
+            """
+        )
 
 

@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  fleet-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sih2026_fleet_system
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - SIM_TICK_MS=500
+      - LOG_LEVEL=INFO
+      - ENABLE_LOAD_WEIGHT_PAUSE=false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

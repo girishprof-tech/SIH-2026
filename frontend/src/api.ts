@@ -1,6 +1,10 @@
 import type { HealthStatus, JobRequest, JobResponse, Metrics, Robot, SimulationStatus, Task, TempObstacle, World } from './types'
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+export const API_BASE = import.meta.env.VITE_API_BASE ?? (
+  typeof window !== 'undefined' && (window.location.port === '5173' || window.location.port === '5174')
+    ? 'http://localhost:8000'
+    : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000')
+)
 
 let currentOperatorRole = 'AUTHORITY'
 
@@ -67,5 +71,14 @@ export const api = {
   recoveryDiscard: () => request<{ discarded_count: number; message: string }>('/api/tasks/recovery/discard', { method: 'POST' }),
 }
 
-
-export const wsUrl = () => (import.meta.env.VITE_WS_URL ?? API_BASE.replace(/^http/, 'ws') + '/ws/fleet')
+export const wsUrl = () => {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL
+  if (typeof window !== 'undefined') {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    if (window.location.port === '5173' || window.location.port === '5174') {
+      return `${proto}//${window.location.hostname}:8000/ws/fleet`
+    }
+    return `${proto}//${window.location.host}/ws/fleet`
+  }
+  return API_BASE.replace(/^http/, 'ws') + '/ws/fleet'
+}

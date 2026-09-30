@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0.0",
   "name": "Standard 30x30 Test Warehouse",
-  "description": "Custom 30x30 layout designed in Warehouse Map Editor",
+  "description": "Built-in baseline fulfillment map with 4 storage banks, 8 chutes, and 10 AMRs",
   "grid": {
     "width": 30,
     "height": 30,
-    "cell_size_m": 1
+    "cell_size_m": 1.0
   },
   "blocked_cells": [],
   "shelves": [
@@ -14,1759 +14,1120 @@
       "x": 4,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B10": 18,
-        "SKU-E20": 20,
-        "SKU-C10": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A02",
       "x": 5,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A20": 17,
-        "SKU-E10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A03",
       "x": 6,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A10": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A04",
       "x": 7,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F20": 15,
-        "SKU-D10": 17,
-        "SKU-A20": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A05",
       "x": 8,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F10": 14,
-        "SKU-C20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A06",
       "x": 9,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-E20": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A07",
       "x": 11,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D20": 11,
-        "SKU-B10": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A08",
       "x": 12,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D10": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A09",
       "x": 13,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C20": 24,
-        "SKU-A10": 11,
-        "SKU-D20": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A10",
       "x": 14,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C10": 23,
-        "SKU-F20": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A11",
       "x": 15,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B20": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A12",
       "x": 16,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B10": 21,
-        "SKU-E20": 23,
-        "SKU-C10": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A13",
       "x": 17,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A20": 20,
-        "SKU-E10": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A14",
       "x": 18,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A15",
       "x": 20,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F10": 17,
-        "SKU-C20": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A16",
       "x": 21,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-E20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A17",
       "x": 22,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-E10": 15,
-        "SKU-B20": 17,
-        "SKU-F10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A18",
       "x": 23,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D20": 14,
-        "SKU-B10": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A19",
       "x": 24,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D10": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A20",
       "x": 25,
       "y": 6,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C20": 12,
-        "SKU-A10": 14,
-        "SKU-D20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A21",
       "x": 4,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D20": 20,
-        "SKU-B10": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A22",
       "x": 5,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A23",
       "x": 6,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C20": 18,
-        "SKU-A10": 20,
-        "SKU-D20": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A24",
       "x": 7,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C10": 17,
-        "SKU-F20": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A25",
       "x": 8,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A26",
       "x": 9,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B10": 15,
-        "SKU-E20": 17,
-        "SKU-C10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A27",
       "x": 11,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A10": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A28",
       "x": 12,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F20": 12,
-        "SKU-D10": 14,
-        "SKU-A20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A29",
       "x": 13,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F10": 11,
-        "SKU-C20": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A30",
       "x": 14,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-E20": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A31",
       "x": 15,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-E10": 24,
-        "SKU-B20": 11,
-        "SKU-F10": 13
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A32",
       "x": 16,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D20": 23,
-        "SKU-B10": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A33",
       "x": 17,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-D10": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A34",
       "x": 18,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-C20": 21,
-        "SKU-A10": 23,
-        "SKU-D20": 10
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A35",
       "x": 20,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B20": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A36",
       "x": 21,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-B10": 18,
-        "SKU-E20": 20,
-        "SKU-C10": 22
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A37",
       "x": 22,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A20": 17,
-        "SKU-E10": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A38",
       "x": 23,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-A10": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A39",
       "x": 24,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F20": 15,
-        "SKU-D10": 17,
-        "SKU-A20": 19
-      }
+      "bank": "A"
     },
     {
       "id": "POD-A40",
       "x": 25,
       "y": 7,
       "capacity": 4,
-      "bank": "A",
-      "stock": {
-        "SKU-F10": 14,
-        "SKU-C20": 16
-      }
+      "bank": "A"
     },
     {
       "id": "POD-B01",
       "x": 4,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B02",
       "x": 5,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B10": 12,
-        "SKU-E20": 14,
-        "SKU-C10": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B03",
       "x": 6,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A20": 11,
-        "SKU-E10": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B04",
       "x": 7,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A10": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B05",
       "x": 8,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F20": 24,
-        "SKU-D10": 11,
-        "SKU-A20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B06",
       "x": 9,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F10": 23,
-        "SKU-C20": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B07",
       "x": 11,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E10": 21,
-        "SKU-B20": 23,
-        "SKU-F10": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B08",
       "x": 12,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D20": 20,
-        "SKU-B10": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B09",
       "x": 13,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D10": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B10",
       "x": 14,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-C20": 18,
-        "SKU-A10": 20,
-        "SKU-D20": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B11",
       "x": 15,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-C10": 17,
-        "SKU-F20": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B12",
       "x": 16,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B20": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B13",
       "x": 17,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B10": 15,
-        "SKU-E20": 17,
-        "SKU-C10": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B14",
       "x": 18,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A20": 14,
-        "SKU-E10": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B15",
       "x": 20,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F20": 12,
-        "SKU-D10": 14,
-        "SKU-A20": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B16",
       "x": 21,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F10": 11,
-        "SKU-C20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B17",
       "x": 22,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E20": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B18",
       "x": 23,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E10": 24,
-        "SKU-B20": 11,
-        "SKU-F10": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B19",
       "x": 24,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D20": 23,
-        "SKU-B10": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B20",
       "x": 25,
       "y": 11,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D10": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B21",
       "x": 4,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E10": 15,
-        "SKU-B20": 17,
-        "SKU-F10": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B22",
       "x": 5,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D20": 14,
-        "SKU-B10": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B23",
       "x": 6,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D10": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B24",
       "x": 7,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-C20": 12,
-        "SKU-A10": 14,
-        "SKU-D20": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B25",
       "x": 8,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-C10": 11,
-        "SKU-F20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B26",
       "x": 9,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B20": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B27",
       "x": 11,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A20": 23,
-        "SKU-E10": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B28",
       "x": 12,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A10": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B29",
       "x": 13,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F20": 21,
-        "SKU-D10": 23,
-        "SKU-A20": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B30",
       "x": 14,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F10": 20,
-        "SKU-C20": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B31",
       "x": 15,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E20": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B32",
       "x": 16,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-E10": 18,
-        "SKU-B20": 20,
-        "SKU-F10": 22
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B33",
       "x": 17,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D20": 17,
-        "SKU-B10": 19
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B34",
       "x": 18,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-D10": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B35",
       "x": 20,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-C10": 14,
-        "SKU-F20": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B36",
       "x": 21,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B37",
       "x": 22,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-B10": 12,
-        "SKU-E20": 14,
-        "SKU-C10": 16
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B38",
       "x": 23,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A20": 11,
-        "SKU-E10": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B39",
       "x": 24,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-A10": 10
-      }
+      "bank": "B"
     },
     {
       "id": "POD-B40",
       "x": 25,
       "y": 12,
       "capacity": 4,
-      "bank": "B",
-      "stock": {
-        "SKU-F20": 24,
-        "SKU-D10": 11,
-        "SKU-A20": 13
-      }
+      "bank": "B"
     },
     {
       "id": "POD-C01",
       "x": 4,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C10": 23,
-        "SKU-F20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C02",
       "x": 5,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B20": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C03",
       "x": 6,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B10": 21,
-        "SKU-E20": 23,
-        "SKU-C10": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C04",
       "x": 7,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A20": 20,
-        "SKU-E10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C05",
       "x": 8,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A10": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C06",
       "x": 9,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-F20": 18,
-        "SKU-D10": 20,
-        "SKU-A20": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C07",
       "x": 11,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E20": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C08",
       "x": 12,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E10": 15,
-        "SKU-B20": 17,
-        "SKU-F10": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C09",
       "x": 13,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D20": 14,
-        "SKU-B10": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C10",
       "x": 14,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D10": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C11",
       "x": 15,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C20": 12,
-        "SKU-A10": 14,
-        "SKU-D20": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C12",
       "x": 16,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C10": 11,
-        "SKU-F20": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C13",
       "x": 17,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C14",
       "x": 18,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B10": 24,
-        "SKU-E20": 11,
-        "SKU-C10": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C15",
       "x": 20,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C16",
       "x": 21,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-F20": 21,
-        "SKU-D10": 23,
-        "SKU-A20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C17",
       "x": 22,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-F10": 20,
-        "SKU-C20": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C18",
       "x": 23,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E20": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C19",
       "x": 24,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E10": 18,
-        "SKU-B20": 20,
-        "SKU-F10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C20",
       "x": 25,
       "y": 16,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D20": 17,
-        "SKU-B10": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C21",
       "x": 4,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C22",
       "x": 5,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E10": 24,
-        "SKU-B20": 11,
-        "SKU-F10": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C23",
       "x": 6,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D20": 23,
-        "SKU-B10": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C24",
       "x": 7,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C25",
       "x": 8,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C20": 21,
-        "SKU-A10": 23,
-        "SKU-D20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C26",
       "x": 9,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C10": 20,
-        "SKU-F20": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C27",
       "x": 11,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B10": 18,
-        "SKU-E20": 20,
-        "SKU-C10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C28",
       "x": 12,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A20": 17,
-        "SKU-E10": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C29",
       "x": 13,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A10": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C30",
       "x": 14,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-F20": 15,
-        "SKU-D10": 17,
-        "SKU-A20": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C31",
       "x": 15,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-F10": 14,
-        "SKU-C20": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C32",
       "x": 16,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E20": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C33",
       "x": 17,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-E10": 12,
-        "SKU-B20": 14,
-        "SKU-F10": 16
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C34",
       "x": 18,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-D20": 11,
-        "SKU-B10": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C35",
       "x": 20,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C20": 24,
-        "SKU-A10": 11,
-        "SKU-D20": 13
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C36",
       "x": 21,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-C10": 23,
-        "SKU-F20": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C37",
       "x": 22,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B20": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C38",
       "x": 23,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-B10": 21,
-        "SKU-E20": 23,
-        "SKU-C10": 10
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C39",
       "x": 24,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A20": 20,
-        "SKU-E10": 22
-      }
+      "bank": "C"
     },
     {
       "id": "POD-C40",
       "x": 25,
       "y": 17,
       "capacity": 4,
-      "bank": "C",
-      "stock": {
-        "SKU-A10": 19
-      }
+      "bank": "C"
     },
     {
       "id": "POD-D01",
       "x": 4,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C20": 18,
-        "SKU-A10": 20,
-        "SKU-D20": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D02",
       "x": 5,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C10": 17,
-        "SKU-F20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D03",
       "x": 6,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B20": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D04",
       "x": 7,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B10": 15,
-        "SKU-E20": 17,
-        "SKU-C10": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D05",
       "x": 8,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A20": 14,
-        "SKU-E10": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D06",
       "x": 9,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A10": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D07",
       "x": 11,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F10": 11,
-        "SKU-C20": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D08",
       "x": 12,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E20": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D09",
       "x": 13,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E10": 24,
-        "SKU-B20": 11,
-        "SKU-F10": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D10",
       "x": 14,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-D20": 23,
-        "SKU-B10": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D11",
       "x": 15,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-D10": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D12",
       "x": 16,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C20": 21,
-        "SKU-A10": 23,
-        "SKU-D20": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D13",
       "x": 17,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C10": 20,
-        "SKU-F20": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D14",
       "x": 18,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D15",
       "x": 20,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A20": 17,
-        "SKU-E10": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D16",
       "x": 21,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A10": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D17",
       "x": 22,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F20": 15,
-        "SKU-D10": 17,
-        "SKU-A20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D18",
       "x": 23,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F10": 14,
-        "SKU-C20": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D19",
       "x": 24,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E20": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D20",
       "x": 25,
       "y": 21,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E10": 12,
-        "SKU-B20": 14,
-        "SKU-F10": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D21",
       "x": 4,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F10": 20,
-        "SKU-C20": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D22",
       "x": 5,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D23",
       "x": 6,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E10": 18,
-        "SKU-B20": 20,
-        "SKU-F10": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D24",
       "x": 7,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-D20": 17,
-        "SKU-B10": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D25",
       "x": 8,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-D10": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D26",
       "x": 9,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C20": 15,
-        "SKU-A10": 17,
-        "SKU-D20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D27",
       "x": 11,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B20": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D28",
       "x": 12,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B10": 12,
-        "SKU-E20": 14,
-        "SKU-C10": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D29",
       "x": 13,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A20": 11,
-        "SKU-E10": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D30",
       "x": 14,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A10": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D31",
       "x": 15,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F20": 24,
-        "SKU-D10": 11,
-        "SKU-A20": 13
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D32",
       "x": 16,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-F10": 23,
-        "SKU-C20": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D33",
       "x": 17,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E20": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D34",
       "x": 18,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-E10": 21,
-        "SKU-B20": 23,
-        "SKU-F10": 10
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D35",
       "x": 20,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-D10": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D36",
       "x": 21,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C20": 18,
-        "SKU-A10": 20,
-        "SKU-D20": 22
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D37",
       "x": 22,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-C10": 17,
-        "SKU-F20": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D38",
       "x": 23,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B20": 16
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D39",
       "x": 24,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-B10": 15,
-        "SKU-E20": 17,
-        "SKU-C10": 19
-      }
+      "bank": "D"
     },
     {
       "id": "POD-D40",
       "x": 25,
       "y": 22,
       "capacity": 4,
-      "bank": "D",
-      "stock": {
-        "SKU-A20": 14,
-        "SKU-E10": 16
-      }
+      "bank": "D"
     }
   ],
   "entry_gates": [
@@ -2034,7 +1395,7 @@
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 4,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 3
     },
     {
@@ -2042,7 +1403,7 @@
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 7,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 2
     },
     {
@@ -2050,7 +1411,7 @@
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 10,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 4
     },
     {
@@ -2058,7 +1419,7 @@
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 13,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 1
     },
     {
@@ -2066,7 +1427,7 @@
       "type": "GOODS_TO_PERSON",
       "x": 2,
       "y": 16,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 2
     },
     {
@@ -2074,7 +1435,7 @@
       "type": "SORTING",
       "x": 27,
       "y": 4,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 3
     },
     {
@@ -2082,7 +1443,7 @@
       "type": "SORTING",
       "x": 27,
       "y": 7,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 2
     },
     {
@@ -2090,7 +1451,7 @@
       "type": "SORTING",
       "x": 27,
       "y": 10,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 4
     },
     {
@@ -2098,7 +1459,7 @@
       "type": "SCANNING_AUDIT",
       "x": 10,
       "y": 3,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 1
     },
     {
@@ -2106,238 +1467,40 @@
       "type": "SCANNING_AUDIT",
       "x": 19,
       "y": 3,
-      "battery_pct": 100,
+      "battery_pct": 100.0,
       "urgency": 2
-    },
-    {
-      "id": "G2P-06",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 19,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-07",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 20,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-08",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 21,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-09",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 22,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-10",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 23,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-11",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 24,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "G2P-12",
-      "type": "GOODS_TO_PERSON",
-      "x": 2,
-      "y": 25,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-04",
-      "type": "SORTING",
-      "x": 27,
-      "y": 14,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-05",
-      "type": "SORTING",
-      "x": 27,
-      "y": 15,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-06",
-      "type": "SORTING",
-      "x": 27,
-      "y": 16,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-07",
-      "type": "SORTING",
-      "x": 27,
-      "y": 18,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-08",
-      "type": "SORTING",
-      "x": 27,
-      "y": 19,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-09",
-      "type": "SORTING",
-      "x": 27,
-      "y": 20,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-10",
-      "type": "SORTING",
-      "x": 27,
-      "y": 21,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-11",
-      "type": "SORTING",
-      "x": 27,
-      "y": 22,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-12",
-      "type": "SORTING",
-      "x": 27,
-      "y": 23,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-13",
-      "type": "SORTING",
-      "x": 28,
-      "y": 23,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-14",
-      "type": "SORTING",
-      "x": 24,
-      "y": 25,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "SORT-15",
-      "type": "SORTING",
-      "x": 15,
-      "y": 24,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "AUDIT-03",
-      "type": "SCANNING_AUDIT",
-      "x": 15,
-      "y": 2,
-      "battery_pct": 100,
-      "urgency": 1
-    },
-    {
-      "id": "AUDIT-04",
-      "type": "SCANNING_AUDIT",
-      "x": 15,
-      "y": 3,
-      "battery_pct": 100,
-      "urgency": 1
     }
   ],
-  "catalog": [
+  "fixed_stations": [
     {
-      "sku": "SKU-A10",
-      "name": "Standard Bolt Pack",
-      "weight_kg": 2.5
+      "id": "AUTHORITY_STATION",
+      "name": "Central Authority Station",
+      "role": "AUTHORITY_STATION",
+      "x": 15,
+      "y": 14,
+      "zone": "TRANSIT_HIGHWAY",
+      "port": 9603,
+      "description": "Single point of authority for fault escalations and global overrides (out of normal critical path)"
     },
     {
-      "sku": "SKU-A20",
-      "name": "Precision Bearings",
-      "weight_kg": 1.8
+      "id": "EXPORT_STATION",
+      "name": "Export Station Omega",
+      "role": "EXPORT_STATION",
+      "x": 28,
+      "y": 14,
+      "zone": "EXPORT_DOCK",
+      "port": 9602,
+      "description": "Fixed command node covering East shipping dock gates OUT-1..3 and sortation"
     },
     {
-      "sku": "SKU-B10",
-      "name": "Hydraulic Seals",
-      "weight_kg": 0.9
-    },
-    {
-      "sku": "SKU-B20",
-      "name": "Motor Brushes",
-      "weight_kg": 1.2
-    },
-    {
-      "sku": "SKU-C10",
-      "name": "Control Cables",
-      "weight_kg": 3.1
-    },
-    {
-      "sku": "SKU-C20",
-      "name": "Optical Sensors",
-      "weight_kg": 0.5
-    },
-    {
-      "sku": "SKU-D10",
-      "name": "Lithium Battery Cells",
-      "weight_kg": 4
-    },
-    {
-      "sku": "SKU-D20",
-      "name": "Terminal Relays",
-      "weight_kg": 1.1
-    },
-    {
-      "sku": "SKU-E10",
-      "name": "Industrial Fasteners",
-      "weight_kg": 2.2
-    },
-    {
-      "sku": "SKU-E20",
-      "name": "Servo Couplers",
-      "weight_kg": 1.4
-    },
-    {
-      "sku": "SKU-F10",
-      "name": "Fiber Optic Patch",
-      "weight_kg": 0.3
-    },
-    {
-      "sku": "SKU-F20",
-      "name": "Pneumatic Valve Kit",
-      "weight_kg": 2.8
+      "id": "IMPORT_STATION",
+      "name": "Import Station Alpha",
+      "role": "IMPORT_STATION",
+      "x": 1,
+      "y": 14,
+      "zone": "IMPORT_DOCK",
+      "port": 9601,
+      "description": "Fixed command node covering West import dock gates IN-1..3"
     }
   ]
 }

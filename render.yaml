@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sih2026-fleet-control
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: SIM_TICK_MS
+        value: 500
+      - key: LOG_LEVEL
+        value: INFO
+      - key: AUTO_IDLE_AUDIT
+        value: "false"
+      - key: AUTO_CONSOLIDATION
+        value: "false"
+      - key: AUTO_TRANSFER
+        value: "false"
+      - key: ENABLE_LOAD_WEIGHT_PAUSE
+        value: "false"

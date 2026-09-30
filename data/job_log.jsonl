@@ -1,5 +1,0 @@
-{"timestamp":1790767702.0334966,"iso_time":"2026-09-30T11:28:22Z","event":"SUBMITTED","job_id":"TASK-952BF0","job_type":"order","pickup":[4,12],"dropoff":[20,4],"urgency":3,"status":"SUBMITTED","extra":{"payload_weight_kg":0.0}}
-{"timestamp":1790767702.1796777,"iso_time":"2026-09-30T11:28:22Z","event":"SUBMITTED","job_id":"TASK-8B756F","job_type":"order","pickup":[5,6],"dropoff":[20,4],"urgency":3,"status":"SUBMITTED","extra":{"payload_weight_kg":0.0}}
-{"timestamp":1790767704.3731685,"iso_time":"2026-09-30T11:28:24Z","event":"SUBMITTED","job_id":"TASK-FB71B5","job_type":"order","pickup":[5,17],"dropoff":[20,4],"urgency":5,"status":"SUBMITTED","extra":{"payload_weight_kg":0.0}}
-{"timestamp":1790767704.5505135,"iso_time":"2026-09-30T11:28:24Z","event":"SUBMITTED","job_id":"TASK-DCFD9D","job_type":"order","pickup":[6,22],"dropoff":[20,4],"urgency":5,"status":"SUBMITTED","extra":{"payload_weight_kg":0.0}}
-{"timestamp":1790767704.77356,"iso_time":"2026-09-30T11:28:24Z","event":"SUBMITTED","job_id":"TASK-35E63F","job_type":"order","pickup":[6,11],"dropoff":[20,4],"urgency":5,"status":"SUBMITTED","extra":{"payload_weight_kg":0.0}}
