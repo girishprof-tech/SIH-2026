@@ -114,6 +114,11 @@ class ConnectionManager:
         for ws in dead:
             self.disconnect(ws)
 
+    async def broadcast_delta(self, payload: str) -> None:
+        """Broadcast a delta update to all active WebSocket clients."""
+        await self.broadcast(payload)
+
+
     async def _send_safe(
         self,
         websocket: WebSocket,

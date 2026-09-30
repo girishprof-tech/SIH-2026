@@ -1247,6 +1247,58 @@ class RobotNode:
                         self.log(f"[Tick {tick}] All charging stations occupied or contested; holding at {self.robot.position}.")
                         return self._build_telemetry_frame(tick, "CHARGER_QUEUE_WAIT", None)
 
+        # Check if idle robot is parked underneath a shelf/pod slot, and move aside if so
+        if self.fsm.state == RobotState.IDLE and not self.task and self.robot.carrying_pod_id is None:
+            if self.robot.position in self.world.pod_slots:
+                if self.robot.battery_pct < 30.0 and self.charging_stations:
+                    target_charger = self._nearest_available_charger(current_tick=tick, claim=True)
+                    if target_charger is not None:
+                        self.charger_target = target_charger
+                        self.goal_pos = target_charger
+                        ch_path = self._timed_find_path(
+                            start=self.robot.position,
+                            goal=target_charger,
+                            current_tick=tick,
+                            reservation_table=self.local_reservations,
+                            robot_id=self.robot.robot_id,
+                            grid=self.grid,
+                        )
+                        if ch_path and len(ch_path) > 1:
+                            self.robot.path = ch_path
+                            reserve_path(ch_path, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                            self.fsm.state = RobotState.EN_ROUTE_PICKUP
+                            self.robot.state = self.fsm.state
+                            self.log(f"[Tick {tick}] Low battery ({self.robot.battery_pct:.1f}%). Moving aside from under shelf to charger {target_charger}.")
+                elif self.start_pos != self.robot.position:
+                    target_dest = self.start_pos
+                    if target_dest in self.world.pod_slots:
+                        aisle_cells = [
+                            (self.robot.position[0] + dx, self.robot.position[1] + dy)
+                            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0), (0, 2), (0, -2)]
+                            if (self.robot.position[0] + dx, self.robot.position[1] + dy) not in self.world.static_obstacles
+                            and (self.robot.position[0] + dx, self.robot.position[1] + dy) not in self.world.pod_slots
+                            and 0 <= self.robot.position[0] + dx < self.world.width
+                            and 0 <= self.robot.position[1] + dy < self.world.height
+                        ]
+                        if aisle_cells:
+                            target_dest = aisle_cells[0]
+                    if target_dest and target_dest != self.robot.position:
+                        home_p = self._timed_find_path(
+                            start=self.robot.position,
+                            goal=target_dest,
+                            current_tick=tick,
+                            reservation_table=self.local_reservations,
+                            robot_id=self.robot.robot_id,
+                            grid=self.grid,
+                        )
+                        if home_p and len(home_p) > 1:
+                            self.goal_pos = target_dest
+                            self.robot.path = home_p
+                            reserve_path(home_p, self.robot.robot_id, self.local_reservations, hold_ticks_at_goal=self.HOLD)
+                            self.fsm.state = RobotState.EN_ROUTE_PICKUP
+                            self.robot.state = self.fsm.state
+                            self.log(f"[Tick {tick}] Moving aside from under shelf to open area {target_dest}.")
+
         # Check idle background audit patrol trigger (SCANNING_AUDIT robots only, or explicit test override)
         is_audit_eligible = (
             self.robot_type == "SCANNING_AUDIT"
@@ -2160,6 +2212,13 @@ class RobotNode:
             self.robot.path = []
             action_taken = "CHARGING"
             self.log(f"[Tick {tick}] Arrived at charger {self.charger_target}; charging.")
+        elif self.task is None and self.goal_pos is not None and self.robot.position == self.goal_pos:
+            self.fsm.state = RobotState.IDLE
+            self.robot.state = self.fsm.state
+            self.robot.path = []
+            self.goal_pos = None
+            action_taken = "REACHED_OPEN_AREA"
+            self.log(f"[Tick {tick}] Arrived at open position {self.robot.position}; holding IDLE.")
         elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
             if self.robot.position == self.active_audit_mission.checkpoint:
                 scan_res = self.active_audit_mission.record_scan(
@@ -2747,7 +2806,7 @@ class RobotNode:
                     and tid not in self.completed_task_ids
                     and tid not in self.known_task_claims
                     and (tid not in self.active_bids or self.active_bids[tid].get("claimed", False))
-                    and self.fsm.state == RobotState.IDLE
+                    and (self.fsm.state == RobotState.IDLE or (self.task is None and self.robot.carrying_pod_id is None))
                     and not self.task
                     and is_eligible
                 ):

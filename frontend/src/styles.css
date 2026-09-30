@@ -193,7 +193,9 @@ select {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-app);
@@ -1096,25 +1098,78 @@ select {
 }
 
 /* ==========================================================================
-   Dashboard Workspace Grid
+   Dashboard Workspace Grid — Two Independent Scrollable Sections
+   Left: Simulation Canvas & Telemetry
+   Right: Simulation Controls, Fleet Status & Task Assignment
    ========================================================================== */
 .dashboard {
-  max-width: 1720px;
+  max-width: 1780px;
   width: 100%;
-  margin: 10px auto;
-  padding: 0 16px;
+  margin: 0 auto;
+  padding: 8px 16px 8px 16px;
   display: grid;
-  grid-template-columns: minmax(640px, 1fr) 420px;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 430px;
+  gap: 16px;
   flex: 1;
+  min-height: 0;
+  height: calc(100vh - 54px);
+  max-height: calc(100vh - 54px);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.map-column,
+.map-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  box-sizing: border-box;
+}
+
 .side-column {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  box-sizing: border-box;
 }
+
+.map-column > *,
+.side-column > * {
+  flex-shrink: 0;
+}
+
+.side-column::-webkit-scrollbar,
+.map-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.side-column::-webkit-scrollbar-track,
+.map-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.side-column::-webkit-scrollbar-thumb,
+.map-column::-webkit-scrollbar-thumb {
+  background-color: var(--border-subtle);
+  border-radius: 4px;
+}
+
+.side-column::-webkit-scrollbar-thumb:hover,
+.map-column::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-primary);
+}
+
 
 /* ==========================================================================
    Card / Panel System
@@ -1127,6 +1182,7 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .panel-heading {
@@ -1173,12 +1229,15 @@ select {
 .grid-shell {
   position: relative;
   height: 560px;
+  min-height: 560px;
+  flex-shrink: 0;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   box-shadow: var(--shadow-card);
   overflow: hidden;
 }
+
 
 .grid-shell canvas {
   display: block;

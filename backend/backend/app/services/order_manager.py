@@ -119,10 +119,10 @@ class OrderManager:
         order = self.get_order_by_task(task_id)
         if not order:
             return
-        if "RETRIEVE_POD" in task_type_str or "STANDARD" in task_type_str:
+        if "RETRIEVE_POD" in task_type_str or "STANDARD" in task_type_str or robot_id.startswith("G2P"):
             order.g2p_robot_id = robot_id
             order.advance_stage(OrderStage.G2P_ASSIGNED.value, current_tick)
-        elif "TRANSFER" in task_type_str or "SORTATION" in task_type_str:
+        elif "TRANSFER" in task_type_str or "SORTATION" in task_type_str or robot_id.startswith("SORT"):
             order.sorting_robot_id = robot_id
             order.advance_stage(OrderStage.SORTING_ASSIGNED.value, current_tick)
 
@@ -138,7 +138,14 @@ class OrderManager:
             order.pick_station_id = pick_station_id
             order.advance_stage(OrderStage.AT_PICK_STATION.value, current_tick)
 
+    def on_sorting_assigned(self, order_id: str, sorting_robot_id: str, current_tick: int) -> None:
+        order = self._orders.get(order_id)
+        if order:
+            order.sorting_robot_id = sorting_robot_id
+            order.advance_stage(OrderStage.SORTING_ASSIGNED.value, current_tick)
+
     def on_in_chute(self, order_id: str, chute_id: str, current_tick: int) -> None:
+
         order = self._orders.get(order_id)
         if order:
             order.chute_id = chute_id
@@ -158,17 +165,29 @@ class OrderManager:
             last_stage_tick = order.stage_ticks.get(order.stage, order.created_tick)
             ticks_in_stage = current_tick - last_stage_tick
 
-            if order.stage == OrderStage.ANNOUNCED.value and ticks_in_stage > 25:
-                order.stuck_reason = "Waiting for an available Goods-to-Person AMR to claim auction"
-            elif order.stage == OrderStage.G2P_ASSIGNED.value and ticks_in_stage > 40:
-                order.stuck_reason = f"G2P robot {order.g2p_robot_id} traveling or navigating traffic"
-            elif order.stage == OrderStage.AT_PICK_STATION.value and ticks_in_stage > 30:
-                order.stuck_reason = "Waiting for an available Sorting AMR to transfer carton"
-            elif order.stage == OrderStage.IN_CHUTE.value and ticks_in_stage > 40:
-                order.stuck_reason = f"Carton in chute {order.chute_id}; awaiting dock dispatch"
-            else:
-                if ticks_in_stage <= 15:
+            if order.stage == OrderStage.ANNOUNCED.value:
+                if order.g2p_robot_id is not None:
                     order.stuck_reason = None
+                elif ticks_in_stage > 35:
+                    order.stuck_reason = "Waiting for an available Goods-to-Person AMR to claim auction"
+                else:
+                    order.stuck_reason = None
+            elif order.stage == OrderStage.G2P_ASSIGNED.value:
+                if ticks_in_stage > 60:
+                    order.stuck_reason = f"G2P robot {order.g2p_robot_id} traveling or navigating traffic"
+                else:
+                    order.stuck_reason = None
+            elif order.stage == OrderStage.POD_LIFTED.value:
+                order.stuck_reason = None
+            elif order.stage == OrderStage.AT_PICK_STATION.value:
+                if ticks_in_stage > 45:
+                    order.stuck_reason = "Waiting for an available Sorting AMR to transfer carton"
+                else:
+                    order.stuck_reason = None
+            elif order.stage == OrderStage.IN_CHUTE.value:
+                order.stuck_reason = None
+            else:
+                order.stuck_reason = None
 
     def clear(self) -> None:
         self._orders.clear()

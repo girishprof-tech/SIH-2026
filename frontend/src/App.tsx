@@ -628,8 +628,24 @@ export default function App() {
         onAction={(action) => {
           if (action === 'start') {
             setStatus((prev) => ({ ...prev, running: true }))
+            if (storeRef.current) {
+              storeRef.current.fleet_status = {
+                ...(storeRef.current.fleet_status || { mode: fleetMode, tick: status.tick }),
+                running: true,
+                armed_state: 'RUNNING',
+              }
+            }
+            setArmedState('RUNNING')
           } else if (action === 'pause' || action === 'reset') {
             setStatus((prev) => ({ ...prev, running: false }))
+            if (storeRef.current) {
+              storeRef.current.fleet_status = {
+                ...(storeRef.current.fleet_status || { mode: fleetMode, tick: status.tick }),
+                running: false,
+                armed_state: action === 'pause' ? 'PAUSED' : 'STOPPED',
+              }
+            }
+            setArmedState(action === 'pause' ? 'PAUSED' : 'STOPPED')
           }
           return run(() => api.simulation(action), `${action.charAt(0).toUpperCase() + action.slice(1)} command accepted`).then(
             () => {

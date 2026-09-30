@@ -33,6 +33,7 @@ class SpeedPayload(BaseModel):
 
 @router.post("/start", summary="Start simulation telemetry streaming")
 async def start_simulation(request: Request) -> dict:
+    import json
     fleet = request.app.state.fleet_state
     request.app.state.telemetry_streaming_paused = False
     fleet.is_running = True
@@ -56,6 +57,23 @@ async def start_simulation(request: Request) -> dict:
     else:
         orchestrator.resume()
 
+    conn_mgr = getattr(request.app.state, "connection_manager", None)
+    if conn_mgr:
+        started_delta = json.dumps({
+            "type": "TICK_DELTA",
+            "tick": fleet.tick,
+            "fleet_status": {
+                "running": True,
+                "mode": getattr(request.app.state, "fleet_mode", "spawned_new_fleet"),
+                "tick": fleet.tick,
+                "armed_state": "RUNNING",
+            },
+        }, separators=(",", ":"))
+        if hasattr(conn_mgr, "broadcast"):
+            await conn_mgr.broadcast(started_delta)
+        elif hasattr(conn_mgr, "broadcast_delta"):
+            await conn_mgr.broadcast_delta(started_delta)
+
     log.info(
         "SIMULATION_START: Decentralized fleet telemetry streaming active (tick=%d, running=True).",
         fleet.tick,
@@ -65,12 +83,32 @@ async def start_simulation(request: Request) -> dict:
 
 @router.post("/pause", summary="Pause simulation telemetry streaming")
 async def pause_simulation(request: Request) -> dict:
+    import json
     fleet = request.app.state.fleet_state
     request.app.state.telemetry_streaming_paused = True
     fleet.is_running = False
     orchestrator = getattr(request.app.state, "orchestrator", None)
     if orchestrator is not None:
         orchestrator.pause()
+
+    conn_mgr = getattr(request.app.state, "connection_manager", None)
+    if conn_mgr:
+        paused_delta = json.dumps({
+            "type": "TICK_DELTA",
+            "tick": fleet.tick,
+            "fleet_status": {
+                "running": False,
+                "mode": getattr(request.app.state, "fleet_mode", "spawned_new_fleet"),
+                "tick": fleet.tick,
+                "armed_state": "PAUSED",
+            },
+        }, separators=(",", ":"))
+        if hasattr(conn_mgr, "broadcast"):
+            await conn_mgr.broadcast(paused_delta)
+        elif hasattr(conn_mgr, "broadcast_delta"):
+            await conn_mgr.broadcast_delta(paused_delta)
+
+
     log.info("SIMULATION_PAUSED: Telemetry streaming and robot processes paused.")
     return {"status": "paused", "tick": fleet.tick, "mode": "decentralized_telemetry"}
 
@@ -185,8 +223,11 @@ async def get_status(request: Request) -> SimStatusOut:
     elif hasattr(request.app.state, "simulation_speed"):
         speed = float(request.app.state.simulation_speed)
 
+    is_paused = getattr(request.app.state, "telemetry_streaming_paused", False) or (orchestrator.is_paused() if orchestrator else False)
+    is_running = fleet.is_running and not is_paused
+
     return SimStatusOut(
-        running=fleet.is_running,
+        running=is_running,
         tick=fleet.tick,
         timestamp_ms=fleet.timestamp_ms,
         fleet_size=len(fleet.robots),

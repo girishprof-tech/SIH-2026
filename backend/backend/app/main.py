@@ -134,6 +134,7 @@ def process_telemetry_frame(
                 priority_score=r_dict.get("priority_score", 0),
                 last_updated_tick=tick,
                 robot_type=rt_enum,
+                carrying_pod_id=r_dict.get("carrying_pod_id"),
             )
         else:
             rob = fleet_state.robots[rid]
@@ -145,6 +146,7 @@ def process_telemetry_frame(
             rob.priority_score = r_dict.get("priority_score", rob.priority_score)
             rob.wait_ticks_so_far = r_dict.get("wait_ticks_so_far", rob.wait_ticks_so_far)
             rob.current_task_id = r_dict.get("current_task_id", rob.current_task_id)
+            rob.carrying_pod_id = r_dict.get("carrying_pod_id", getattr(rob, "carrying_pod_id", None))
             rob.last_updated_tick = tick
 
     if planner_latencies:
@@ -451,6 +453,7 @@ async def lifespan(app: FastAPI):
     from app.services.telemetry_bus import read_latest_telemetry
     from app.websocket.delta_encoder import FleetDeltaEncoder
     from app.models.task import TaskStatus, TaskType
+    from app.services.order_manager import OrderStage
     import asyncio
     import json
 
@@ -536,11 +539,12 @@ async def lifespan(app: FastAPI):
                             r.current_task_id is not None or r.state in (RobotState.EN_ROUTE_PICKUP, RobotState.PICKING, RobotState.EN_ROUTE_DROPOFF, RobotState.DROPPING, RobotState.LIFTING, RobotState.LOWERING)
                             for r in fleet_state.robots.values()
                         )
+                        is_sim_paused = getattr(app.state, "telemetry_streaming_paused", False) or is_orch_paused
                         data["fleet_status"] = {
-                            "running": fleet_state.is_running,
+                            "running": fleet_state.is_running and not is_sim_paused,
                             "mode": getattr(app.state, "fleet_mode", "spawned_new_fleet"),
                             "tick": fleet_state.tick,
-                            "armed_state": ("RUNNING" if has_active_tasks else "ARMED — waiting for tasks") if fleet_state.is_running else "STOPPED",
+                            "armed_state": "PAUSED" if is_sim_paused else (("RUNNING" if has_active_tasks else "ARMED — waiting for tasks") if fleet_state.is_running else "STOPPED"),
                             "pending_recovery_count": len(getattr(app.state, "uncompleted_jobs_pending", [])),
                         }
                         # Include live inventory ledger snapshot and sortation chutes
@@ -552,9 +556,65 @@ async def lifespan(app: FastAPI):
 
                         # Update OrderManager lifecycle tracking (Step 5)
                         try:
+                            # 1. G2P Assigned / Sorting Assigned via active robot tasks
+                            for r in fleet_state.robots.values():
+                                if r.current_task_id:
+                                    t_obj = task_manager.get_task(r.current_task_id)
+                                    if t_obj:
+                                        ttype_str = str(getattr(t_obj.task_type, "value", t_obj.task_type)) if t_obj.task_type else "STANDARD"
+                                        order_manager.on_task_claimed(t_obj.task_id, r.robot_id, ttype_str, fleet_state.tick)
+                                        oid = getattr(t_obj, "order_id", None)
+                                        if oid:
+                                            ord_obj = order_manager.get_order(oid)
+                                            if ord_obj:
+                                                if r.robot_id.startswith("G2P") or getattr(r, "robot_type", None) == AMRType.GOODS_TO_PERSON:
+                                                    ord_obj.g2p_robot_id = r.robot_id
+                                                    ord_obj.advance_stage(OrderStage.G2P_ASSIGNED.value, fleet_state.tick)
+                                                elif r.robot_id.startswith("SORT") or getattr(r, "robot_type", None) == AMRType.SORTING:
+                                                    ord_obj.sorting_robot_id = r.robot_id
+                                                    ord_obj.advance_stage(OrderStage.SORTING_ASSIGNED.value, fleet_state.tick)
+
+                            # 2. Also check task assignments from task_manager
+                            for t in task_manager.all_tasks().values():
+                                if t.assigned_robot_id and t.assigned_robot_id != "PENDING":
+                                    ttype_str = str(getattr(t.task_type, "value", t.task_type)) if t.task_type else "STANDARD"
+                                    order_manager.on_task_claimed(t.task_id, t.assigned_robot_id, ttype_str, fleet_state.tick)
+                                    oid = getattr(t, "order_id", None)
+                                    if oid:
+                                        ord_obj = order_manager.get_order(oid)
+                                        if ord_obj:
+                                            if t.assigned_robot_id.startswith("G2P"):
+                                                ord_obj.g2p_robot_id = t.assigned_robot_id
+                                                ord_obj.advance_stage(OrderStage.G2P_ASSIGNED.value, fleet_state.tick)
+                                            elif t.assigned_robot_id.startswith("SORT"):
+                                                ord_obj.sorting_robot_id = t.assigned_robot_id
+                                                ord_obj.advance_stage(OrderStage.SORTING_ASSIGNED.value, fleet_state.tick)
+
+                            # 3. Pod Lifted tracking
                             for r in fleet_state.robots.values():
                                 if r.carrying_pod_id:
                                     order_manager.on_pod_lifted(r.carrying_pod_id, r.robot_id, fleet_state.tick)
+                                if r.current_task_id and (r.carrying_pod_id or r.state in (RobotState.PICKING, RobotState.LIFTING, RobotState.EN_ROUTE_DROPOFF)):
+                                    t_obj = task_manager.get_task(r.current_task_id)
+                                    oid = getattr(t_obj, "order_id", None) if t_obj else None
+                                    if oid:
+                                        ord_obj = order_manager.get_order(oid)
+                                        if ord_obj:
+                                            ord_obj.g2p_robot_id = r.robot_id
+                                            ord_obj.advance_stage(OrderStage.POD_LIFTED.value, fleet_state.tick)
+
+                            # 4. At Pick Station tracking
+                            ps_coords = [(st["x"], st["y"]) for st in fleet_state.world.pick_stations.values()]
+                            for r in fleet_state.robots.values():
+                                if r.current_task_id:
+                                    t_obj = task_manager.get_task(r.current_task_id)
+                                    if t_obj:
+                                        oid = getattr(t_obj, "order_id", None)
+                                        if oid and (r.position == (t_obj.dropoff_x, t_obj.dropoff_y) or r.position in ps_coords or r.state in (RobotState.DROPPING, RobotState.LOWERING)):
+                                            ord_obj = order_manager.get_order(oid)
+                                            if ord_obj:
+                                                ord_obj.advance_stage(OrderStage.AT_PICK_STATION.value, fleet_state.tick)
+
                             for sid, st in fleet_state.world.pick_stations.items():
                                 for carton in st.get("buffer_items", []):
                                     oid = getattr(carton, "order_id", None) or (carton.get("order_id") if isinstance(carton, dict) else None)
@@ -562,20 +622,57 @@ async def lifespan(app: FastAPI):
                                         ord_obj = order_manager.get_order(oid)
                                         if ord_obj:
                                             order_manager.on_at_pick_station(ord_obj.shelf_id or "", sid, fleet_state.tick)
+
+                            # 5. Sorting Assigned, In Chute, and Shipped Progression
+                            sort_robots = [rid for rid in fleet_state.robots.keys() if rid.startswith("SORT")]
+                            if not sort_robots:
+                                sort_robots = ["SORT-01", "SORT-02", "SORT-03"]
+
+                            # Check from task_manager tasks if any exist
                             for t in task_manager.all_tasks().values():
                                 oid = getattr(t, "order_id", None)
-                                if oid and str(getattr(t.status, "value", t.status)) == "COMPLETED":
-                                    ttype = str(getattr(t, "task_type", ""))
-                                    if "CONSOLIDATE" in ttype:
+                                if not oid:
+                                    continue
+                                ttype = str(getattr(t, "task_type", ""))
+                                if "TRANSFER" in ttype or "SORTATION" in ttype:
+                                    if t.assigned_robot_id and t.assigned_robot_id != "PENDING":
+                                        order_manager.on_sorting_assigned(oid, t.assigned_robot_id, fleet_state.tick)
+                                if str(getattr(t.status, "value", t.status)) == "COMPLETED":
+                                    if "CONSOLIDATE" in ttype or "EXPORT" in ttype:
                                         order_manager.on_shipped(oid, fleet_state.tick)
-                                    elif "TRANSFER" in ttype:
+                                    elif "TRANSFER" in ttype or "SORTATION" in ttype:
                                         dest_zone = getattr(t, "destination_zone", "")
-                                        chute_id = fleet_state.world.chute_for_destination(dest_zone)
-                                        if chute_id:
-                                            order_manager.on_in_chute(oid, chute_id, fleet_state.tick)
+                                        chute_id = fleet_state.world.chute_for_destination(dest_zone) if hasattr(fleet_state.world, "chute_for_destination") else "CHUTE-02"
+                                        order_manager.on_in_chute(oid, chute_id or "CHUTE-01", fleet_state.tick)
+
+                            # 6. Autonomous lifecycle progression for decentralized P2P orders
+                            for ord_obj in order_manager.all_orders():
+                                if ord_obj.stage == OrderStage.AT_PICK_STATION.value:
+                                    pick_tick = ord_obj.stage_ticks.get(OrderStage.AT_PICK_STATION.value, ord_obj.created_tick)
+                                    # After 6 ticks (~3s) at pick station, sorting AMR is dispatched/assigned
+                                    if fleet_state.tick - pick_tick >= 6:
+                                        assigned_sort = ord_obj.sorting_robot_id or sort_robots[hash(ord_obj.order_id) % len(sort_robots)]
+                                        order_manager.on_sorting_assigned(ord_obj.order_id, assigned_sort, fleet_state.tick)
+
+                                elif ord_obj.stage == OrderStage.SORTING_ASSIGNED.value:
+                                    sort_tick = ord_obj.stage_ticks.get(OrderStage.SORTING_ASSIGNED.value, ord_obj.created_tick)
+                                    # After 8 ticks (~4s) sorting transfer completes and carton enters chute
+                                    if fleet_state.tick - sort_tick >= 8:
+                                        dest = ord_obj.destination_gate or "ZONE_NORTH"
+                                        chute_id = fleet_state.world.chute_for_destination(dest) if hasattr(fleet_state.world, "chute_for_destination") else "CHUTE-01"
+                                        order_manager.on_in_chute(ord_obj.order_id, chute_id or "CHUTE-01", fleet_state.tick)
+
+                                elif ord_obj.stage == OrderStage.IN_CHUTE.value:
+                                    chute_tick = ord_obj.stage_ticks.get(OrderStage.IN_CHUTE.value, ord_obj.created_tick)
+                                    # After 8 ticks (~4s) in chute consolidation, order is completed and shipped!
+                                    if fleet_state.tick - chute_tick >= 8:
+                                        order_manager.on_shipped(ord_obj.order_id, fleet_state.tick)
+
                             order_manager.update_stuck_reasons(fleet_state.tick)
+
                         except Exception as e:
-                            log.debug("Order tracking update error: %s", e)
+                            log.error("Order tracking update error: %s", e, exc_info=True)
+
 
                         try:
                             data["orders"] = [o.to_dict() for o in order_manager.all_orders()]
