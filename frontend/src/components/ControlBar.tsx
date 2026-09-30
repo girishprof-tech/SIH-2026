@@ -3,20 +3,14 @@ import {
   Play,
   RotateCcw,
   Radio,
-  Share2,
   AlertTriangle,
   Sparkles,
-  Sun,
-  Moon,
   Layers,
-  Network,
   Maximize,
   Minimize,
   Edit3,
   FolderOpen,
   Gauge,
-  Bot,
-  MapPin,
 } from 'lucide-react'
 import type { SocketStatus } from '../hooks/useFleetSocket'
 
@@ -32,10 +26,10 @@ type Props = {
   chaos: boolean
   loss: number
   busy: boolean
-  showMeshLinks: boolean
-  onToggleMeshLinks: () => void
-  theme: 'light' | 'dark'
-  onToggleTheme: () => void
+  showMeshLinks?: boolean
+  onToggleMeshLinks?: () => void
+  theme?: 'light' | 'dark'
+  onToggleTheme?: () => void
   isFullscreen?: boolean
   onToggleFullscreen?: () => void
   operatorRole?: 'IMPORT' | 'EXPORT' | 'AUTHORITY'
@@ -99,13 +93,6 @@ export function ControlBar({
             <Layers size={18} strokeWidth={2.2} />
           </div>
           <span className="brand-name">Kinetix</span>
-        </div>
-
-        {/* Active Map & Grid Chip */}
-        <div className="map-info-chip" title={`Active Map: ${activeMapName} (${gridDimensions.width}x${gridDimensions.height})`}>
-          <MapPin size={12} className="map-chip-icon" />
-          <span className="map-chip-name">{activeMapName}</span>
-          <span className="map-chip-dims">{gridDimensions.width}×{gridDimensions.height}</span>
         </div>
 
         {onChangeMap && (
@@ -254,30 +241,9 @@ export function ControlBar({
 
       {/* ── Right: Robot Counts, Readouts & View Controls ── */}
       <div className="topbar-section right-section">
-        {/* Robot Counts breakdown */}
-        <div className="robot-breakdown-chip" title="Robot Fleet breakdown">
-          <Bot size={13} className="fleet-icon" />
-          <span className="count-total"><b>{robotCounts.total}</b> AMRs</span>
-          <span className="count-divider">•</span>
-          <span className="count-tag g2p" title="Goods-to-Person AMRs">{robotCounts.g2p} G2P</span>
-          <span className="count-tag sort" title="Sorting AMRs">{robotCounts.sorting} Sort</span>
-          <span className="count-tag audit" title="Scanning & Audit AMRs">{robotCounts.audit} Audit</span>
-        </div>
-
-        <div className="readout tick-rate-readout" title="Simulation Tick Rate">
-          <span className="label">Rate</span>
-          <strong>{effectiveHz.toFixed(1)} Hz</strong>
-        </div>
-
         <div className="readout">
           <span className="label">Tick</span>
           <strong>{String(tick).padStart(5, '0')}</strong>
-        </div>
-
-        <div className={`link-status ${socket}`} title="Decentralized UDP Peer Telemetry Stream">
-          <span className="status-dot" />
-          <Network size={13} />
-          <span>{connectionLabel}</span>
         </div>
 
         {skipped > 0 && (
@@ -286,16 +252,6 @@ export function ControlBar({
             <span>{skipped} lost</span>
           </div>
         )}
-
-        <button
-          className={`control-button mesh-toggle ${showMeshLinks ? 'active' : ''}`}
-          onClick={onToggleMeshLinks}
-          title="Toggle real-time autonomous peer-to-peer RF mesh topology and data packets"
-          aria-label="Toggle P2P Mesh Links"
-        >
-          <Share2 size={13} />
-          <span>Mesh</span>
-        </button>
 
         {onToggleFullscreen && (
           <button
@@ -363,15 +319,6 @@ export function ControlBar({
             </span>
           </button>
         )}
-
-        <button
-          className="icon-button theme-toggle-btn"
-          onClick={onToggleTheme}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
       </div>
     </header>
   )

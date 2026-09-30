@@ -94,7 +94,7 @@ export default function App() {
   useEffect(() => {
     api.mapCurrent().then((m) => {
       if (m) setActiveMap(m)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   const handleUseBuiltIn = useCallback(async () => {
@@ -202,32 +202,26 @@ export default function App() {
     }
     setShowRoleModal(false)
     setToast(
-      `Active station: ${
-        role === 'AUTHORITY'
-          ? 'Authority Station (Full Control)'
-          : role === 'IMPORT'
+      `Active station: ${role === 'AUTHORITY'
+        ? 'Authority Station (Full Control)'
+        : role === 'IMPORT'
           ? 'Import Station (Inbound)'
           : 'Export Station (Outbound)'
       }`
     )
   }
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('sih_theme')
-      if (saved === 'light' || saved === 'dark') return saved
-    }
-    return 'dark'
-  })
+  const theme: 'light' = 'light'
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.setAttribute('data-theme', 'light')
+    document.documentElement.classList.remove('dark')
     try {
-      localStorage.setItem('sih_theme', theme)
+      localStorage.setItem('sih_theme', 'light')
     } catch {
       // ignore
     }
-  }, [theme])
+  }, [])
 
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -278,9 +272,6 @@ export default function App() {
     }
   }, [isFullscreen, handleToggleFullscreen])
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
-  }
 
   const handleInventorySync = useCallback((update: any) => {
     const newEvent: InventoryUpdateEvent = {
@@ -374,7 +365,7 @@ export default function App() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      api.getOrders().then(setOrders).catch(() => {})
+      api.getOrders().then(setOrders).catch(() => { })
     }, 2000)
     return () => clearInterval(timer)
   }, [])
@@ -613,7 +604,6 @@ export default function App() {
         showMeshLinks={showMeshLinks}
         onToggleMeshLinks={() => setShowMeshLinks((prev) => !prev)}
         theme={theme}
-        onToggleTheme={toggleTheme}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
         operatorRole={operatorRole ?? 'AUTHORITY'}
@@ -749,10 +739,6 @@ export default function App() {
             <span>
               <i className="legend-dot charge" /> Charging
             </span>
-            <span>
-              <i className="legend-dot mesh" /> P2P Mesh Links
-            </span>
-            <span className="map-hint">Click robot to inspect, click cell to target, scroll to zoom</span>
           </div>
           <MetricsPanel metrics={metrics} history={history} robots={robots} theme={theme} />
         </section>
@@ -815,8 +801,8 @@ export default function App() {
                 tasks={tasks}
                 orders={orders}
                 onOrderPlaced={() => {
-                  void api.getOrders().then(setOrders).catch(() => {})
-                  void api.tasks().then(setTasks).catch(() => {})
+                  void api.getOrders().then(setOrders).catch(() => { })
+                  void api.tasks().then(setTasks).catch(() => { })
                 }}
                 busy={busy}
                 operatorRole={operatorRole ?? 'AUTHORITY'}
@@ -825,7 +811,7 @@ export default function App() {
                 onJob={(body) =>
                   run(() => api.submitJob(body), 'Mission queued').then((res) => {
                     void api.tasks().then(setTasks)
-                    void api.getOrders().then(setOrders).catch(() => {})
+                    void api.getOrders().then(setOrders).catch(() => { })
                     return res
                   })
                 }

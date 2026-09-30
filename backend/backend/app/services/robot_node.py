@@ -58,6 +58,7 @@ from models import Heading, Robot, Task
 from app.models.robot import AMRType
 from app.models.task import Task, TaskStatus, TaskType
 from app.models.robot_fsm import RobotEvent, RobotFSM, RobotState
+from app.core.config import cfg
 from app.transport.base import Transport
 from app.transport.udp_transport import UdpTransport
 from app.transport.halow_transport import HaLowTransport
@@ -275,6 +276,7 @@ class RobotNode:
         # 10. Task Realism Load Step Counter & Calibrated Battery Counter
         self.load_move_steps = 0
         self.battery_move_steps = 0
+        self.enable_load_weight_pause: bool = getattr(cfg, "ENABLE_LOAD_WEIGHT_PAUSE", False)
 
         # Perceived peer states
         self.peers: Dict[str, PeerSnapshot] = {}
@@ -2047,7 +2049,11 @@ class RobotNode:
             self.log(f"[Tick {tick}] Degraded network throttle: pausing movement on alternate tick.")
 
         # 11. Check Task Realism Load Pause (Part D: proportional to weight, applies to pod and carton carry legs)
-        if intended_pos != prev_pos and (self.fsm.state == RobotState.EN_ROUTE_DROPOFF or self.robot.carrying_pod_id):
+        if (
+            self.enable_load_weight_pause
+            and intended_pos != prev_pos
+            and (self.fsm.state == RobotState.EN_ROUTE_DROPOFF or self.robot.carrying_pod_id)
+        ):
             p_weight = getattr(self.task, "payload_weight_kg", 0.0) if self.task else 0.0
             if p_weight == 0.0 and self.robot.carrying_pod_id and getattr(self, "inventory_ledger", None):
                 p_weight = self.inventory_ledger.get_shelf_weight_kg(self.robot.carrying_pod_id)

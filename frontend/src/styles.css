@@ -88,83 +88,6 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
-[data-theme="dark"],
-.dark {
-  /* Surface & Background (Dark Mode - Deep Industrial Charcoal & Heavy Steel Racking) */
-  --bg-app: #111111;
-  --bg-surface: #171717;
-  --bg-surface-subtle: #1E1E1E;
-  --bg-surface-elevated: #262626;
-  --border-subtle: #333333;
-  --border-strong: #484848;
-
-  /* Typography */
-  --text-primary: #F5F5F5;
-  --text-secondary: #A3A3A3;
-  --text-muted: #707070;
-
-  /* Accent Family (Depot Signal: Safety Orange & Hazard Yellow) */
-  --accent-primary: #FF6B35;
-  --accent-hover: #FF8252;
-  --accent-active: #EA580C;
-  --accent-secondary: #FFC300;
-  --accent-subtle: rgba(255, 107, 53, 0.18);
-  --accent-border: #FF6B35;
-  --accent-text: #FF6B35;
-  --accent-contrast: #FFFFFF;
-
-  /* Neutral Controls */
-  --control-bg: #1E1E1E;
-  --control-bg-hover: #252525;
-  --control-border: #383838;
-  --control-border-hover: #525252;
-  --control-text: #F5F5F5;
-
-  /* State Tokens (Dark Mode - Solid Saturated Depot Signal) */
-  --state-idle-color: #16A34A;
-  --state-idle-bg: #16A34A;
-  --state-idle-border: #15803D;
-
-  --state-assigned-color: #FFC300;
-  --state-assigned-bg: #FFC300;
-  --state-assigned-border: #EAB308;
-
-  --state-route-color: #FF6B35;
-  --state-route-bg: #FF6B35;
-  --state-route-border: #EA580C;
-
-  --state-picking-color: #F97316;
-  --state-picking-bg: #F97316;
-  --state-picking-border: #EA580C;
-
-  --state-dropping-color: #D97706;
-  --state-dropping-bg: #D97706;
-  --state-dropping-border: #B45309;
-
-  --state-conflict-color: #DC2626;
-  --state-conflict-bg: #DC2626;
-  --state-conflict-border: #B91C1C;
-
-  --state-audit-color: #737373;
-  --state-audit-bg: #737373;
-  --state-audit-border: #525252;
-
-  --state-charge-color: #15803D;
-  --state-charge-bg: #15803D;
-  --state-charge-border: #166534;
-
-  --state-failsafe-color: #D97706;
-  --state-failsafe-bg: #D97706;
-  --state-failsafe-border: #B45309;
-
-  --state-estop-color: #B91C1C;
-  --state-estop-bg: #B91C1C;
-  --state-estop-border: #991B1B;
-
-  /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(51, 51, 51, 0.5);
-  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.85);
-}
 
 /* ==========================================================================
    Base Elements
@@ -251,15 +174,6 @@ select {
   justify-content: center;
 }
 
-/* Enhanced bezel/glow in dark theme to frame lit screen within console */
-.loading-screen.dark .loading-video-frame,
-[data-theme="dark"] .loading-video-frame {
-  border: 1.5px solid var(--accent-primary);
-  box-shadow: 0 0 0 1px rgba(255, 107, 53, 0.25),
-              0 8px 32px rgba(0, 0, 0, 0.7),
-              0 0 28px rgba(255, 107, 53, 0.4),
-              0 0 60px rgba(255, 107, 53, 0.18);
-}
 
 .loading-video {
   width: 100%;

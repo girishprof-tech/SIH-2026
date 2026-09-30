@@ -16,7 +16,7 @@ const BOOT_STAGES = [
   { threshold: 88, title: 'Telemetry Locked', subtitle: 'Activating live 2.5D visualizer & mission dispatcher...', code: 'SYS_READY' },
 ]
 
-export function LoadingScreen({ theme = 'dark', durationMs = 5000, onComplete }: LoadingScreenProps) {
+export function LoadingScreen({ theme = 'light', durationMs = 5000, onComplete }: LoadingScreenProps) {
   const [progress, setProgress] = useState(0)
   const [fading, setFading] = useState(false)
   const onCompleteRef = useRef(onComplete)

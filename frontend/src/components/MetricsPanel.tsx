@@ -12,7 +12,7 @@ export function MetricsPanel({
   metrics,
   history,
   robots,
-  theme = 'dark',
+  theme = 'light',
 }: {
   metrics: Metrics | null
   history: Array<{ tick: number; process: number; planner: number; conflicts: number; replans: number }>

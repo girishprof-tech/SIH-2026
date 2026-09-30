@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     AUTO_IDLE_AUDIT: bool = False
     AUTO_CONSOLIDATION: bool = False
     AUTO_TRANSFER: bool = False
+    ENABLE_LOAD_WEIGHT_PAUSE: bool = False
 
 
 @lru_cache(maxsize=1)

@@ -286,6 +286,7 @@ def test_part_d_inertia_pause_proportional_to_weight():
         transport=transport,
         world=world,
     )
+    node.enable_load_weight_pause = True
     node.fsm.state = RobotState.EN_ROUTE_DROPOFF
     
     # Case 1: Heavy payload (80kg >= 50kg) -> interval = 2
@@ -318,3 +319,29 @@ def test_part_d_inertia_pause_proportional_to_weight():
     node.robot.path = [{"x": 10, "y": 11, "t": 4}, {"x": 10, "y": 12, "t": 5}]
     frame = node.step(tick=4)
     assert frame["action"] == "LOAD_WEIGHT_PAUSE"
+
+
+def test_continuous_motion_default():
+    """By default (ENABLE_LOAD_WEIGHT_PAUSE=False), robots move continuously every tick with zero pause."""
+    world = build_default_world()
+    transport = LoopbackTransport("R-CONTINUOUS-TEST")
+    node = RobotNode(
+        robot_id="R-CONTINUOUS-TEST",
+        start_pos=(10, 10),
+        transport=transport,
+        world=world,
+    )
+    node.fsm.state = RobotState.EN_ROUTE_DROPOFF
+    node.task = Task(
+        task_id="T-CONTINUOUS",
+        pickup_x=10, pickup_y=10,
+        dropoff_x=10, dropoff_y=15,
+        urgency=3,
+        created_tick=0,
+        payload_weight_kg=80.0,
+    )
+    node.load_move_steps = 2
+    node.robot.path = [{"x": 10, "y": 10, "t": 1}, {"x": 10, "y": 11, "t": 2}]
+    frame = node.step(tick=2)
+    assert frame["action"] == "MOVED"
+    assert node.robot.position == (10, 11)

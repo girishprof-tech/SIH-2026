@@ -36,7 +36,7 @@ export const lightPalette = {
   text: '#141414',
 }
 
-export type Palette = typeof darkPalette
+export type Palette = typeof lightPalette
 
 type Props = {
   world: World
@@ -67,7 +67,7 @@ export function GridCanvas({
   tick,
   selected,
   showMeshLinks = true,
-  theme = 'dark',
+  theme = 'light',
   isFullscreen = false,
   onToggleFullscreen,
   onRobot,
@@ -86,7 +86,7 @@ export function GridCanvas({
   const onZoomInRef = useRef<(() => void) | null>(null)
   const onZoomOutRef = useRef<(() => void) | null>(null)
 
-  const palette = theme === 'light' ? lightPalette : darkPalette
+  const palette = lightPalette
 
   const handleZoomIn = () => {
     onZoomInRef.current?.()
@@ -117,34 +117,18 @@ export function GridCanvas({
 
   return (
     <div className={`grid-shell ${isFullscreen ? 'fullscreen' : ''}`}>
-      <div className="grid-caption">
-        <div className="caption-left">
-          <span className="live-indicator">
-            <i className="legend-dot" style={{ backgroundColor: 'var(--accent-primary)' }} /> Live warehouse floor
-          </span>
-          <span className="grid-dimensions">
-            {world.width} × {world.height} grid, free camera
-          </span>
-          {isFullscreen && (
-            <span className="fullscreen-badge">
-              FULLSCREEN SIMULATION ACTIVE
-            </span>
-          )}
-        </div>
-        <div className="caption-right">
-          {isFullscreen && onToggleFullscreen && (
-            <button
-              className="fullscreen-exit-btn"
-              onClick={onToggleFullscreen}
-              title="Exit Full Screen (Esc)"
-              aria-label="Exit Full Screen"
-            >
-              <Minimize size={13} />
-              <span>Exit Full Screen (Esc)</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {isFullscreen && onToggleFullscreen && (
+        <button
+          className="fullscreen-exit-btn"
+          style={{ position: 'absolute', top: 12, right: 16, zIndex: 100 }}
+          onClick={onToggleFullscreen}
+          title="Exit Full Screen (Esc)"
+          aria-label="Exit Full Screen"
+        >
+          <Minimize size={13} />
+          <span>Exit Full Screen (Esc)</span>
+        </button>
+      )}
 
       <div className="canvas-view-container">
         <Warehouse3DCanvas
@@ -239,12 +223,7 @@ export function GridCanvas({
         )}
       </div>
 
-      {isFullscreen && (
-        <div className="fullscreen-watermark">
-          <span>KINETIX AUTONOMOUS FLEET SIMULATOR</span>
-          <span>10 NODES P2P MESH • TICK #{tick}</span>
-        </div>
-      )}
+
     </div>
   )
 }

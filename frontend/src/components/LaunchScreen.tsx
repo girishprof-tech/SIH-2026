@@ -11,7 +11,6 @@ import {
   FileCode,
   ArrowRight,
   Database,
-  Cpu,
 } from 'lucide-react'
 import type { MapPreset } from '../types'
 import { api } from '../api'
@@ -27,7 +26,7 @@ export function LaunchScreen({
   onUseBuiltIn,
   onOpenEditor,
   onSelectPreset,
-  theme = 'dark',
+  theme = 'light',
 }: LaunchScreenProps) {
   const [presets, setPresets] = useState<MapPreset[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,10 +71,6 @@ export function LaunchScreen({
       <div className="launch-screen-card">
         {/* Header */}
         <div className="launch-screen-header">
-          <div className="launch-badge">
-            <Cpu size={14} className="launch-badge-icon" />
-            <span>SIH 2026 PS SIH26123 — DECENTRALIZED AMR FLEET</span>
-          </div>
           <h1 className="launch-title">Warehouse Topology & Fleet Initialization</h1>
           <p className="launch-subtitle">
             Every AMR runs an independent execution loop with signed P2P mesh consensus and Contract-Net task auctions.
@@ -214,10 +209,6 @@ export function LaunchScreen({
           </div>
         )}
 
-        {/* Footer info */}
-        <div className="launch-footer-info">
-          <span>Zero-autonomous-motion idle arming guarantees no robot moves until task injection.</span>
-        </div>
       </div>
     </div>
   )

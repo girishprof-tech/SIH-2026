@@ -83,7 +83,7 @@ interface WarehouseMapEditorProps {
   theme?: 'dark' | 'light'
 }
 
-export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'dark' }: WarehouseMapEditorProps) {
+export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'light' }: WarehouseMapEditorProps) {
   // ── 4a Isolation: Lock Body Scroll ──────────────────────────────────────────
   useEffect(() => {
     const prevOverflow = document.body.style.overflow
