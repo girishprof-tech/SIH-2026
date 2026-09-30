@@ -196,17 +196,6 @@ export function ControlBar({
           <strong>{String(tick).padStart(5, '0')}</strong>
         </div>
 
-        {skipped > 0 && (
-          <div
-            className="loss-alert"
-            title={`Network Jitter: ${skipped} tick(s) delayed over WAN (auto-dismisses)`}
-          >
-            <AlertTriangle size={13} />
-            <span>{skipped} lost</span>
-          </div>
-        )}
-
-
         {onToggleFullscreen && (
           <button
             className={`control-button fullscreen-toggle ${isFullscreen ? 'active' : ''}`}
