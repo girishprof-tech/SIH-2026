@@ -2217,14 +2217,6 @@ class RobotNode:
             self.robot.state = self.fsm.state
             self.robot.path = []
             action_taken = "CHARGING"
-            self.log(f"[Tick {tick}] Arrived at charger {self.charger_target}; charging.")
-        elif self.task is None and self.goal_pos is not None and self.robot.position == self.goal_pos:
-            self.fsm.state = RobotState.IDLE
-            self.robot.state = self.fsm.state
-            self.robot.path = []
-            self.goal_pos = None
-            action_taken = "REACHED_OPEN_AREA"
-            self.log(f"[Tick {tick}] Arrived at open position {self.robot.position}; holding IDLE.")
         elif self.fsm.state == RobotState.AUDITING and self.active_audit_mission:
             if self.robot.position == self.active_audit_mission.checkpoint:
                 scan_res = self.active_audit_mission.record_scan(
@@ -2254,6 +2246,13 @@ class RobotNode:
                 self.robot.path = []
                 action_taken = "COMPLETED"
                 self.log(f"[Tick {tick}] {scan_res['message']}")
+        elif self.task is None and self.active_audit_mission is None and self.goal_pos is not None and self.robot.position == self.goal_pos:
+            self.fsm.state = RobotState.IDLE
+            self.robot.state = self.fsm.state
+            self.robot.path = []
+            self.goal_pos = None
+            action_taken = "REACHED_OPEN_AREA"
+            self.log(f"[Tick {tick}] Arrived at open position {self.robot.position}; holding IDLE.")
         elif (
             self.goal_pos is not None
             and self.task is not None
