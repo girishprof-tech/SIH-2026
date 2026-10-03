@@ -23,8 +23,8 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
       <div className="role-modal-container">
         <div className="role-modal-header">
           <div className="role-modal-badge">
-            <Radio size={14} className="pulse-icon text-cyan-400" />
-            <span>DECENTRALIZED FIXED-STATION TERMINAL</span>
+            <Radio size={13} />
+            <span>Decentralized Fixed-Station Terminal</span>
           </div>
           <h1>Select Operator Command Scope</h1>
           <p>
@@ -44,7 +44,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
           >
             <div className="role-card-top">
               <div className="role-icon-box import-icon-box">
-                <ArrowDownToLine size={24} />
+                <ArrowDownToLine size={22} />
               </div>
               <div className="role-card-pill import-pill">PORT 9601 • IN-1..3</div>
             </div>
@@ -59,11 +59,11 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
               <div className="role-specs">
                 <div className="role-spec-row">
                   <span className="spec-label">Authorized Tasks:</span>
-                  <span className="spec-value text-emerald-400">INDUCT_BATCH, IN-1..3</span>
+                  <span className="spec-value authorized">INDUCT_BATCH, IN-1..3</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">Prohibited Scope:</span>
-                  <span className="spec-value text-rose-400">Export & Sortation (Blocked by AMR)</span>
+                  <span className="spec-value prohibited">Export & Sortation (Blocked by AMR)</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">HaLow Uplink:</span>
@@ -75,7 +75,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
             <button type="button" className="role-select-btn import-btn">
               {currentRole === 'IMPORT' ? (
                 <>
-                  <CheckCircle2 size={16} /> Active Console
+                  <CheckCircle2 size={15} /> Active Console
                 </>
               ) : (
                 'Launch Import Console'
@@ -93,7 +93,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
           >
             <div className="role-card-top">
               <div className="role-icon-box export-icon-box">
-                <ArrowUpFromLine size={24} />
+                <ArrowUpFromLine size={22} />
               </div>
               <div className="role-card-pill export-pill">PORT 9602 • OUT-1..3</div>
             </div>
@@ -108,11 +108,11 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
               <div className="role-specs">
                 <div className="role-spec-row">
                   <span className="spec-label">Authorized Tasks:</span>
-                  <span className="spec-value text-sky-400">CONSOLIDATE_EXPORT, CHUTE-01..08</span>
+                  <span className="spec-value export-tasks">CONSOLIDATE_EXPORT, CHUTE-01..08</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">Prohibited Scope:</span>
-                  <span className="spec-value text-rose-400">Import Dock (Blocked by AMR)</span>
+                  <span className="spec-value prohibited">Import Dock (Blocked by AMR)</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">HaLow Uplink:</span>
@@ -124,7 +124,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
             <button type="button" className="role-select-btn export-btn">
               {currentRole === 'EXPORT' ? (
                 <>
-                  <CheckCircle2 size={16} /> Active Console
+                  <CheckCircle2 size={15} /> Active Console
                 </>
               ) : (
                 'Launch Export Console'
@@ -142,7 +142,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
           >
             <div className="role-card-top">
               <div className="role-icon-box authority-icon-box">
-                <ShieldCheck size={24} />
+                <ShieldCheck size={22} />
               </div>
               <div className="role-card-pill authority-pill">PORT 9603 • FULL SCOPE</div>
             </div>
@@ -157,15 +157,15 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
               <div className="role-specs">
                 <div className="role-spec-row">
                   <span className="spec-label">Command Scope:</span>
-                  <span className="spec-value text-purple-400">Unrestricted Across All AMRs</span>
+                  <span className="spec-value authority-scope">Unrestricted Across All AMRs</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">Architecture:</span>
-                  <span className="spec-value">Out of Critical Path (AMRs survive failure)</span>
+                  <span className="spec-value spec-meta">Out of Critical Path (AMRs survive failure)</span>
                 </div>
                 <div className="role-spec-row">
                   <span className="spec-label">Authority:</span>
-                  <span className="spec-value">Global Supervisory Override</span>
+                  <span className="spec-value spec-meta">Global Supervisory Override</span>
                 </div>
               </div>
             </div>
@@ -173,7 +173,7 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
             <button type="button" className="role-select-btn authority-btn">
               {currentRole === 'AUTHORITY' ? (
                 <>
-                  <CheckCircle2 size={16} /> Active Console
+                  <CheckCircle2 size={15} /> Active Console
                 </>
               ) : (
                 'Launch Full Control'

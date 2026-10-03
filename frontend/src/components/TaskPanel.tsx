@@ -195,7 +195,7 @@ export function TaskPanel({
     <section className="panel tasks-panel" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <div className="panel-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <ShoppingCart size={16} style={{ color: '#38bdf8' }} />
+          <ShoppingCart size={16} style={{ color: 'var(--accent-primary)' }} />
           <h2 style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>Dispatch Orders</h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -205,8 +205,9 @@ export function TaskPanel({
               fontWeight: 700,
               padding: '2px 6px',
               borderRadius: '4px',
-              background: 'rgba(56,189,248,0.15)',
-              color: '#38bdf8',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent-text)',
+              border: '1px solid var(--accent-border)',
             }}
           >
             ORDER-DRIVEN
@@ -227,9 +228,9 @@ export function TaskPanel({
           style={{
             padding: '6px 8px',
             borderRadius: '6px',
-            border: activeTab === 'order' ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
-            background: activeTab === 'order' ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.03)',
-            color: activeTab === 'order' ? '#38bdf8' : 'inherit',
+            border: activeTab === 'order' ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+            background: activeTab === 'order' ? 'var(--accent-subtle)' : 'var(--bg-surface-subtle)',
+            color: activeTab === 'order' ? 'var(--accent-primary)' : 'var(--text-secondary)',
             fontWeight: 600,
             fontSize: '11px',
             display: 'flex',
@@ -254,9 +255,9 @@ export function TaskPanel({
           style={{
             padding: '6px 8px',
             borderRadius: '6px',
-            border: activeTab === 'audit' ? '1px solid #a855f7' : '1px solid rgba(255,255,255,0.1)',
-            background: activeTab === 'audit' ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.03)',
-            color: activeTab === 'audit' ? '#c084fc' : 'inherit',
+            border: activeTab === 'audit' ? '1px solid #D97706' : '1px solid var(--border-subtle)',
+            background: activeTab === 'audit' ? 'rgba(217, 119, 6, 0.12)' : 'var(--bg-surface-subtle)',
+            color: activeTab === 'audit' ? '#B45309' : 'var(--text-secondary)',
             fontWeight: 600,
             fontSize: '11px',
             display: 'flex',
@@ -379,29 +380,39 @@ export function TaskPanel({
 
           {/* Urgency Selector */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#cbd5e1' }}>Urgency</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>Urgency</span>
             <div style={{ display: 'flex', gap: '4px' }}>
-              {[1, 2, 3, 4, 5].map((lvl) => (
-                <button
-                  type="button"
-                  key={lvl}
-                  onClick={() => setUrgency(lvl)}
-                  style={{
-                    width: '26px',
-                    height: '24px',
-                    padding: 0,
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: urgency === lvl ? 700 : 500,
-                    border: urgency === lvl ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.1)',
-                    background: urgency === lvl ? 'rgba(56,189,248,0.25)' : 'rgba(255,255,255,0.03)',
-                    color: urgency === lvl ? '#38bdf8' : 'inherit',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {lvl}
-                </button>
-              ))}
+              {[1, 2, 3, 4, 5].map((lvl) => {
+                const isSelected = urgency === lvl
+                const isHigh = lvl >= 4
+                return (
+                  <button
+                    type="button"
+                    key={lvl}
+                    onClick={() => setUrgency(lvl)}
+                    style={{
+                      width: '26px',
+                      height: '24px',
+                      padding: 0,
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: isSelected ? 700 : 500,
+                      border: isSelected
+                        ? (isHigh ? '1px solid #FECACA' : '1px solid var(--accent-border)')
+                        : '1px solid var(--border-subtle)',
+                      background: isSelected
+                        ? (isHigh ? '#FEE2E2' : 'var(--accent-subtle)')
+                        : 'var(--bg-surface-subtle)',
+                      color: isSelected
+                        ? (isHigh ? '#991B1B' : 'var(--accent-primary)')
+                        : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {lvl}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -575,42 +586,46 @@ export function TaskPanel({
               <div
                 key={order.order_id}
                 style={{
-                  background: 'rgba(0,0,0,0.2)',
-                  border: isShipped ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(56,189,248,0.2)',
+                  backgroundColor: 'var(--bg-surface-elevated)',
+                  border: isShipped ? '1px solid #86EFAC' : '1px solid var(--border-subtle)',
                   borderRadius: '6px',
-                  padding: '6px 8px',
+                  padding: '8px 10px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '4px',
+                  boxShadow: 'var(--shadow-card)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: isShipped ? '#34d399' : '#38bdf8' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {order.order_id}
                   </span>
                   <span
                     style={{
                       fontSize: '9px',
-                      padding: '1px 6px',
+                      padding: '2px 6px',
                       borderRadius: '4px',
-                      background: isShipped ? 'rgba(16,185,129,0.2)' : 'rgba(56,189,248,0.2)',
-                      color: isShipped ? '#34d399' : '#38bdf8',
-                      fontWeight: 600,
+                      backgroundColor: isShipped ? '#DCFCE7' : 'rgba(255, 107, 53, 0.12)',
+                      color: isShipped ? '#15803D' : '#C2410C',
+                      border: isShipped ? '1px solid #86EFAC' : '1px solid rgba(255, 107, 53, 0.3)',
+                      fontWeight: 700,
                     }}
                   >
                     {order.stage}
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', opacity: 0.8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-secondary)' }}>
                   <span>
-                    {order.quantity}x {order.sku} → Gate {order.destination_gate}
+                    <strong>{order.quantity}x</strong> {order.sku} → Gate {order.destination_gate}
                   </span>
-                  <span>{order.g2p_robot_id ? `AMR: ${order.g2p_robot_id}` : 'Bidding...'}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: order.g2p_robot_id ? '#B45309' : 'var(--text-muted)' }}>
+                    {order.g2p_robot_id ? `AMR: ${order.g2p_robot_id}` : 'Bidding...'}
+                  </span>
                 </div>
 
                 {order.stuck_reason && (
-                  <div style={{ fontSize: '9px', color: '#facc15', marginTop: '2px' }}>
+                  <div style={{ fontSize: '10px', color: '#92400E', backgroundColor: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '4px', padding: '4px 6px', marginTop: '2px' }}>
                     ⚠ {order.stuck_reason}
                   </div>
                 )}
