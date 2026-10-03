@@ -114,10 +114,80 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'li
   })
   const [entryGates, setEntryGates] = useState<WarehouseMap['entry_gates']>(initialMap?.entry_gates || [])
   const [exitGates, setExitGates] = useState<WarehouseMap['exit_gates']>(initialMap?.exit_gates || [])
+  const [selectedExitGateId, setSelectedExitGateId] = useState<string>(() => {
+    return initialMap?.exit_gates?.[0]?.id || 'OUT-1'
+  })
+  const [selectedEntryGateId, setSelectedEntryGateId] = useState<string>(() => {
+    return initialMap?.entry_gates?.[0]?.id || 'IN-1'
+  })
   const [sortingStations, setSortingStations] = useState<WarehouseMap['sorting_stations']>(initialMap?.sorting_stations || [])
   const [pickStations, setPickStations] = useState<WarehouseMap['pick_stations']>(initialMap?.pick_stations || [])
   const [chargers, setChargers] = useState<WarehouseMap['chargers']>(initialMap?.chargers || [])
   const [robotStarts, setRobotStarts] = useState<WarehouseMap['robot_starts']>(initialMap?.robot_starts || [])
+
+  const handleAddExitGate = () => {
+    recordHistory()
+    const existingNums = exitGates.map((g) => {
+      const m = g.id.match(/\d+/)
+      return m ? parseInt(m[0], 10) : 0
+    })
+    const nextNum = (existingNums.length > 0 ? Math.max(...existingNums) : 0) + 1
+    const newId = `OUT-${nextNum}`
+    setExitGates((prev) => [...prev, { id: newId, name: `Shipping Dock ${newId}`, cells: [] }])
+    setSelectedExitGateId(newId)
+  }
+
+  const handleClearExitGateCells = (gateId: string) => {
+    recordHistory()
+    setExitGates((prev) =>
+      prev.map((g) => (g.id === gateId ? { ...g, cells: [] } : g))
+    )
+  }
+
+  const handleDeleteExitGate = (gateId: string) => {
+    if (exitGates.length <= 1) {
+      alert('At least one exit gate is required.')
+      return
+    }
+    recordHistory()
+    const remaining = exitGates.filter((g) => g.id !== gateId)
+    setExitGates(remaining)
+    if (selectedExitGateId === gateId) {
+      setSelectedExitGateId(remaining[0]?.id || 'OUT-1')
+    }
+  }
+
+  const handleAddEntryGate = () => {
+    recordHistory()
+    const existingNums = entryGates.map((g) => {
+      const m = g.id.match(/\d+/)
+      return m ? parseInt(m[0], 10) : 0
+    })
+    const nextNum = (existingNums.length > 0 ? Math.max(...existingNums) : 0) + 1
+    const newId = `IN-${nextNum}`
+    setEntryGates((prev) => [...prev, { id: newId, name: `Inbound Dock ${newId}`, cells: [] }])
+    setSelectedEntryGateId(newId)
+  }
+
+  const handleClearEntryGateCells = (gateId: string) => {
+    recordHistory()
+    setEntryGates((prev) =>
+      prev.map((g) => (g.id === gateId ? { ...g, cells: [] } : g))
+    )
+  }
+
+  const handleDeleteEntryGate = (gateId: string) => {
+    if (entryGates.length <= 1) {
+      alert('At least one entry gate is required.')
+      return
+    }
+    recordHistory()
+    const remaining = entryGates.filter((g) => g.id !== gateId)
+    setEntryGates(remaining)
+    if (selectedEntryGateId === gateId) {
+      setSelectedEntryGateId(remaining[0]?.id || 'IN-1')
+    }
+  }
 
   // Selected Entity for Inspector / Edit
   const [selectedShelf, setSelectedShelf] = useState<{ id: string; x: number; y: number; stock: Record<string, number> } | null>(null)
@@ -384,30 +454,46 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'li
       setPickStations((prev) => [...prev, { id: pid, name: pid, x, y, capacity: 4 }])
     }
 
-    // 8. Entry Gate (4c: Dragging along edge creates ONE gate with many cells)
+    // 8. Entry Gate (Paints cells directly into selectedEntryGateId)
     else if (activeTool === 'entry_gate') {
+      const gid = selectedEntryGateId || 'IN-1'
       setEntryGates((prev) => {
-        if (prev.length === 0) {
-          return [{ id: 'IN-1', name: 'Inbound Dock IN-1', cells: [{ x, y }] }]
+        // Clean cell from other entry gates
+        const cleaned = prev.map((g) => ({
+          ...g,
+          cells: g.cells.filter((c) => c.x !== x || c.y !== y),
+        }))
+        const target = cleaned.find((g) => g.id === gid)
+        if (target) {
+          if (target.cells.some((c) => c.x === x && c.y === y)) return prev
+          return cleaned.map((g) =>
+            g.id === gid ? { ...g, cells: [...g.cells, { x, y }] } : g
+          )
         }
-        const targetGate = prev[0]
-        if (targetGate.cells.some((c) => c.x === x && c.y === y)) return prev
-        return [{ ...targetGate, cells: [...targetGate.cells, { x, y }] }, ...prev.slice(1)]
+        return [...cleaned, { id: gid, name: `Inbound Dock ${gid}`, cells: [{ x, y }] }]
       })
     }
 
-    // 9. Exit Gate (4c: Dragging along edge creates ONE gate with many cells)
+    // 9. Exit Gate (Paints cells directly into selectedExitGateId)
     else if (activeTool === 'exit_gate') {
+      const gid = selectedExitGateId || 'OUT-1'
       setExitGates((prev) => {
-        if (prev.length === 0) {
-          return [{ id: 'OUT-1', name: 'Shipping Dock OUT-1', cells: [{ x, y }] }]
+        // Clean cell from other exit gates
+        const cleaned = prev.map((g) => ({
+          ...g,
+          cells: g.cells.filter((c) => c.x !== x || c.y !== y),
+        }))
+        const target = cleaned.find((g) => g.id === gid)
+        if (target) {
+          if (target.cells.some((c) => c.x === x && c.y === y)) return prev
+          return cleaned.map((g) =>
+            g.id === gid ? { ...g, cells: [...g.cells, { x, y }] } : g
+          )
         }
-        const targetGate = prev[0]
-        if (targetGate.cells.some((c) => c.x === x && c.y === y)) return prev
-        return [{ ...targetGate, cells: [...targetGate.cells, { x, y }] }, ...prev.slice(1)]
+        return [...cleaned, { id: gid, name: `Shipping Dock ${gid}`, cells: [{ x, y }] }]
       })
     }
-  }, [width, height, activeTool, selectedShelf])
+  }, [width, height, activeTool, selectedShelf, selectedExitGateId, selectedEntryGateId])
 
   // ── Undo / Redo ────────────────────────────────────────────────────────────
   const handleUndo = useCallback(() => {
@@ -439,6 +525,12 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'li
     )
     setEntryGates(map.entry_gates || [])
     setExitGates(map.exit_gates || [])
+    if (map.exit_gates && map.exit_gates.length > 0) {
+      setSelectedExitGateId(map.exit_gates[0].id)
+    }
+    if (map.entry_gates && map.entry_gates.length > 0) {
+      setSelectedEntryGateId(map.entry_gates[0].id)
+    }
     setSortingStations(map.sorting_stations || [])
     setPickStations(map.pick_stations || [])
     setChargers(map.chargers || [])
@@ -451,8 +543,10 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'li
       recordHistory()
       setBlockedCells([])
       setShelves([])
-      setEntryGates([])
-      setExitGates([])
+      setEntryGates([{ id: 'IN-1', name: 'Inbound Dock IN-1', cells: [] }])
+      setExitGates([{ id: 'OUT-1', name: 'Shipping Dock OUT-1', cells: [] }])
+      setSelectedExitGateId('OUT-1')
+      setSelectedEntryGateId('IN-1')
       setSortingStations([])
       setPickStations([])
       setChargers([])
@@ -957,6 +1051,221 @@ export function WarehouseMapEditor({ initialMap, onLaunch, onCancel, theme = 'li
             }
           }}
         >
+          {/* Active Gate Toolbar for Exit Gates */}
+          {activeTool === 'exit_gate' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 30,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 14px',
+                borderRadius: 8,
+                backgroundColor: panelBg,
+                border: `1px solid ${borderColor}`,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#B45309', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <LogOut size={14} /> Shipping Gates:
+              </span>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {exitGates.map((g) => {
+                  const isSel = selectedExitGateId === g.id
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedExitGateId(g.id)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: isSel ? '2px solid #D97706' : `1px solid ${borderColor}`,
+                        backgroundColor: isSel ? (isDark ? '#451A03' : '#FEF3C7') : 'transparent',
+                        color: isSel ? (isDark ? '#FDE68A' : '#92400E') : textColor,
+                        fontWeight: isSel ? 700 : 500,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {g.id} ({g.cells.length} cells)
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={handleAddExitGate}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px dashed #D97706',
+                  backgroundColor: 'transparent',
+                  color: '#D97706',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Plus size={12} /> Add Gate
+              </button>
+              <button
+                type="button"
+                onClick={() => handleClearExitGateCells(selectedExitGateId)}
+                title="Clear cells for currently selected gate"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: `1px solid ${borderColor}`,
+                  backgroundColor: 'transparent',
+                  color: mutedText,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Cells
+              </button>
+              {exitGates.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteExitGate(selectedExitGateId)}
+                  title="Delete currently selected gate"
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #FCA5A5',
+                    backgroundColor: isDark ? '#450A0A' : '#FEF2F2',
+                    color: '#DC2626',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Active Gate Toolbar for Entry Gates */}
+          {activeTool === 'entry_gate' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 14,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 30,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 14px',
+                borderRadius: 8,
+                backgroundColor: panelBg,
+                border: `1px solid ${borderColor}`,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#EA580C', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <LogIn size={14} /> Inbound Gates:
+              </span>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {entryGates.map((g) => {
+                  const isSel = selectedEntryGateId === g.id
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedEntryGateId(g.id)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: isSel ? '2px solid #EA580C' : `1px solid ${borderColor}`,
+                        backgroundColor: isSel ? (isDark ? '#431407' : '#FFEDD5') : 'transparent',
+                        color: isSel ? (isDark ? '#FED7AA' : '#9A3412') : textColor,
+                        fontWeight: isSel ? 700 : 500,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {g.id} ({g.cells.length} cells)
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={handleAddEntryGate}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px dashed #EA580C',
+                  backgroundColor: 'transparent',
+                  color: '#EA580C',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Plus size={12} /> Add Gate
+              </button>
+              <button
+                type="button"
+                onClick={() => handleClearEntryGateCells(selectedEntryGateId)}
+                title="Clear cells for currently selected gate"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: `1px solid ${borderColor}`,
+                  backgroundColor: 'transparent',
+                  color: mutedText,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Cells
+              </button>
+              {entryGates.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteEntryGate(selectedEntryGateId)}
+                  title="Delete currently selected gate"
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid #FCA5A5',
+                    backgroundColor: isDark ? '#450A0A' : '#FEF2F2',
+                    color: '#DC2626',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
+              )}
+            </div>
+          )}
           <div
             style={{
               position: 'absolute',

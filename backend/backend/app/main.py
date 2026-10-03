@@ -616,7 +616,8 @@ async def lifespan(app: FastAPI):
                                                 ord_obj.advance_stage(OrderStage.AT_PICK_STATION.value, fleet_state.tick)
 
                             for sid, st in fleet_state.world.pick_stations.items():
-                                for carton in st.get("buffer_items", []):
+                                buf_items = st.get("buffer") or st.get("buffer_items", [])
+                                for carton in buf_items:
                                     oid = getattr(carton, "order_id", None) or (carton.get("order_id") if isinstance(carton, dict) else None)
                                     if oid:
                                         ord_obj = order_manager.get_order(oid)

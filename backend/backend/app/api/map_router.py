@@ -95,6 +95,8 @@ async def launch_map(payload: Dict[str, Any], request: Request) -> Dict[str, Any
             logger.info("[MAP LAUNCH] Stopping current orchestrator and freeing UDP ports...")
             try:
                 old_orch.stop()
+                import time
+                time.sleep(0.2)
             except Exception as e:
                 logger.warning(f"[MAP LAUNCH] Error stopping old orchestrator: {e}")
             request.app.state.orchestrator = None

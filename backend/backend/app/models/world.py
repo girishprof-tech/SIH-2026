@@ -161,9 +161,13 @@ class WorldConfig:
         If no matching chute is found, defaults to the designated OVERFLOW chute (CHUTE-08).
         """
         for chute_id, info in self.sortation_chutes.items():
-            if info.get("destination_zone") == destination_zone:
+            if info.get("destination_zone") == destination_zone or info.get("gate_id") == destination_zone:
                 return chute_id
-        # Fallback overflow chute
+        # Fallback to designated overflow chute or first available chute
+        if "CHUTE-08" in self.sortation_chutes:
+            return "CHUTE-08"
+        if self.sortation_chutes:
+            return list(self.sortation_chutes.keys())[0]
         return "CHUTE-08"
 
     # PART B: Pick Station Buffer Management

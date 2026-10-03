@@ -80,10 +80,11 @@ class RightOfWayTracker:
         id_a: str,
         id_b: str,
         distance: int,
+        tick: Optional[int] = None,
     ) -> Optional[str]:
         """
         Retrieves the locked winner if the pair is currently locked and within arbitration radius.
-        If distance > arbitration_radius, clears the lock and returns None.
+        If distance > arbitration_radius or standoff timeout reached (>= 4 ticks), clears the lock and returns None.
         """
         key = self._pair_key(id_a, id_b)
         lock = self._locks.get(key)
@@ -95,6 +96,13 @@ class RightOfWayTracker:
             log.debug("RightOfWayTracker: Pair %s cleared arbitration radius (dist=%d > %d); unlocking.", key, distance, self.arbitration_radius)
             del self._locks[key]
             return None
+
+        # Unlock after 4 ticks of unresolved standoff to prevent permanent deadlock
+        if tick is not None and lock.get("locked_at_tick") is not None:
+            if (tick - lock["locked_at_tick"]) >= 4:
+                log.debug("RightOfWayTracker: Standoff timeout (%d ticks) for %s; releasing ROW lock.", tick - lock["locked_at_tick"], key)
+                del self._locks[key]
+                return None
 
         return str(lock["winner_id"])
 

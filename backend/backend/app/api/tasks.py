@@ -654,16 +654,33 @@ async def create_sku_order(body: OrderRequest, request: Request) -> JobOut:
             detail=f"Could not locate a valid shelf holding SKU '{body.sku}' with quantity >= {body.quantity}.",
         )
 
-    # 6. Nearest Pick Station Dropoff
+    # 6. Nearest Pick Station Dropoff with intelligent load balancing
     pickup = (best_shelf.x, best_shelf.y)
     pick_stations = list(fleet.world.pick_stations.items())
     if pick_stations:
-        nearest_ps_id, nearest_ps = min(
+        # Calculate active load on each station: cartons in buffer + in-flight G2P tasks targeting it
+        station_loads = {}
+        for ps_id_key, ps_info in pick_stations:
+            buf = ps_info.get("buffer") or ps_info.get("buffer_items", [])
+            station_loads[ps_id_key] = len(buf)
+
+        for t in task_manager.all_tasks().values():
+            t_status_val = str(getattr(t.status, "value", t.status))
+            if t_status_val in ("ANNOUNCED", "ASSIGNED", "IN_PROGRESS"):
+                target_ps = getattr(t, "pick_station_id", None)
+                if target_ps and target_ps in station_loads:
+                    station_loads[target_ps] += 2
+
+        # Select station with lowest load, using Manhattan distance as tiebreaker
+        best_ps_id, best_ps = min(
             pick_stations,
-            key=lambda item: abs(item[1]["x"] - pickup[0]) + abs(item[1]["y"] - pickup[1]),
+            key=lambda item: (
+                station_loads.get(item[0], 0),
+                abs(item[1]["x"] - pickup[0]) + abs(item[1]["y"] - pickup[1]),
+            ),
         )
-        dropoff = (nearest_ps["x"], nearest_ps["y"])
-        ps_id = nearest_ps.get("id", nearest_ps_id)
+        dropoff = (best_ps["x"], best_ps["y"])
+        ps_id = best_ps.get("id", best_ps_id)
     else:
         dropoff = (fleet.world.width - 1, fleet.world.height // 2)
         ps_id = "PICK-01"

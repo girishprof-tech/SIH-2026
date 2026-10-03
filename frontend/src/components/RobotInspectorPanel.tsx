@@ -141,13 +141,12 @@ export function RobotInspectorPanel({
         maxHeight: '92vh',
         overflowY: 'auto',
         zIndex: 40,
-        background: 'rgba(15, 23, 42, 0.88)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
+        backgroundColor: 'var(--bg-surface, #FFFFFF)',
+        border: '1px solid var(--border-subtle, #E4E4E7)',
         borderRadius: '12px',
         padding: '16px',
-        boxShadow: '0 20px 35px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.08)',
-        color: '#f1f5f9',
+        boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        color: 'var(--text-primary, #18181B)',
       }}
     >
       {/* Close button */}
@@ -159,9 +158,9 @@ export function RobotInspectorPanel({
           position: 'absolute',
           top: '12px',
           right: '12px',
-          background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          color: '#94a3b8',
+          background: 'var(--bg-surface-subtle, #F4F4F5)',
+          border: '1px solid var(--border-subtle, #E4E4E7)',
+          color: 'var(--text-secondary, #71717A)',
           borderRadius: '6px',
           padding: '4px',
           cursor: 'pointer',
@@ -177,24 +176,23 @@ export function RobotInspectorPanel({
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
         <div
           style={{
-            width: '32px',
-            height: '32px',
+            width: '34px',
+            height: '34px',
             borderRadius: '8px',
-            backgroundColor: `${typeColor}22`,
-            border: `1px solid ${typeColor}55`,
+            backgroundColor: 'var(--bg-surface-subtle, #F4F4F5)',
+            border: '1px solid var(--border-subtle, #E4E4E7)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: `0 0 12px ${typeColor}33`,
           }}
         >
           <TypeIcon size={18} color={typeColor} />
         </div>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary, #18181B)' }}>
             {robot.robot_id}
           </h2>
-          <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #71717A)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
             {robot.robot_type.replace(/_/g, ' ')}
           </div>
         </div>
@@ -205,7 +203,7 @@ export function RobotInspectorPanel({
         <span
           className="state-badge"
           style={{
-            backgroundColor: `${stateColor}1c`,
+            backgroundColor: `${stateColor}18`,
             color: stateColor,
             border: `1px solid ${stateColor}44`,
             fontSize: '0.75rem',
@@ -223,7 +221,6 @@ export function RobotInspectorPanel({
               height: '6px',
               borderRadius: '50%',
               backgroundColor: stateColor,
-              boxShadow: `0 0 6px ${stateColor}`,
             }}
           />
           {STATE_LABELS[robot.state] ?? robot.state.replace(/_/g, ' ')}
@@ -233,12 +230,12 @@ export function RobotInspectorPanel({
           <span
             style={{
               fontSize: '0.7rem',
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'var(--bg-surface-subtle, #F4F4F5)',
+              border: '1px solid var(--border-subtle, #E4E4E7)',
               padding: '3px 8px',
               borderRadius: '6px',
-              color: '#cbd5e1',
-              fontWeight: 500,
+              color: 'var(--text-secondary, #71717A)',
+              fontWeight: 600,
             }}
           >
             {robot.action}
@@ -258,16 +255,15 @@ export function RobotInspectorPanel({
           padding: '8px 12px',
           marginBottom: '14px',
           borderRadius: '8px',
-          border: cameraFollow ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.12)',
+          border: cameraFollow ? '1px solid #3B82F6' : '1px solid var(--border-subtle, #E4E4E7)',
           background: cameraFollow
-            ? 'linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(14, 165, 233, 0.15))'
-            : 'rgba(255,255,255,0.04)',
-          color: cameraFollow ? '#38bdf8' : '#e2e8f0',
+            ? '#EFF6FF'
+            : 'var(--bg-surface-subtle, #F4F4F5)',
+          color: cameraFollow ? '#1D4ED8' : 'var(--text-primary, #18181B)',
           cursor: 'pointer',
           fontWeight: 600,
           fontSize: '0.82rem',
-          transition: 'all 0.2s ease',
-          boxShadow: cameraFollow ? '0 0 14px rgba(56, 189, 248, 0.2)' : 'none',
+          transition: 'all 0.15s ease',
         }}
       >
         <Crosshair size={14} />
@@ -277,44 +273,44 @@ export function RobotInspectorPanel({
       {/* Dynamic Task Progress Bar */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
+          background: 'var(--bg-surface-subtle, #FAFAFA)',
+          border: '1px solid var(--border-subtle, #E4E4E7)',
           borderRadius: '8px',
           padding: '10px 12px',
           marginBottom: '14px',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Activity size={13} color="#38bdf8" /> Mission Lifecycle
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary, #71717A)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Activity size={13} color="var(--accent-primary, #FF6B35)" /> Mission Lifecycle
           </span>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: taskProgress === 100 ? '#22c55e' : '#38bdf8' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary, #18181B)' }}>
             {taskProgress}%
           </span>
         </div>
 
         {/* Progress track */}
-        <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+        <div style={{ height: '6px', background: '#E4E4E7', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
           <div
             style={{
               width: `${taskProgress}%`,
               height: '100%',
               background:
                 isFailsafe
-                  ? '#ef4444'
+                  ? '#EF4444'
                   : taskProgress === 100
-                  ? '#22c55e'
-                  : 'linear-gradient(90deg, #38bdf8, #6366f1)',
+                  ? '#10B981'
+                  : 'var(--accent-primary, #FF6B35)',
               transition: 'width 0.4s ease',
             }}
           />
         </div>
 
         {/* Milestone Steps */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b' }}>
-          <span style={{ color: taskProgress >= 20 ? '#cbd5e1' : '#64748b' }}>1. Pickup</span>
-          <span style={{ color: taskProgress >= 50 ? '#cbd5e1' : '#64748b' }}>2. Transit</span>
-          <span style={{ color: taskProgress >= 90 ? '#cbd5e1' : '#64748b' }}>3. Dropoff</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-muted, #71717A)' }}>
+          <span style={{ color: taskProgress >= 20 ? 'var(--text-primary, #18181B)' : 'var(--text-muted, #71717A)', fontWeight: taskProgress >= 20 ? 600 : 400 }}>1. Pickup</span>
+          <span style={{ color: taskProgress >= 50 ? 'var(--text-primary, #18181B)' : 'var(--text-muted, #71717A)', fontWeight: taskProgress >= 50 ? 600 : 400 }}>2. Transit</span>
+          <span style={{ color: taskProgress >= 90 ? 'var(--text-primary, #18181B)' : 'var(--text-muted, #71717A)', fontWeight: taskProgress >= 90 ? 600 : 400 }}>3. Dropoff</span>
         </div>
       </div>
 
@@ -328,38 +324,38 @@ export function RobotInspectorPanel({
           fontSize: '0.8rem',
         }}
       >
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
-            <Compass size={13} color="#38bdf8" /> Position
+        <div style={{ background: 'var(--bg-surface-subtle, #FAFAFA)', border: '1px solid var(--border-subtle, #E4E4E7)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 600 }}>
+            <Compass size={13} color="var(--text-secondary, #71717A)" /> Position
           </div>
-          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>
+          <strong style={{ color: 'var(--text-primary, #18181B)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>
             ({robot.position.x}, {robot.position.y})
           </strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
-            <Gauge size={13} color="#a855f7" /> Heading
+        <div style={{ background: 'var(--bg-surface-subtle, #FAFAFA)', border: '1px solid var(--border-subtle, #E4E4E7)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 600 }}>
+            <Gauge size={13} color="var(--text-secondary, #71717A)" /> Heading
           </div>
-          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>{robot.heading}</strong>
+          <strong style={{ color: 'var(--text-primary, #18181B)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>{robot.heading}</strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
-            <Target size={13} color="#10b981" /> Goal Dist / ETA
+        <div style={{ background: 'var(--bg-surface-subtle, #FAFAFA)', border: '1px solid var(--border-subtle, #E4E4E7)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 600 }}>
+            <Target size={13} color="var(--text-secondary, #71717A)" /> Goal Dist / ETA
           </div>
-          <strong style={{ color: '#f8fafc', fontSize: '0.85rem' }}>
-            {distanceToGoal} cells <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>({estTicksToGoal}t)</span>
+          <strong style={{ color: 'var(--text-primary, #18181B)', fontSize: '0.85rem', fontFamily: 'var(--font-mono)' }}>
+            {distanceToGoal} cells <span style={{ color: 'var(--text-muted, #71717A)', fontSize: '0.75rem' }}>({estTicksToGoal}t)</span>
           </strong>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '8px 10px', borderRadius: '8px' }}>
-          <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem' }}>
-            <Zap size={13} color="#f59e0b" /> Priority Score
+        <div style={{ background: 'var(--bg-surface-subtle, #FAFAFA)', border: '1px solid var(--border-subtle, #E4E4E7)', padding: '8px 10px', borderRadius: '8px' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 600 }}>
+            <Zap size={13} color="var(--text-secondary, #71717A)" /> Priority Score
           </div>
-          <strong style={{ color: '#f8fafc', fontSize: '0.9rem' }}>
+          <strong style={{ color: 'var(--text-primary, #18181B)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>
             {robot.priority_score.toFixed(1)}{' '}
-            <span style={{ fontSize: '0.7rem', color: robot.priority_score > 3.0 ? '#ef4444' : '#22c55e' }}>
+            <span style={{ fontSize: '0.7rem', color: robot.priority_score > 3.0 ? '#DC2626' : '#15803D', fontWeight: 700 }}>
               ({robot.priority_score > 3.0 ? 'HIGH' : robot.priority_score > 1.5 ? 'MED' : 'NORM'})
             </span>
           </strong>
@@ -369,27 +365,27 @@ export function RobotInspectorPanel({
       {/* Battery Gauge */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--bg-surface-subtle, #FAFAFA)',
+          border: '1px solid var(--border-subtle, #E4E4E7)',
           padding: '10px 12px',
           borderRadius: '8px',
           marginBottom: '14px',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#94a3b8' }}>
-            <Battery size={14} color={robot.battery_pct < 25 ? '#ef4444' : '#22c55e'} /> Battery Charge
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--text-secondary, #71717A)', fontWeight: 600 }}>
+            <Battery size={14} color={robot.battery_pct < 25 ? '#DC2626' : '#15803D'} /> Battery Charge
           </span>
-          <strong style={{ color: robot.battery_pct < 25 ? '#ef4444' : '#22c55e', fontSize: '0.85rem' }}>
+          <strong style={{ color: 'var(--text-primary, #18181B)', fontSize: '0.85rem', fontFamily: 'var(--font-mono)' }}>
             {robot.battery_pct.toFixed(1)}%
           </strong>
         </div>
-        <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+        <div style={{ height: '6px', background: '#E4E4E7', borderRadius: '3px', overflow: 'hidden' }}>
           <div
             style={{
               width: `${robot.battery_pct}%`,
               height: '100%',
-              backgroundColor: robot.battery_pct < 25 ? '#ef4444' : robot.battery_pct < 50 ? '#f59e0b' : '#22c55e',
+              backgroundColor: robot.battery_pct < 25 ? '#DC2626' : robot.battery_pct < 50 ? '#D97706' : '#10B981',
               transition: 'width 0.3s ease',
             }}
           />
@@ -399,37 +395,37 @@ export function RobotInspectorPanel({
       {/* Active Payload / Carrier Card */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--bg-surface-subtle, #FAFAFA)',
+          border: '1px solid var(--border-subtle, #E4E4E7)',
           padding: '10px 12px',
           borderRadius: '8px',
           marginBottom: '14px',
           fontSize: '0.8rem',
         }}
       >
-        <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontSize: '0.75rem' }}>
-          <Package size={14} color="#38bdf8" /> Physical Load / Cargo
+        <div style={{ color: 'var(--text-secondary, #71717A)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+          <Package size={14} color="var(--text-secondary, #71717A)" /> Physical Load / Cargo
         </div>
         {robot.carrying_pod_id ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '0.88rem' }}>
+            <span style={{ color: '#1D4ED8', fontWeight: 700, fontSize: '0.88rem' }}>
               Pod: {robot.carrying_pod_id}
             </span>
-            <span style={{ fontSize: '0.7rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+            <span style={{ fontSize: '0.7rem', background: '#EFF6FF', color: '#1D4ED8', padding: '2px 6px', borderRadius: '4px', border: '1px solid #BFDBFE', fontWeight: 700 }}>
               LOADED
             </span>
           </div>
         ) : robot.robot_type === 'SORTING' && robot.state === 'EN_ROUTE_DROPOFF' ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.88rem' }}>
+            <span style={{ color: '#B45309', fontWeight: 700, fontSize: '0.88rem' }}>
               Sortation Carton
             </span>
-            <span style={{ fontSize: '0.7rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <span style={{ fontSize: '0.7rem', background: '#FEF3C7', color: '#B45309', padding: '2px 6px', borderRadius: '4px', border: '1px solid #FDE68A', fontWeight: 700 }}>
               IN TRANSIT
             </span>
           </div>
         ) : (
-          <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.78rem' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', fontStyle: 'italic', fontSize: '0.78rem' }}>
             Unladen (No active payload attached)
           </div>
         )}
@@ -438,8 +434,8 @@ export function RobotInspectorPanel({
       {/* Real-time Conflict Arbitration Status Badge */}
       <div
         style={{
-          background: robot.conflict ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.05)',
-          border: robot.conflict ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(34, 197, 94, 0.15)',
+          background: robot.conflict ? '#FEF2F2' : '#F0FDF4',
+          border: robot.conflict ? '1px solid #FECACA' : '1px solid #BBF7D0',
           padding: '10px 12px',
           borderRadius: '8px',
           marginBottom: '14px',
@@ -449,23 +445,23 @@ export function RobotInspectorPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
           {robot.conflict ? (
             <>
-              <AlertTriangle size={14} color="#ef4444" />
-              <strong style={{ color: '#ef4444' }}>Contention / Arbitration Active</strong>
+              <AlertTriangle size={14} color="#DC2626" />
+              <strong style={{ color: '#DC2626' }}>Contention / Arbitration Active</strong>
             </>
           ) : (
             <>
-              <ShieldCheck size={14} color="#22c55e" />
-              <strong style={{ color: '#22c55e' }}>Traffic Nominal (No Conflicts)</strong>
+              <ShieldCheck size={14} color="#15803D" />
+              <strong style={{ color: '#15803D' }}>Traffic Nominal (No Conflicts)</strong>
             </>
           )}
         </div>
         {robot.conflict ? (
-          <div style={{ color: '#cbd5e1', fontSize: '0.72rem' }}>
+          <div style={{ color: '#991B1B', fontSize: '0.72rem' }}>
             Contending at cell ({robot.conflict.cell.x}, {robot.conflict.cell.y}) | Action:{' '}
-            <span style={{ color: '#f8fafc', fontWeight: 600 }}>{robot.conflict.action ?? 'RESOLVING'}</span>
+            <span style={{ color: '#7F1D1D', fontWeight: 700 }}>{robot.conflict.action ?? 'RESOLVING'}</span>
           </div>
         ) : (
-          <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>
+          <div style={{ color: '#166534', fontSize: '0.72rem' }}>
             Clear path reservation registered on peer UDP mesh
           </div>
         )}
@@ -474,18 +470,18 @@ export function RobotInspectorPanel({
       {/* Recent FSM Transitions Log */}
       <div
         style={{
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--bg-surface-subtle, #FAFAFA)',
+          border: '1px solid var(--border-subtle, #E4E4E7)',
           padding: '10px 12px',
           borderRadius: '8px',
           marginBottom: '16px',
         }}
       >
-        <div style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.75rem' }}>
-          <Clock size={13} color="#a855f7" /> Recent FSM Transitions
+        <div style={{ color: 'var(--text-secondary, #71717A)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '0.75rem', fontWeight: 600 }}>
+          <Clock size={13} color="var(--text-secondary, #71717A)" /> Recent FSM Transitions
         </div>
         {transitionHistory.length === 0 ? (
-          <div style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.72rem' }}>
+          <div style={{ color: 'var(--text-muted, #71717A)', fontStyle: 'italic', fontSize: '0.72rem' }}>
             Steady state: {robot.state} (Tick {tick})
           </div>
         ) : (
@@ -498,16 +494,17 @@ export function RobotInspectorPanel({
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '0.7rem',
-                  color: '#cbd5e1',
-                  background: 'rgba(255,255,255,0.02)',
-                  padding: '3px 6px',
+                  color: 'var(--text-primary, #18181B)',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  border: '1px solid var(--border-subtle, #E4E4E7)',
+                  padding: '4px 6px',
                   borderRadius: '4px',
                 }}
               >
-                <span style={{ color: '#64748b' }}>T{rec.tick}:</span>
-                <span style={{ color: '#94a3b8' }}>{rec.from}</span>
-                <ArrowRight size={11} color="#64748b" />
-                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{rec.to}</span>
+                <span style={{ color: 'var(--text-muted, #71717A)', fontFamily: 'var(--font-mono)' }}>T{rec.tick}:</span>
+                <span style={{ color: 'var(--text-secondary, #71717A)' }}>{rec.from}</span>
+                <ArrowRight size={11} color="var(--text-muted, #71717A)" />
+                <span style={{ color: 'var(--accent-primary, #FF6B35)', fontWeight: 600 }}>{rec.to}</span>
               </div>
             ))}
           </div>
@@ -526,13 +523,13 @@ export function RobotInspectorPanel({
             gap: '6px',
             padding: '8px 12px',
             borderRadius: '6px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            color: '#ef4444',
+            background: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            color: '#DC2626',
             fontSize: '0.78rem',
             fontWeight: 700,
             cursor: 'pointer',
-            transition: 'background 0.2s',
+            transition: 'background 0.15s ease',
           }}
         >
           <ShieldAlert size={14} /> E-Stop AMR
@@ -548,13 +545,13 @@ export function RobotInspectorPanel({
             gap: '6px',
             padding: '8px 12px',
             borderRadius: '6px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            color: '#e2e8f0',
+            background: 'var(--bg-surface-subtle, #F4F4F5)',
+            border: '1px solid var(--border-subtle, #E4E4E7)',
+            color: 'var(--text-primary, #18181B)',
             fontSize: '0.78rem',
             fontWeight: 700,
             cursor: 'pointer',
-            transition: 'background 0.2s',
+            transition: 'background 0.15s ease',
           }}
         >
           <RotateCcw size={14} /> Reset AMR

@@ -14,12 +14,15 @@ import time
 from typing import Any, Dict, Optional, Tuple
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-DEFAULT_SECRET_KEY = "sih2026-edge-robot-shared-secret"
+import os
+
+DEFAULT_SECRET_KEY = os.environ.get("MASTER_SECURITY_KEY", "sih2026-edge-robot-shared-secret")
 
 
-def get_node_keypair(node_id: str) -> Tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
+def get_node_keypair(node_id: str, master_secret: Optional[str] = None) -> Tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
     """Deterministically derives an Ed25519 private/public keypair for a known station or robot node."""
-    seed = hashlib.sha256(f"sih2026-node-key-v1:{node_id}".encode("utf-8")).digest()
+    secret = master_secret or os.environ.get("MASTER_SECURITY_KEY", DEFAULT_SECRET_KEY)
+    seed = hashlib.sha256(f"{secret}:{node_id}".encode("utf-8")).digest()
     private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
     return private_key, private_key.public_key()
 

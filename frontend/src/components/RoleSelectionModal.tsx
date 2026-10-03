@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, ShieldCheck, Radio, Server, CheckCircle2 } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import type { FC } from 'react'
 
 export type OperatorRole = 'IMPORT' | 'EXPORT' | 'AUTHORITY'
@@ -22,14 +22,9 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
     <div className="role-modal-overlay">
       <div className="role-modal-container">
         <div className="role-modal-header">
-          <div className="role-modal-badge">
-            <Radio size={13} />
-            <span>Decentralized Fixed-Station Terminal</span>
-          </div>
-          <h1>Select Operator Command Scope</h1>
+          <h1>Station Terminal Selection</h1>
           <p>
-            Choose your station terminal. AMRs enforce zero-trust cryptographic authorization at the receiving end
-            via HMAC-SHA256 allowlists. Full 3D simulation remains live across all roles.
+            Select a workstation terminal to operate batch induction, outbound sortation, or global fleet supervision.
           </p>
         </div>
 
@@ -58,16 +53,16 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
 
               <div className="role-specs">
                 <div className="role-spec-row">
-                  <span className="spec-label">Authorized Tasks:</span>
-                  <span className="spec-value authorized">INDUCT_BATCH, IN-1..3</span>
+                  <span className="spec-label">Assigned Zone:</span>
+                  <span className="spec-value">Inbound Dock (IN-1..3)</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">Prohibited Scope:</span>
-                  <span className="spec-value prohibited">Export & Sortation (Blocked by AMR)</span>
+                  <span className="spec-label">Workflows:</span>
+                  <span className="spec-value authorized">Induct Batch, Unload SKU</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">HaLow Uplink:</span>
-                  <span className="spec-value">150 kbps Tagged Channel</span>
+                  <span className="spec-label">Terminal Port:</span>
+                  <span className="spec-value">9601</span>
                 </div>
               </div>
             </div>
@@ -102,21 +97,21 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
               <h3>Export Station Omega</h3>
               <span className="role-zone-tag">East Outbound Gates & Chutes</span>
               <p>
-                Command scope limited strictly to consolidation missions, sortation decanting, and East gates.
+                Command scope for outbound chute sortation, consolidation missions, and shipping gates.
               </p>
 
               <div className="role-specs">
                 <div className="role-spec-row">
-                  <span className="spec-label">Authorized Tasks:</span>
-                  <span className="spec-value export-tasks">CONSOLIDATE_EXPORT, CHUTE-01..08</span>
+                  <span className="spec-label">Assigned Zone:</span>
+                  <span className="spec-value">Outbound Chutes (OUT-1..3)</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">Prohibited Scope:</span>
-                  <span className="spec-value prohibited">Import Dock (Blocked by AMR)</span>
+                  <span className="spec-label">Workflows:</span>
+                  <span className="spec-value export-tasks">Sortation & Consolidate</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">HaLow Uplink:</span>
-                  <span className="spec-value">150 kbps Tagged Channel</span>
+                  <span className="spec-label">Terminal Port:</span>
+                  <span className="spec-value">9602</span>
                 </div>
               </div>
             </div>
@@ -151,21 +146,21 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
               <h3>Central Authority Station</h3>
               <span className="role-zone-tag">Neutral Central Corridor (Row 14)</span>
               <p>
-                Single point of authority for unresolvable fault escalations and master emergency overrides.
+                Full supervisory oversight, priority dispatch, and emergency override controls across all warehouse operations.
               </p>
 
               <div className="role-specs">
                 <div className="role-spec-row">
-                  <span className="spec-label">Command Scope:</span>
-                  <span className="spec-value authority-scope">Unrestricted Across All AMRs</span>
+                  <span className="spec-label">Assigned Zone:</span>
+                  <span className="spec-value">All Zones (Global Scope)</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">Architecture:</span>
-                  <span className="spec-value spec-meta">Out of Critical Path (AMRs survive failure)</span>
+                  <span className="spec-label">Workflows:</span>
+                  <span className="spec-value authority-scope">Supervisory Override</span>
                 </div>
                 <div className="role-spec-row">
-                  <span className="spec-label">Authority:</span>
-                  <span className="spec-value spec-meta">Global Supervisory Override</span>
+                  <span className="spec-label">Terminal Port:</span>
+                  <span className="spec-value">9603</span>
                 </div>
               </div>
             </div>
@@ -183,13 +178,6 @@ export const RoleSelectionModal: FC<RoleSelectionModalProps> = ({
         </div>
 
         <div className="role-modal-footer">
-          <div className="role-footer-note">
-            <Server size={14} />
-            <span>
-              Real-time peer-to-peer UDP mesh active across 10 AMRs and 3 Station Nodes. Zero central dispatch
-              dependency.
-            </span>
-          </div>
           {currentRole && onClose && (
             <button type="button" className="role-dismiss-btn" onClick={onClose}>
               Continue with Current Role

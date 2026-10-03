@@ -167,7 +167,7 @@ class StationNode:
                 return True, ""
 
             # Check 2: Destination is an outbound gate
-            if destination_gate in ("OUT-1", "OUT-2", "OUT-3"):
+            if destination_gate and (destination_gate.startswith("OUT") or (hasattr(self, "world") and destination_gate in self.world.export_gates)):
                 return True, ""
 
             # Check 3: Dropoff coordinates within East export dock (x >= 27, 8 <= y <= 20)

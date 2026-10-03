@@ -92,7 +92,7 @@ export function TaskPanel({
   // Destination gates from world
   const exitGates = useMemo(() => {
     if (!world?.exit_gates || world.exit_gates.length === 0) {
-      return [{ id: 'OUT-1' }]
+      return [{ id: 'OUT-1' }, { id: 'OUT-2' }, { id: 'OUT-3' }]
     }
     return world.exit_gates
   }, [world])
@@ -304,8 +304,8 @@ export function TaskPanel({
           }}
         >
           {/* Product Dropdown */}
-          <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <span style={{ fontWeight: 600, color: '#cbd5e1' }}>Product SKU</span>
+          <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Product SKU</span>
             <select
               value={selectedSku}
               onChange={(e) => {
@@ -314,12 +314,14 @@ export function TaskPanel({
               }}
               disabled={submitting || busy}
               style={{
-                padding: '6px 8px',
+                padding: '7px 9px',
                 borderRadius: '6px',
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(15, 23, 42, 0.8)',
-                color: '#f8fafc',
-                fontSize: '11px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                outline: 'none',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               }}
             >
               {catalog.map((p) => (
@@ -332,8 +334,8 @@ export function TaskPanel({
 
           {/* Quantity & Destination Gate */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '8px' }}>
-            <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <span style={{ fontWeight: 600, color: '#cbd5e1' }}>
+            <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Qty <small style={{ opacity: 0.7 }}>(Max {maxAvailable})</small>
               </span>
               <input
@@ -344,29 +346,33 @@ export function TaskPanel({
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                 disabled={busy || submitting}
                 style={{
-                  padding: '6px 8px',
+                  padding: '7px 9px',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  color: '#f8fafc',
-                  fontSize: '11px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                 }}
               />
             </label>
 
-            <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <span style={{ fontWeight: 600, color: '#cbd5e1' }}>Destination Exit Gate</span>
+            <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Destination Exit Gate</span>
               <select
                 value={destinationGate}
                 onChange={(e) => setDestinationGate(e.target.value)}
                 disabled={busy || submitting}
                 style={{
-                  padding: '6px 8px',
+                  padding: '7px 9px',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'rgba(15, 23, 42, 0.8)',
-                  color: '#f8fafc',
-                  fontSize: '11px',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  outline: 'none',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                 }}
               >
                 {exitGates.map((g) => (
@@ -384,29 +390,23 @@ export function TaskPanel({
             <div style={{ display: 'flex', gap: '4px' }}>
               {[1, 2, 3, 4, 5].map((lvl) => {
                 const isSelected = urgency === lvl
-                const isHigh = lvl >= 4
                 return (
                   <button
                     type="button"
                     key={lvl}
                     onClick={() => setUrgency(lvl)}
                     style={{
-                      width: '26px',
-                      height: '24px',
+                      width: '28px',
+                      height: '26px',
                       padding: 0,
-                      borderRadius: '4px',
+                      borderRadius: '5px',
                       fontSize: '11px',
                       fontWeight: isSelected ? 700 : 500,
-                      border: isSelected
-                        ? (isHigh ? '1px solid #FECACA' : '1px solid var(--accent-border)')
-                        : '1px solid var(--border-subtle)',
-                      background: isSelected
-                        ? (isHigh ? '#FEE2E2' : 'var(--accent-subtle)')
-                        : 'var(--bg-surface-subtle)',
-                      color: isSelected
-                        ? (isHigh ? '#991B1B' : 'var(--accent-primary)')
-                        : 'var(--text-secondary)',
+                      border: isSelected ? '1px solid #18181B' : '1px solid var(--border-subtle)',
+                      background: isSelected ? '#18181B' : 'var(--bg-surface-subtle)',
+                      color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
                       cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
                   >
                     {lvl}
@@ -423,8 +423,8 @@ export function TaskPanel({
             disabled={busy || submitting || !selectedSku || (currentProduct && currentProduct.total_stock <= 0)}
             style={{
               marginTop: '4px',
-              padding: '8px',
-              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+              padding: '9px',
+              background: 'var(--accent-primary, #FF6B35)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
@@ -435,6 +435,7 @@ export function TaskPanel({
               justifyContent: 'center',
               gap: '6px',
               cursor: 'pointer',
+              transition: 'opacity 0.15s ease',
             }}
           >
             <Send size={13} />
@@ -455,19 +456,21 @@ export function TaskPanel({
             pointerEvents: 'auto',
           }}
         >
-          <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <span style={{ fontWeight: 600, color: '#cbd5e1' }}>Shelf Pod to Scan</span>
+          <label style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Shelf Pod to Scan</span>
             <select
               value={selectedShelf}
               onChange={(e) => setSelectedShelf(e.target.value)}
               disabled={busy || submitting}
               style={{
-                padding: '6px 8px',
+                padding: '7px 9px',
                 borderRadius: '6px',
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: 'rgba(15, 23, 42, 0.8)',
-                color: '#f8fafc',
-                fontSize: '11px',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                outline: 'none',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
               }}
             >
               {shelfList.map((s) => (
@@ -479,7 +482,7 @@ export function TaskPanel({
           </label>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#cbd5e1' }}>Scan Priority</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>Scan Priority</span>
             <div style={{ display: 'flex', gap: '4px' }}>
               {[1, 2, 3, 4, 5].map((lvl) => (
                 <button
@@ -487,16 +490,17 @@ export function TaskPanel({
                   key={lvl}
                   onClick={() => setAuditUrgency(lvl)}
                   style={{
-                    width: '26px',
-                    height: '24px',
+                    width: '28px',
+                    height: '26px',
                     padding: 0,
-                    borderRadius: '4px',
+                    borderRadius: '5px',
                     fontSize: '11px',
                     fontWeight: auditUrgency === lvl ? 700 : 500,
-                    border: auditUrgency === lvl ? '1px solid #c084fc' : '1px solid rgba(255,255,255,0.1)',
-                    background: auditUrgency === lvl ? 'rgba(168,85,247,0.25)' : 'rgba(255,255,255,0.03)',
-                    color: auditUrgency === lvl ? '#c084fc' : 'inherit',
+                    border: auditUrgency === lvl ? '1px solid #18181B' : '1px solid var(--border-subtle)',
+                    background: auditUrgency === lvl ? '#18181B' : 'var(--bg-surface-subtle)',
+                    color: auditUrgency === lvl ? '#FFFFFF' : 'var(--text-secondary)',
                     cursor: 'pointer',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   {lvl}
@@ -511,8 +515,8 @@ export function TaskPanel({
             disabled={busy || submitting || !selectedShelf}
             style={{
               marginTop: '4px',
-              padding: '8px',
-              background: 'linear-gradient(135deg, #7e22ce, #6b21a8)',
+              padding: '9px',
+              background: '#18181B',
               color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
@@ -523,6 +527,7 @@ export function TaskPanel({
               justifyContent: 'center',
               gap: '6px',
               cursor: 'pointer',
+              transition: 'opacity 0.15s ease',
             }}
           >
             <ShieldCheck size={13} />
@@ -535,18 +540,19 @@ export function TaskPanel({
       {error && (
         <div
           style={{
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            backgroundColor: '#FAFAFA',
+            border: '1px solid #E4E4E7',
+            borderLeft: '3px solid #DC2626',
             borderRadius: '6px',
-            padding: '6px 10px',
-            color: '#f87171',
+            padding: '7px 10px',
+            color: '#18181B',
             fontSize: '11px',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
           }}
         >
-          <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+          <AlertTriangle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
           <span>{error}</span>
         </div>
       )}
@@ -554,29 +560,30 @@ export function TaskPanel({
       {successMsg && (
         <div
           style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            backgroundColor: '#FAFAFA',
+            border: '1px solid #E4E4E7',
+            borderLeft: '3px solid #16A34A',
             borderRadius: '6px',
-            padding: '6px 10px',
-            color: '#34d399',
+            padding: '7px 10px',
+            color: '#18181B',
             fontSize: '11px',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
+            gap: '8px',
           }}
         >
-          <CheckCircle2 size={13} style={{ flexShrink: 0 }} />
+          <CheckCircle2 size={14} style={{ color: '#16A34A', flexShrink: 0 }} />
           <span>{successMsg}</span>
         </div>
       )}
 
       {/* Recent Orders Progress Summary */}
-      <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '8px' }}>
+      <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <strong style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.8 }}>
+          <strong style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
             Live Order Pipeline ({orders.length})
           </strong>
-          <span style={{ fontSize: '10px', opacity: 0.6 }}>Decentralized Flow</span>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Decentralized Dispatch</span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
@@ -587,7 +594,7 @@ export function TaskPanel({
                 key={order.order_id}
                 style={{
                   backgroundColor: 'var(--bg-surface-elevated)',
-                  border: isShipped ? '1px solid #86EFAC' : '1px solid var(--border-subtle)',
+                  border: '1px solid var(--border-subtle)',
                   borderRadius: '6px',
                   padding: '8px 10px',
                   display: 'flex',
@@ -603,12 +610,12 @@ export function TaskPanel({
                   <span
                     style={{
                       fontSize: '9px',
-                      padding: '2px 6px',
+                      padding: '2px 7px',
                       borderRadius: '4px',
-                      backgroundColor: isShipped ? '#DCFCE7' : 'rgba(255, 107, 53, 0.12)',
-                      color: isShipped ? '#15803D' : '#C2410C',
-                      border: isShipped ? '1px solid #86EFAC' : '1px solid rgba(255, 107, 53, 0.3)',
-                      fontWeight: 700,
+                      backgroundColor: isShipped ? '#18181B' : '#F4F4F5',
+                      color: isShipped ? '#FFFFFF' : '#18181B',
+                      border: isShipped ? '1px solid #18181B' : '1px solid #E4E4E7',
+                      fontWeight: 600,
                     }}
                   >
                     {order.stage}
@@ -625,7 +632,7 @@ export function TaskPanel({
                 </div>
 
                 {order.stuck_reason && (
-                  <div style={{ fontSize: '10px', color: '#92400E', backgroundColor: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '4px', padding: '4px 6px', marginTop: '2px' }}>
+                  <div style={{ fontSize: '10px', color: '#18181B', backgroundColor: '#FAFAFA', border: '1px solid #E4E4E7', borderLeft: '3px solid #D97706', borderRadius: '4px', padding: '4px 6px', marginTop: '2px' }}>
                     ⚠ {order.stuck_reason}
                   </div>
                 )}

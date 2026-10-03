@@ -237,23 +237,20 @@ export function ControlBar({
             onClick={onOpenRoleModal}
             title="Click to switch Station Console"
           >
-            <span
-              className="station-role-tag"
-              style={{
-                background:
-                  operatorRole === 'IMPORT'
-                    ? 'rgba(16,185,129,0.2)'
-                    : operatorRole === 'EXPORT'
-                    ? 'rgba(56,189,248,0.2)'
-                    : 'rgba(168,85,247,0.2)',
-                color:
-                  operatorRole === 'IMPORT'
-                    ? '#34d399'
-                    : operatorRole === 'EXPORT'
-                    ? '#38bdf8'
-                    : '#c084fc',
-              }}
-            >
+            <span className="station-role-tag">
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor:
+                    operatorRole === 'AUTHORITY'
+                      ? 'var(--accent-primary, #FF6B35)'
+                      : operatorRole === 'IMPORT'
+                      ? '#2563EB'
+                      : '#059669',
+                }}
+              />
               {operatorRole === 'IMPORT'
                 ? 'IMPORT 9601'
                 : operatorRole === 'EXPORT'

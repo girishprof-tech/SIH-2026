@@ -115,7 +115,18 @@ function CameraController({
 
   // Keyboard pan listener (WASD / Arrows)
   useEffect(() => {
+    const isInputFocused = (target?: EventTarget | null) => {
+      const el = (target as HTMLElement) || (document.activeElement as HTMLElement)
+      if (!el) return false
+      const tag = el.tagName?.toUpperCase()
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isInputFocused(e.target)) {
+        keysDown.current = {}
+        return
+      }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.code)) {
         if (document.activeElement === document.body || (document.activeElement && document.activeElement.tagName === 'CANVAS')) {
           e.preventDefault()
@@ -127,11 +138,17 @@ function CameraController({
     const handleKeyUp = (e: KeyboardEvent) => {
       keysDown.current[e.code] = false
     }
+    const handleResetKeys = () => {
+      keysDown.current = {}
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleResetKeys)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleResetKeys)
     }
   }, [onUserInteraction])
 
@@ -150,6 +167,16 @@ function CameraController({
         )
         controls.target.lerp(targetPos, 0.08)
         controls.update()
+      }
+    }
+
+    // Never pan canvas with keys if an input/select element is currently active
+    const activeEl = document.activeElement as HTMLElement | null
+    if (activeEl) {
+      const activeTag = activeEl.tagName?.toUpperCase()
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT' || activeEl.isContentEditable) {
+        keysDown.current = {}
+        return
       }
     }
 
@@ -841,57 +868,73 @@ function Gates3D({
 }) {
   const inGates = useMemo(() => {
     if (entryGates && entryGates.length > 0) {
-      return entryGates.map((g) => ({
-        label: g.id,
-        x: g.cells[0]?.x ?? 0,
-        y: g.cells[0]?.y ?? 0,
-        height: Math.max(1, g.cells.length),
-      }))
+      return entryGates.map((g) => {
+        const cells = g.cells && g.cells.length > 0 ? g.cells : [{ x: 0, y: 9 }]
+        const xs = cells.map((c) => c.x)
+        const ys = cells.map((c) => c.y)
+        return {
+          label: g.id,
+          centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+          centerY: (Math.min(...ys) + Math.max(...ys)) / 2,
+          cells,
+        }
+      })
     }
     return [
-      { label: 'IN-1', x: 0, y: 9, height: 3 },
-      { label: 'IN-2', x: 0, y: 14, height: 3 },
-      { label: 'IN-3', x: 0, y: 19, height: 3 },
+      { label: 'IN-1', centerX: 0, centerY: 9, cells: [{ x: 0, y: 8 }, { x: 0, y: 9 }, { x: 0, y: 10 }] },
+      { label: 'IN-2', centerX: 0, centerY: 14, cells: [{ x: 0, y: 13 }, { x: 0, y: 14 }, { x: 0, y: 15 }] },
+      { label: 'IN-3', centerX: 0, centerY: 19, cells: [{ x: 0, y: 18 }, { x: 0, y: 19 }, { x: 0, y: 20 }] },
     ]
   }, [entryGates])
 
   const outGates = useMemo(() => {
     if (exitGates && exitGates.length > 0) {
-      return exitGates.map((g) => ({
-        label: g.id,
-        x: g.cells[0]?.x ?? width - 1,
-        y: g.cells[0]?.y ?? 0,
-        height: Math.max(1, g.cells.length),
-      }))
+      return exitGates.map((g) => {
+        const cells = g.cells && g.cells.length > 0 ? g.cells : [{ x: width - 1, y: 9 }]
+        const xs = cells.map((c) => c.x)
+        const ys = cells.map((c) => c.y)
+        return {
+          label: g.id,
+          centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+          centerY: (Math.min(...ys) + Math.max(...ys)) / 2,
+          cells,
+        }
+      })
     }
     return [
-      { label: 'OUT-1', x: width - 1, y: 9, height: 3 },
-      { label: 'OUT-2', x: width - 1, y: 14, height: 3 },
-      { label: 'OUT-3', x: width - 1, y: 19, height: 3 },
+      { label: 'OUT-1', centerX: width - 1, centerY: 9, cells: [{ x: width - 1, y: 8 }, { x: width - 1, y: 9 }, { x: width - 1, y: 10 }] },
+      { label: 'OUT-2', centerX: width - 1, centerY: 14, cells: [{ x: width - 1, y: 13 }, { x: width - 1, y: 14 }, { x: width - 1, y: 15 }] },
+      { label: 'OUT-3', centerX: width - 1, centerY: 19, cells: [{ x: width - 1, y: 18 }, { x: width - 1, y: 19 }, { x: width - 1, y: 20 }] },
     ]
   }, [exitGates, width])
 
   return (
     <group>
       {inGates.map((g) => (
-        <group key={g.label} position={[g.x - offsetX, 0.01, g.y - offsetZ]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.9, g.height * 0.9]} />
-            <meshStandardMaterial color={palette.import} transparent opacity={0.35} />
-          </mesh>
-          <Text position={[0.55, 1.0, 0]} fontSize={0.28} color={palette.import} rotation={[0, Math.PI / 2, 0]}>
-            RECEIVING {g.label}
+        <group key={g.label} position={[g.centerX - offsetX, 0.05, g.centerY - offsetZ]}>
+          <Text
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.38}
+            fontWeight={800}
+            color={palette.import}
+            anchorX="center"
+            anchorY="middle"
+          >
+            {g.label}
           </Text>
         </group>
       ))}
       {outGates.map((g) => (
-        <group key={g.label} position={[g.x - offsetX, 0.01, g.y - offsetZ]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.9, g.height * 0.9]} />
-            <meshStandardMaterial color={palette.export} transparent opacity={0.35} />
-          </mesh>
-          <Text position={[-0.55, 1.0, 0]} fontSize={0.28} color={palette.export} rotation={[0, -Math.PI / 2, 0]}>
-            SHIPPING {g.label}
+        <group key={g.label} position={[g.centerX - offsetX, 0.05, g.centerY - offsetZ]}>
+          <Text
+            rotation={[-Math.PI / 2, 0, 0]}
+            fontSize={0.38}
+            fontWeight={800}
+            color={palette.export}
+            anchorX="center"
+            anchorY="middle"
+          >
+            {g.label}
           </Text>
         </group>
       ))}
@@ -1131,8 +1174,21 @@ export function Warehouse3DCanvas({
   // Precompute zone sets
   const { chargingSet, pickupSet, dropoffSet, nearObstacleSet } = useMemo(() => {
     const chg = new Set(world.charging_stations.map((p) => `${p.x},${p.y}`))
-    const pic = new Set(world.pickup_stations.map((p) => `${p.x},${p.y}`))
-    const drp = new Set(world.dropoff_stations.map((p) => `${p.x},${p.y}`))
+    
+    const pic = new Set<string>()
+    if (world.entry_gates && world.entry_gates.length > 0) {
+      world.entry_gates.forEach((g) => g.cells.forEach((c) => pic.add(`${c.x},${c.y}`)))
+    } else {
+      world.pickup_stations.forEach((p) => pic.add(`${p.x},${p.y}`))
+    }
+
+    const drp = new Set<string>()
+    if (world.exit_gates && world.exit_gates.length > 0) {
+      world.exit_gates.forEach((g) => g.cells.forEach((c) => drp.add(`${c.x},${c.y}`)))
+    } else {
+      world.dropoff_stations.forEach((p) => drp.add(`${p.x},${p.y}`))
+    }
+
     const near = new Set<string>()
     world.static_obstacles.forEach((p) => {
       near.add(`${p.x + 1},${p.y}`)

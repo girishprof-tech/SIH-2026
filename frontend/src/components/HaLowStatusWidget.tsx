@@ -20,7 +20,7 @@ export function HaLowStatusWidget({ status, currentTick }: Props) {
     <div className={`halow-status-card ${isStale ? 'halow-stale' : 'halow-active'}`}>
       <div className="halow-header">
         <div className="halow-title">
-          <Wifi size={14} className={isStale ? 'text-amber' : 'text-purple'} />
+          <Wifi size={14} className="halow-icon" />
           <span>WiFi HaLow (802.11ah)</span>
         </div>
         <span className={`halow-pill ${isStale ? 'pill-stale' : 'pill-active'}`}>
@@ -39,7 +39,7 @@ export function HaLowStatusWidget({ status, currentTick }: Props) {
         </div>
         <div className="halow-metric-item">
           <span className="halow-metric-label">Last Uplink</span>
-          <span className={`halow-metric-val ${isStale ? 'text-amber' : ''}`}>
+          <span className="halow-metric-val">
             {lastAgeSec < 1.0 ? '< 1s' : `${lastAgeSec.toFixed(1)}s`}
           </span>
         </div>
@@ -47,7 +47,7 @@ export function HaLowStatusWidget({ status, currentTick }: Props) {
 
       {isStale && (
         <div className="halow-stale-warning">
-          <AlertCircle size={12} />
+          <AlertCircle size={13} />
           <span>High channel load: snapshots coalescing</span>
         </div>
       )}
